@@ -14,8 +14,6 @@ import (
 // default "error: ..." printer.
 type ExitError int
 
-func (e ExitError) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
-
 // Config holds shared I/O writers and the root ff.Command.
 // All subcommand configs embed *Config to inherit these.
 type Config struct {
@@ -25,6 +23,8 @@ type Config struct {
 	Flags   *ff.FlagSet
 	Command *ff.Command
 }
+
+func (e ExitError) Error() string { return fmt.Sprintf("exit status %d", int(e)) }
 
 // New returns a new root Config with the given I/O writers.
 func New(stdin io.Reader, stdout, stderr io.Writer) *Config {
@@ -41,7 +41,15 @@ func New(stdin io.Reader, stdout, stderr io.Writer) *Config {
 	cfg.Command = &ff.Command{
 		Name:      "canonizer",
 		Usage:     "canonizer <SUBCOMMAND> ...",
-		ShortHelp: "TODO: describe canonizer here",
+		ShortHelp: "distill and synthesize Claude coding rulesets from source documents",
+		LongHelp: `canonizer turns source documents into Claude coding rulesets.
+
+  distill      fill a per-source distillation prompt for every file in a tree
+  synthesize   merge the distilled rulesets into one unified prompt
+
+Every path is a flag, and the prompt templates are built in; pass --template to
+override one. canonizer fills prompts for a model to run — it does not call a
+model itself.`,
 	}
 	return &cfg
 }
