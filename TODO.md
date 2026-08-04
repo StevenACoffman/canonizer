@@ -55,26 +55,30 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## P1 — independent verification (highest leverage)
+## P1 — independent verification (highest leverage) — IMPLEMENTED
 
-The `critic_step` bundle: **A + C + D** together move the pipeline from
-"self-refined" to "independently verified." This is the suggested first build.
+The `critic_step` bundle **A + C + D** is built: the `critic` command emits a
+cold-critic prompt; an agent runs it; the `gate` command self-tests, then blocks on
+the returned findings. This moves the pipeline from "self-refined" to "independently
+verified."
 
-- [ ] **A. Cold critic for rulesets.** Add a critic prompt asset + command that
-  emits a prompt giving a fresh grader *only* the source + candidate ruleset (never
-  the distillation), asking it to flag rules that are unsupported, redundant, or fail
-  the three-test bar. Per the prompt-filler posture, canonizer emits the prompt and
-  an agent runs it; the agent returns `skillet/finding.Diagnostic` findings that
-  canonizer gates on (D). No in-process agent spawning.
-- [ ] **C. Planted-defect negative control.** Inject a known-bad rule (vague /
-  unsupported / contradicts source) and confirm the cold critic rejects it; halt the
-  run if it passes. Mirrors adh's `oracle selftest`. Nothing today proves the gate
-  can fail.
-- [ ] **D. Structured findings + machine gate → `skillet/finding`.** Replace prose
-  self-report with `finding.Diagnostic{Severity,Category,Path,Message}`; the run does
-  not advance while any `unsupported`/`vague`/`duplicate` finding is open
-  (`Result.HasBlocking()` over error severity). canonizer already consumes skillet;
-  this is a direct offload.
+- [x] **A. Cold critic for rulesets.** `internal/prompt/critic_prompt.md` +
+  `internal/critic.FillPrompt` + the `canonizer critic --source --ruleset` command
+  emit a prompt giving a fresh grader *only* the source + candidate ruleset (never the
+  distillation), asking it to flag `unsupported`/`vague`/`duplicate` rules as strict
+  `skillet/finding` JSON. Prompt-filler posture: canonizer emits; an agent runs it.
+- [x] **C. Planted-defect negative control.** `internal/gate.SelfTest` feeds a planted
+  blocking finding and a clean one through the gate and errors unless it discriminates;
+  the `gate` command runs it every invocation (and `gate --selftest` runs it alone) and
+  refuses to gate if the control fails. Mirrors adh's `oracle selftest`.
+- [x] **D. Structured findings + machine gate → `skillet/finding`.** `canonizer gate`
+  parses the agent's findings into `finding.Result` and returns `root.ExitError(1)`
+  while `internal/gate.Blocking` finds any error-severity finding — the blocking
+  decision offloaded to skillet's severity model.
+
+Follow-ups surfaced while building: wire `critic`→`gate` into a scripted stage (F's
+rework loop); once the canonical-form work lands, feed each rule's ✗/✓ pair through the
+critic (B).
 
 ______________________________________________________________________
 
