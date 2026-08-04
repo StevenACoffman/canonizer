@@ -16,9 +16,10 @@ import (
 	"github.com/peterbourgon/ff/v4"
 	"github.com/peterbourgon/ff/v4/ffhelp"
 
+	"github.com/StevenACoffman/canonizer/cmd/distill"
 	"github.com/StevenACoffman/canonizer/cmd/root"
-	"github.com/StevenACoffman/canonizer/cmd/version"
-	// climax:imports
+	"github.com/StevenACoffman/canonizer/cmd/synthesize"
+	"github.com/StevenACoffman/canonizer/cmd/version" // climax:imports
 )
 
 // Run parses args and dispatches to the matching command.
@@ -32,6 +33,8 @@ import (
 func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	r := root.New(stdin, stdout, stderr)
 	version.New(r)
+	distill.New(r)
+	synthesize.New(r)
 	// register new commands here
 
 	if err := r.Command.Parse(args, ff.WithEnvVarPrefix("CANONIZER")); err != nil {
