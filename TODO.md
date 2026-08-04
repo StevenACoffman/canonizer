@@ -84,8 +84,9 @@ ______________________________________________________________________
   discriminating ✗/✓ worked-example pair to each `[MUST]`/`[SHOULD]`;
   `ruleset.Rule.Bad`/`Good` already model the pair. A cold agent (or `judge.Check` +
   `Score`) verifies the rule yields opposite verdicts on the pair. Rules with no
-  discriminating example fail the two-reviewer test and are cut. Requires emitting
-  rulesets in a parseable form — see *Ruleset parsing* below.
+  discriminating example fail the two-reviewer test and are cut. Depends on the
+  canonical-form output decided under *Ruleset parsing & verification* below (load via
+  `ruleset.Parse`).
 - [ ] **E. Proof-of-provenance → `skillet/{identity,proof,markdown}`.** Require each
   rule to cite the **source anchor** (section/quote) it derives from, plus a pass
   that confirms the anchor exists (`markdown` section lookup, deterministic) and —
@@ -109,12 +110,24 @@ ______________________________________________________________________
 
 ## Ruleset parsing & verification (canonizer-specific)
 
-- [ ] **Decide the ruleset output form.** `skillet/ruleset.Parse` round-trips only the
-  *canonical* `§N.M [SEV][LEVEL]` form `ruleset.Render` emits; the distilled
-  `*_rules.md` files are free-form (`## N.` + `**Do**`/`**Do not**`). Before any
-  verify command (B/E) can load rulesets as structured `ruleset.Rule`s, either the
-  synthesis prompt must emit the canonical form, or canonizer needs a free-form
-  reader. Resolve this before building B/E.
+- [x] **Decided: emit the canonical form.** The distill and synthesize prompts must
+  produce the canonical `§N.M [SEV][LEVEL]` form that `skillet/ruleset.Render` emits
+  and `ruleset.Parse` round-trips, rather than the free-form `## N.` +
+  `**Do**`/`**Do not**` layout. This makes structured loading (`[]ruleset.Rule`)
+  deterministic for the B/E verify commands, and honors skillet's locked
+  `Render`/`Parse` round-trip contract. Rejected: a free-form reader — parsing
+  free-form *model* output is brittle exactly where it must be reliable, and skillet
+  deliberately declined to parse hand-authored files.
+- [ ] **Emit canonical rulesets from the prompt templates.** Update the embedded
+  distill (and synthesize) templates so the model writes the `§N.M [SEV][LEVEL]
+  statement` + rationale + ✗/✓ form. Keep byte-compatibility with skillet's
+  placeholders (`{{SOURCE_CONTENT}}`/`{{DESTINATION_CONTENT}}`, `{{RULESETS}}`).
+  Optionally emit the rich prose alongside a canonical block if human readability
+  must be preserved. **Unblocks B and E.**
+- [ ] **Load rulesets via `ruleset.Parse` in the verify path.** Once templates emit
+  canonical form, replace the raw-text `synthesize.Input{Title, Body}` handling in the
+  verify commands with `ruleset.Parse` → `[]ruleset.Rule`, so B can feed each rule's
+  ✗/✓ pair to `judge` and E can attach per-rule provenance.
 
 ______________________________________________________________________
 
