@@ -49,10 +49,9 @@ ______________________________________________________________________
   now consumes `skillet/ruleset/synthesize` (`Marker`, `Input`, `FillTemplate`,
   `LoadInputs`), sibling to `ruleset/distill`. canonizer's `cmd/synthesize` is a thin
   shell (load → fill → write); exegesis/skillsaw can reuse the package.
-- [ ] **Bump skillet to the released tag.** `canonizer/go.mod` pins skillet to a branch
-  pseudo-version (`v0.3.1-0.…-58f3b7d`, the `ruleset-synthesize` PR commit) so the build
-  resolves the unreleased `ruleset/synthesize` package. After skillet merges and cuts a
-  release, `go mod edit -require=github.com/StevenACoffman/skillet@vX && go mod tidy`.
+- [x] **Bumped skillet to the released tag.** `canonizer/go.mod` now requires
+  `github.com/StevenACoffman/skillet v0.4.0` (was the `ruleset-synthesize` branch
+  pseudo-version); the `ruleset/synthesize` package is released.
 
 ______________________________________________________________________
 
