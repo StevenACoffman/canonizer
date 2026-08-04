@@ -16,7 +16,9 @@ import (
 	"github.com/peterbourgon/ff/v4"
 	"github.com/peterbourgon/ff/v4/ffhelp"
 
+	"github.com/StevenACoffman/canonizer/cmd/critic"
 	"github.com/StevenACoffman/canonizer/cmd/distill"
+	"github.com/StevenACoffman/canonizer/cmd/gate"
 	"github.com/StevenACoffman/canonizer/cmd/root"
 	"github.com/StevenACoffman/canonizer/cmd/synthesize"
 	"github.com/StevenACoffman/canonizer/cmd/version" // climax:imports
@@ -35,6 +37,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	version.New(r)
 	distill.New(r)
 	synthesize.New(r)
+	critic.New(r)
+	gate.New(r)
 	// register new commands here
 
 	if err := r.Command.Parse(args, ff.WithEnvVarPrefix("CANONIZER")); err != nil {
