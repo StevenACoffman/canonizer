@@ -126,7 +126,11 @@ func TestCriticEmitsPromptWithSourceAndRuleset(t *testing.T) {
 	src := filepath.Join(dir, "s.md")
 	rules := filepath.Join(dir, "s_rules.md")
 	writeFile(t, src, "SOURCE-SENTINEL body\n")
-	writeFile(t, rules, "RULESET-SENTINEL body\n")
+	writeFile(t, rules, "Source: demo\nScope:  Go\n\n"+
+		"§1.1  [MUST][CODE]  RULESET-SENTINEL: always close connections.\n"+
+		"      Leaked connections exhaust the pool.\n"+
+		"      ✗  defer nothing\n"+
+		"      ✓  defer conn.Close()\n")
 
 	stdout, err := run(t, "critic", "--source", src, "--ruleset", rules)
 	if err != nil {
@@ -136,6 +140,19 @@ func TestCriticEmitsPromptWithSourceAndRuleset(t *testing.T) {
 		if !strings.Contains(stdout, want) {
 			t.Errorf("emitted prompt missing %q", want)
 		}
+	}
+}
+
+func TestCriticRejectsNonCanonicalRuleset(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	src := filepath.Join(dir, "s.md")
+	rules := filepath.Join(dir, "s_rules.md")
+	writeFile(t, src, "a source\n")
+	writeFile(t, rules, "§1  no severity or level tags here\n") // malformed header
+	if _, err := run(t, "critic", "--source", src, "--ruleset", rules); err == nil ||
+		!strings.Contains(err.Error(), "critic:") {
+		t.Errorf("got %v, want a critic parse error for a non-canonical ruleset", err)
 	}
 }
 

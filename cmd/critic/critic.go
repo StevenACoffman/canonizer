@@ -15,6 +15,7 @@ import (
 	"github.com/StevenACoffman/canonizer/cmd/root"
 	crit "github.com/StevenACoffman/canonizer/internal/critic"
 	"github.com/StevenACoffman/canonizer/internal/prompt"
+	"github.com/StevenACoffman/skillet/ruleset"
 	errors "github.com/StevenACoffman/toerr/errors"
 )
 
@@ -78,11 +79,16 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 	if err != nil {
 		return errors.WrapWithMessage(err, "critic: read source", slog.String("path", cfg.Source))
 	}
-	ruleset, err := os.ReadFile(cfg.Ruleset)
+	candidate, err := os.ReadFile(cfg.Ruleset)
 	if err != nil {
 		return errors.WrapWithMessage(err, "critic: read ruleset", slog.String("path", cfg.Ruleset))
 	}
-	filled, err := crit.FillPrompt(tmpl, string(source), string(ruleset))
+	rs, err := ruleset.Parse(string(candidate))
+	if err != nil {
+		return errors.WrapWithMessage(err, "critic: candidate ruleset")
+	}
+	_, _ = fmt.Fprintf(cfg.Stderr, "critic: critiquing %d rule(s)\n", len(rs.Rules))
+	filled, err := crit.FillPrompt(tmpl, string(source), string(candidate))
 	if err != nil {
 		return errors.Wrap(err) // crit already prefixes "critic:"
 	}
