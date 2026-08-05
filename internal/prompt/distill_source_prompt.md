@@ -23,24 +23,26 @@ deployment plan — and reach the same verdict the source's author would reach.
 
 ---
 
-## Output structure
+## Output format
 
-Begin the output with a metadata block:
+The output is parsed mechanically. It must contain **only** a two-line metadata block
+followed by rule blocks — nothing else. Any line that is not `Source:`, `Scope:`, a
+`§` rule header, a rationale line, a `✗` line, or a `✓` line will corrupt the parse. Do
+not emit Markdown headings, tables, prose, blank rules, or commentary.
+
+Begin with the metadata block:
 
 ```
 Source: [title and author, or "unknown" if not stated]
 Scope:  [language(s), paradigm(s), domain(s), and architectural context — derived from the source, not assumed]
 ```
 
-Then numbered sections derived from the source's own structure, numbered 1,
-2, 3 … in the order they appear in the output, independent of any numbering in
-the source. Order sections so that foundational constraints precede derived
-ones — a rule constraining how other rules are applied belongs before the rules
-it constrains. Each section contains rules followed by an anti-patterns table.
-Close with a master anti-patterns table across all sections.
-
-If the source has no clear section structure, derive sections from the dominant
-concerns the rules cluster around. Do not produce a flat list.
+Then a flat sequence of rule blocks. Grouping is carried by the section number in each
+`§N.M` header, not by headings: rules that share a concern share the leading `N`
+(`§1.1`, `§1.2`, then `§2.1`, …). Number sections in the order they appear, so that
+foundational constraints precede derived ones — a rule constraining how other rules are
+applied belongs before the rules it constrains. Within a section, order `[MUST]` before
+`[SHOULD]` before `[CONSIDER]`, and more fundamental rules before derived ones.
 
 ### Rule format
 
@@ -72,11 +74,6 @@ misapplied. For `[CODE]` rules, show a code contrast. For `[ARCH]` rules, show
 a structural contrast. For `[METHOD]` rules, a concrete counter-example is
 sufficient when one exists in the source. Use the source's own examples wherever
 available — they are the most authoritative test cases.
-
-### Anti-patterns table format
-
-| Anti-pattern | Level | Rule violated | Failure mode | Preferred alternative |
-|---|---|---|---|---|
 
 ---
 
@@ -186,6 +183,9 @@ Restatements of the principle in abstract terms do not pass.
 | "Design for scalability." | "Do not use a shared mutable data store as the coordination mechanism between independently deployed services; it couples their deployment schedules and makes independent scaling impossible. `[MUST][ARCH]`" |
 | "Write testable code." | "Do not instantiate collaborators inside a function; accept them as parameters so tests can substitute them without rewriting the function under test. `[MUST][CODE]`" |
 
+The trailing `[SEV][LEVEL]` above marks each example's tags for reference only; in the
+output the tags belong in the `§N.M  [SEV][LEVEL]` header, never trailing the statement.
+
 ---
 
 ## Special cases
@@ -199,13 +199,14 @@ conservatively).*
 
 ### Conditionality
 
-When the source's advice depends on context, express the condition explicitly
-rather than hedging:
+When the source's advice depends on context, express the condition explicitly in the
+statement rather than hedging, and put the deciding criterion in the rationale — both
+stay inside the rule block:
 
-> `§4.1  [MUST][ARCH]`  When a service boundary crosses a team boundary, treat
-> inter-service calls as untrusted external I/O. When both sides of the boundary
-> are owned by the same team, a shared library is acceptable.
-> **Criterion:** ownership determines the boundary type, not deployment topology.
+```
+§4.1  [MUST][ARCH]  When a service boundary crosses a team boundary, treat inter-service calls as untrusted external I/O; when both sides are owned by one team, a shared library is acceptable.
+      Ownership determines the boundary type, not deployment topology, so a call within one team need not pay the cost of untrusted I/O.
+```
 
 ### Contradictions
 
@@ -217,9 +218,9 @@ prefer the position that matches Claude's training.
 ### Source versus Claude's defaults
 
 When a rule from the source conflicts with Claude's general training or common
-practice, the source takes precedence. Mark such rules with a trailing note:
-
-> *(Overrides common practice — apply as stated.)*
+practice, the source takes precedence. Note the override *inside* the statement so it
+stays on the rule's own header line — end the statement with
+`(overrides common practice — apply as stated)` — rather than on a separate line.
 
 ---
 
@@ -257,10 +258,8 @@ Before submitting, confirm each rule satisfies all of the following:
    not a description of what good developers do.
 6. **Source fidelity:** No rule asserts more than the source supports. Where the
    source hedges, the rule hedges or assigns lower severity.
-7. **Anti-patterns tables:** Every section has a populated anti-patterns table;
-   the master table is present. Each table includes patterns the source warns
-   against that do not rise to a dedicated rule, in addition to the ✗ examples
-   drawn from the section's rules.
+7. **Format purity:** The document contains only the `Source:`/`Scope:` lines and
+   `§` rule blocks — no headings, tables, or lines outside a rule block.
 
 Revise or drop any rule that fails. Do not pad the ruleset to appear
 comprehensive.

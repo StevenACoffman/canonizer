@@ -122,16 +122,19 @@ ______________________________________________________________________
   `Render`/`Parse` round-trip contract. Rejected: a free-form reader — parsing
   free-form *model* output is brittle exactly where it must be reliable, and skillet
   deliberately declined to parse hand-authored files.
-- [ ] **Emit canonical rulesets from the prompt templates.** Update the embedded
-  distill (and synthesize) templates so the model writes the `§N.M [SEV][LEVEL]
-  statement` + rationale + ✗/✓ form. Keep byte-compatibility with skillet's
-  placeholders (`{{SOURCE_CONTENT}}`/`{{DESTINATION_CONTENT}}`, `{{RULESETS}}`).
-  Optionally emit the rich prose alongside a canonical block if human readability
-  must be preserved. **Unblocks B and E.**
-- [ ] **Load rulesets via `ruleset.Parse` in the verify path.** Once templates emit
-  canonical form, replace the raw-text `synthesize.Input{Title, Body}` handling in the
-  verify commands with `ruleset.Parse` → `[]ruleset.Rule`, so B can feed each rule's
-  ✗/✓ pair to `judge` and E can attach per-rule provenance.
+- [x] **Emit canonical rulesets from the prompt templates.** Both embedded templates
+  now instruct **pure canonical** output — a `Source:`/`Scope:` block then a flat
+  sequence of `§N.M [SEV][LEVEL]` rule blocks (rationale, ✗, ✓), grouped by the section
+  number, with no `##` headings, tables, appendices, or stray lines (any of which would
+  corrupt `ruleset.Parse`). The `{{SOURCE_CONTENT}}`/`{{DESTINATION_CONTENT}}` and
+  `{{RULESETS}}` placeholders are unchanged. A `prompt_test` token guard catches a
+  future edit that drops the format. Chose pure canonical over prose+canonical (no
+  extractor, no drift). **Unblocks B and E.**
+- [x] **Load rulesets via `ruleset.Parse` in the verify path.** `critic` now parses the
+  candidate ruleset through `skillet/ruleset.Parse` before emitting the prompt: a
+  non-canonical ruleset fails fast (`critic: candidate ruleset: …`), and it reports the
+  rule count. The parsed `[]ruleset.Rule` is the seam B (feed each ✗/✓ pair to `judge`)
+  and E (per-rule provenance) will consume.
 
 ______________________________________________________________________
 
