@@ -102,9 +102,9 @@ The `verify` command runs both deterministic gates over a parsed ruleset and emi
   - [x] **skillet prerequisite (done):** `ruleset.Rule` gained a `SourceAnchor` field,
     emitted/parsed as an indented `↦` line and round-trip-preserved. Both templates now
     instruct a `↦ <anchor>` line per enforced rule.
-- [ ] **Bump skillet to the released tag.** `canonizer/go.mod` pins skillet to the
-  `ruleset-source-anchor` branch pseudo-version (`v0.4.1-0.…-7ed14c9f`) for the
-  unreleased `SourceAnchor`. After the skillet PR merges and releases, bump to the tag.
+- [x] **Bumped skillet to the released tag.** `canonizer/go.mod` now requires
+  `github.com/StevenACoffman/skillet v0.5.0` (was the `ruleset-source-anchor` branch
+  pseudo-version); `SourceAnchor` is released.
 
 ______________________________________________________________________
 
