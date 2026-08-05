@@ -42,14 +42,17 @@ func New(stdin io.Reader, stdout, stderr io.Writer) *Config {
 		Name:      "canonizer",
 		Usage:     "canonizer <SUBCOMMAND> ...",
 		ShortHelp: "distill and synthesize Claude coding rulesets from source documents",
-		LongHelp: `canonizer turns source documents into Claude coding rulesets.
+		LongHelp: `canonizer turns source documents into Claude coding rulesets. It fills
+prompts for an agent to run — it never calls a model itself — and deterministically
+gates the results. Every path is a flag; the prompt templates are built in.
 
-  distill      fill a per-source distillation prompt for every file in a tree
-  synthesize   merge the distilled rulesets into one unified prompt
+Pipeline: distill a source tree into per-source prompts; an agent produces canonical
+*_rules.md; synthesize merges them into one; verify and critic surface findings; gate
+blocks on them; budget bounds the rework loop and escalates to a human when the budget
+is spent.
 
-Every path is a flag, and the prompt templates are built in; pass --template to
-override one. canonizer fills prompts for a model to run — it does not call a
-model itself.`,
+Model policy: run the emitted distill, synthesize, and critic prompts on a
+reasoning-class model. canonizer does not enforce this — it is a convention.`,
 	}
 	return &cfg
 }
