@@ -202,3 +202,27 @@ func TestGateSelfTestPasses(t *testing.T) {
 		t.Errorf("expected self-test pass report, got %q", stdout)
 	}
 }
+
+func TestVerifyEmitsFindingsForUnexecutableRule(t *testing.T) {
+	t.Parallel()
+	rules := filepath.Join(t.TempDir(), "r_rules.md")
+	writeFile(t, rules, "Source: d\nScope:  Go\n\n"+
+		"§1.1  [MUST][CODE]  A rule with no discriminating examples.\n"+
+		"      Some rationale.\n")
+	stdout, err := run(t, "verify", "--ruleset", rules)
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if !strings.Contains(stdout, "unexecutable") ||
+		!strings.Contains(stdout, `"severity": "error"`) {
+		t.Errorf("expected an unexecutable error finding, got %q", stdout)
+	}
+}
+
+func TestVerifyRequiresRuleset(t *testing.T) {
+	t.Parallel()
+	if _, err := run(t, "verify"); err == nil ||
+		!strings.Contains(err.Error(), "--ruleset is required") {
+		t.Errorf("got %v, want a missing --ruleset error", err)
+	}
+}
