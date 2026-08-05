@@ -27,8 +27,12 @@ deployment plan — and reach the same verdict the source's author would reach.
 
 The output is parsed mechanically. It must contain **only** a two-line metadata block
 followed by rule blocks — nothing else. Any line that is not `Source:`, `Scope:`, a
-`§` rule header, a rationale line, a `✗` line, or a `✓` line will corrupt the parse. Do
-not emit Markdown headings, tables, prose, blank rules, or commentary.
+`§` rule header, a rationale line, a `✗` line, a `✓` line, or a `↦` source-anchor line
+will corrupt the parse. Do not emit Markdown headings, tables, prose, blank rules, or
+commentary.
+
+Every `[MUST]` and `[SHOULD]` rule must end with a `↦` line: a short quote or section
+reference from the source that this rule derives from, so its provenance is auditable.
 
 Begin with the metadata block:
 
@@ -52,6 +56,7 @@ applied belongs before the rules it constrains. Within a section, order `[MUST]`
       operation failed; bugs become invisible until they corrupt state downstream.
       ✗  result, _ = db.Exec(query)
       ✓  result, err = db.Exec(query); if err != nil { return fmt.Errorf(...) }
+      ↦  §Errors: "never ignore the value returned by a function"
 
 §5.1  [MUST][ARCH]   Keep business logic out of the persistence layer.
       Embedding domain rules in stored procedures or ORM hooks couples

@@ -21,6 +21,7 @@ import (
 	"github.com/StevenACoffman/canonizer/cmd/gate"
 	"github.com/StevenACoffman/canonizer/cmd/root"
 	"github.com/StevenACoffman/canonizer/cmd/synthesize"
+	"github.com/StevenACoffman/canonizer/cmd/verify"
 	"github.com/StevenACoffman/canonizer/cmd/version" // climax:imports
 )
 
@@ -39,6 +40,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	synthesize.New(r)
 	critic.New(r)
 	gate.New(r)
+	verify.New(r)
 	// register new commands here
 
 	if err := r.Command.Parse(args, ff.WithEnvVarPrefix("CANONIZER")); err != nil {
