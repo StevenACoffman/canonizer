@@ -108,13 +108,16 @@ The `verify` command runs both deterministic gates over a parsed ruleset and emi
 
 ______________________________________________________________________
 
-## P3 — loop governance
+## P3 — loop governance — IMPLEMENTED
 
-- [ ] **F. Rework budget with terminal escalation.** Enforce a hard cap of N
-  refine cycles; after N a ruleset either passes the cold critic or is flagged
-  `needs-human` — never silently shipped. Today the 2–3 cap is advice, not enforced.
-- [ ] **G. Model-gate (convention only).** State as policy: run critic/synthesis on
-  a reasoning-class model. No enforcing seam exists, so it is a convention.
+- [x] **F. Rework budget with terminal escalation.** `internal/budget.Decide` returns
+  ship / rework / needs-human from the blocking state and the attempt counter; the
+  `budget` command reads a findings result and exits 0 / 2 / 1 so a driver loops while
+  budget remains and escalates to `needs-human` once it is spent — a blocked ruleset is
+  never shipped. The driver keeps the counter, so `Decide` stays pure and stateless.
+- [x] **G. Model-gate (convention only).** Stated in the root command's LongHelp: run
+  the emitted distill/synthesize/critic prompts on a reasoning-class model; canonizer
+  does not enforce it. No mechanism — a convention, as scoped.
 
 ______________________________________________________________________
 
