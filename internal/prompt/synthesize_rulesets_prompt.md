@@ -35,8 +35,9 @@ Synthesise the following rulesets into a single unified ruleset:
 Output **only** the final canonical ruleset. Run the synthesis pipeline below as
 internal reasoning; do not emit group inventories, per-step output, section headings,
 tables, or commentary. The result is parsed mechanically — any line that is not
-`Source:`, `Scope:`, a `§` rule header, a rationale line, a `✗` line, or a `✓` line
-corrupts it.
+`Source:`, `Scope:`, a `§` rule header, a rationale line, a `✗` line, a `✓` line, or a
+`↦` source-anchor line corrupts it. Carry each input rule's `↦` source anchor through
+to the merged rule (keep the surviving rule's anchor when merging a group).
 
 Begin with the metadata block:
 
@@ -55,6 +56,7 @@ Rule format is unchanged from the input rulesets:
       Rationale naming the concrete failure mode on violation.
       ✗  Counter-example
       ✓  Preferred alternative
+      ↦  Source anchor carried from the input rule
 ```
 
 ---

@@ -56,7 +56,7 @@ func TestTemplatesSpecifyCanonicalForm(t *testing.T) {
 	t.Parallel()
 	templates := map[string]string{"Distill": prompt.Distill, "Synthesize": prompt.Synthesize}
 	for name, tmpl := range templates {
-		for _, tok := range []string{"Source:", "Scope:", "§", "[MUST]", "✗", "✓"} {
+		for _, tok := range []string{"Source:", "Scope:", "§", "[MUST]", "✗", "✓", "↦"} {
 			if !strings.Contains(tmpl, tok) {
 				t.Errorf("%s template no longer specifies the canonical token %q", name, tok)
 			}
