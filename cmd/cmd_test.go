@@ -226,3 +226,38 @@ func TestVerifyRequiresRuleset(t *testing.T) {
 		t.Errorf("got %v, want a missing --ruleset error", err)
 	}
 }
+
+func TestBudgetShipsCleanFindings(t *testing.T) {
+	t.Parallel()
+	f := filepath.Join(t.TempDir(), "f.json")
+	writeFile(t, f, `{"diagnostics":[]}`)
+	stdout, err := run(t, "budget", "--findings", f, "--attempt", "1", "--max", "3")
+	if err != nil {
+		t.Fatalf("budget: %v", err)
+	}
+	if !strings.Contains(stdout, "ship") {
+		t.Errorf("expected ship verdict, got %q", stdout)
+	}
+}
+
+func TestBudgetReworksWithBudgetRemaining(t *testing.T) {
+	t.Parallel()
+	f := filepath.Join(t.TempDir(), "f.json")
+	writeFile(t, f, `{"diagnostics":[{"severity":"error","message":"x"}]}`)
+	_, err := run(t, "budget", "--findings", f, "--attempt", "1", "--max", "3")
+	var exit root.ExitError
+	if !errors.As(err, &exit) || int(exit) != 2 {
+		t.Errorf("got %v, want root.ExitError(2) (rework)", err)
+	}
+}
+
+func TestBudgetEscalatesWhenBudgetSpent(t *testing.T) {
+	t.Parallel()
+	f := filepath.Join(t.TempDir(), "f.json")
+	writeFile(t, f, `{"diagnostics":[{"severity":"error","message":"x"}]}`)
+	_, err := run(t, "budget", "--findings", f, "--attempt", "3", "--max", "3")
+	var exit root.ExitError
+	if !errors.As(err, &exit) || int(exit) != 1 {
+		t.Errorf("got %v, want root.ExitError(1) (needs-human)", err)
+	}
+}
