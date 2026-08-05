@@ -3,6 +3,11 @@
 // whether to ship, rework, or escalate to a human. Decide is pure; the command maps
 // the verdict to an exit code. The invariant: a ruleset with blocking findings is
 // never Ship.
+//
+// The decision is findings-based, never a model self-score: a self-assessed score is
+// inflated, so the ship gate is the cold critic plus the deterministic findings gate,
+// not the producer grading itself (the refinement policy in `canonizer --help`). Do
+// not add a self-score threshold here.
 package budget
 
 // The rework verdicts (also the words the command prints).
