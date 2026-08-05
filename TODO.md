@@ -149,10 +149,13 @@ ______________________________________________________________________
 
 ## Housekeeping (from ai_skill_todo)
 
-- [ ] **Rubric scores are relative, not absolute.** The self-assessment rubric should
-  gate only on *delta between iterations*; the **cold critic (A)** — not the
-  self-score — is the real ship gate. This is the core self-assessment weakness
-  showing up in the gate's own arithmetic.
+- [x] **Rubric scores are relative, not absolute.** canonizer's ship gate is already
+  findings-based by design — the cold critic (A) plus the deterministic `verify` → `gate`
+  → `budget` chain, never a model self-score (grep confirms no self-score/absolute
+  threshold anywhere). The policy is now recorded so it stays that way: a "Refinement
+  policy" note in the root help (beside the model policy) and a rationale at the
+  `internal/budget` seam — a self-score, if ever added, is advisory (iteration-delta
+  only) and never gates adoption.
 - Note: ai_skill_todo's "duplicate `distill_step/`" item is a `go-advice` source-repo
   concern; canonizer sidesteps it by taking `--source`/`--out` as flags rather than
   baking a source tree into a script.

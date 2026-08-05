@@ -52,7 +52,12 @@ blocks on them; budget bounds the rework loop and escalates to a human when the 
 is spent.
 
 Model policy: run the emitted distill, synthesize, and critic prompts on a
-reasoning-class model. canonizer does not enforce this — it is a convention.`,
+reasoning-class model. canonizer does not enforce this — it is a convention.
+
+Refinement policy: the ship gate is the cold critic plus the deterministic findings
+gate (verify → gate → budget), never a model self-score. A self-assessed score is
+inflated, so if one is ever added, use it only to compare iterations — did a rework
+improve? — and never to gate adoption.`,
 	}
 	return &cfg
 }
