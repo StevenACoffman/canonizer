@@ -82,23 +82,29 @@ critic (B).
 
 ______________________________________________________________________
 
-## P2 — executable rules & provenance
+## P2 — executable rules & provenance — IMPLEMENTED
 
-- [ ] **B. "Findings must run" → `skillet/ruleset` + `skillet/judge`.** Attach a
-  discriminating ✗/✓ worked-example pair to each `[MUST]`/`[SHOULD]`;
-  `ruleset.Rule.Bad`/`Good` already model the pair. A cold agent (or `judge.Check` +
-  `Score`) verifies the rule yields opposite verdicts on the pair. Rules with no
-  discriminating example fail the two-reviewer test and are cut. Depends on the
-  canonical-form output decided under *Ruleset parsing & verification* below (load via
-  `ruleset.Parse`).
-- [ ] **E. Proof-of-provenance → `skillet/{identity,proof,markdown}`.** Require each
-  rule to cite the **source anchor** (section/quote) it derives from, plus a pass
-  that confirms the anchor exists (`markdown` section lookup, deterministic) and —
-  via an agent-run prompt — that it supports the claim. Hash-bind rule↔source with
-  `proof.Artifact`/`identity.Hash`.
-  - [ ] **skillet prerequisite:** add a per-rule `SourceAnchor` field to
-    `ruleset.Rule` — today `Source` is ruleset-level, so provenance can't bind per
-    rule.
+The `verify` command runs both deterministic gates over a parsed ruleset and emits
+`skillet/finding` JSON for `gate` to block on:
+`canonizer verify --ruleset R --source S | canonizer gate`.
+
+- [x] **B. "Findings must run" → `skillet/ruleset` + `skillet/judge`.**
+  `internal/verify.Executable` flags every enforced (`[MUST]`/`[SHOULD]`) rule that
+  lacks a discriminating ✗/✓ pair — one with no ✗/✓, or whose ✓ appears verbatim inside
+  its ✗ (scored with `judge.OpContains`). The semantic verdict-flip stays the cold
+  critic's (A) job.
+- [x] **E. Proof-of-provenance → `skillet/{proof,identity}`.**
+  `internal/verify.Provenance` flags every enforced rule with no source anchor or an
+  anchor absent from the source (whitespace-normalized). `verify --proof P` writes a
+  `proof` packet binding the ruleset and source bytes (`identity.Hash`). Whether an
+  anchor *supports* the claim is the critic's `unsupported` category, so E adds no new
+  prompt.
+  - [x] **skillet prerequisite (done):** `ruleset.Rule` gained a `SourceAnchor` field,
+    emitted/parsed as an indented `↦` line and round-trip-preserved. Both templates now
+    instruct a `↦ <anchor>` line per enforced rule.
+- [ ] **Bump skillet to the released tag.** `canonizer/go.mod` pins skillet to the
+  `ruleset-source-anchor` branch pseudo-version (`v0.4.1-0.…-7ed14c9f`) for the
+  unreleased `SourceAnchor`. After the skillet PR merges and releases, bump to the tag.
 
 ______________________________________________________________________
 
