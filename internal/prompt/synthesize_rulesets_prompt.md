@@ -30,23 +30,23 @@ Synthesise the following rulesets into a single unified ruleset:
 
 ---
 
-## Output structure
+## Output format
 
-Begin with a metadata block:
+Output **only** the final canonical ruleset. Run the synthesis pipeline below as
+internal reasoning; do not emit group inventories, per-step output, section headings,
+tables, or commentary. The result is parsed mechanically — any line that is not
+`Source:`, `Scope:`, a `§` rule header, a rationale line, a `✗` line, or a `✓` line
+corrupts it.
+
+Begin with the metadata block:
 
 ```
-Sources:          [title and author for each input ruleset]
-Scope:            [union of all input scopes; per-rule annotations where scopes diverge]
-Synthesised from: [N rulesets]
+Source: [the synthesised set — condense the input titles/authors to one line]
+Scope:  [union of all input scopes; note a narrower scope in the rule's own statement where scopes diverge]
 ```
 
-Then numbered sections in a structure derived from the inputs (see Step 2).
-Each section ends with an anti-patterns table that consolidates the ✗
-counter-examples from that section's rules plus any anti-patterns the source
-documents name that do not rise to a full rule. The document ends with a master
-anti-patterns table across all sections; apply the same A–E cases to merge,
-subsume, or resolve conflicting anti-pattern entries just as you do for rules —
-do not concatenate the section tables.
+Then a flat sequence of rule blocks, grouped by the section number in each `§N.M`
+header (Step 2 derives the sections); do not add section headings.
 
 Rule format is unchanged from the input rulesets:
 
@@ -248,8 +248,9 @@ Ruleset 2 §6.1  → dropped      (failed replacement test: negation equally def
 Ruleset 2 §6.2  → output §5.3  (unique, Case E, rewritten to pass failure-mode test)
 ```
 
-This accounting appears as an appendix to the output, not inline. Its purpose
-is to make the synthesis auditable. Every input rule must have an entry.
+Produce this accounting as internal reasoning to guide pruning and confirm coverage —
+every input rule must have an entry — but do **not** include it in the output file. The
+output is the canonical ruleset only; an appendix here would corrupt the parse.
 
 ---
 
@@ -290,13 +291,16 @@ apply the rule:
 3. A rule's scope is narrower than the combined document's scope — append the
    scope annotation.
 
+Every annotation goes *inside* the rule — folded into the statement or the rationale
+line — never on a line of its own, which would corrupt the parse.
+
 ---
 
 ## Verification pass
 
 Before submitting, confirm:
 
-1. **Coverage:** The coverage accounting appendix has an entry for every rule in
+1. **Coverage:** The internal coverage accounting has an entry for every rule in
    every input. No rule is silently absent.
 2. **Compression:** The output has fewer rules than the sum of all inputs.
    If not, re-examine every group resolved as Case C for whether it should have

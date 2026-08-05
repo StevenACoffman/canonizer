@@ -47,3 +47,19 @@ func TestEmbeddedDefaultsCarryPlaceholders(t *testing.T) {
 		t.Error("Synthesize default is missing the {{RULESETS}} marker")
 	}
 }
+
+// TestTemplatesSpecifyCanonicalForm guards against a template edit that silently
+// drops the canonical ruleset format the distill/synthesize prompts must instruct —
+// the format skillet/ruleset.Parse reads. It is a token check, not a Parse round-trip
+// (skillet tests that); it only catches gross drift.
+func TestTemplatesSpecifyCanonicalForm(t *testing.T) {
+	t.Parallel()
+	templates := map[string]string{"Distill": prompt.Distill, "Synthesize": prompt.Synthesize}
+	for name, tmpl := range templates {
+		for _, tok := range []string{"Source:", "Scope:", "§", "[MUST]", "✗", "✓"} {
+			if !strings.Contains(tmpl, tok) {
+				t.Errorf("%s template no longer specifies the canonical token %q", name, tok)
+			}
+		}
+	}
+}
