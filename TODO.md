@@ -55,26 +55,30 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## P1 — independent verification (highest leverage)
+## P1 — independent verification (highest leverage) — IMPLEMENTED
 
-The `critic_step` bundle: **A + C + D** together move the pipeline from
-"self-refined" to "independently verified." This is the suggested first build.
+The `critic_step` bundle **A + C + D** is built: the `critic` command emits a
+cold-critic prompt; an agent runs it; the `gate` command self-tests, then blocks on
+the returned findings. This moves the pipeline from "self-refined" to "independently
+verified."
 
-- [ ] **A. Cold critic for rulesets.** Add a critic prompt asset + command that
-  emits a prompt giving a fresh grader *only* the source + candidate ruleset (never
-  the distillation), asking it to flag rules that are unsupported, redundant, or fail
-  the three-test bar. Per the prompt-filler posture, canonizer emits the prompt and
-  an agent runs it; the agent returns `skillet/finding.Diagnostic` findings that
-  canonizer gates on (D). No in-process agent spawning.
-- [ ] **C. Planted-defect negative control.** Inject a known-bad rule (vague /
-  unsupported / contradicts source) and confirm the cold critic rejects it; halt the
-  run if it passes. Mirrors adh's `oracle selftest`. Nothing today proves the gate
-  can fail.
-- [ ] **D. Structured findings + machine gate → `skillet/finding`.** Replace prose
-  self-report with `finding.Diagnostic{Severity,Category,Path,Message}`; the run does
-  not advance while any `unsupported`/`vague`/`duplicate` finding is open
-  (`Result.HasBlocking()` over error severity). canonizer already consumes skillet;
-  this is a direct offload.
+- [x] **A. Cold critic for rulesets.** `internal/prompt/critic_prompt.md` +
+  `internal/critic.FillPrompt` + the `canonizer critic --source --ruleset` command
+  emit a prompt giving a fresh grader *only* the source + candidate ruleset (never the
+  distillation), asking it to flag `unsupported`/`vague`/`duplicate` rules as strict
+  `skillet/finding` JSON. Prompt-filler posture: canonizer emits; an agent runs it.
+- [x] **C. Planted-defect negative control.** `internal/gate.SelfTest` feeds a planted
+  blocking finding and a clean one through the gate and errors unless it discriminates;
+  the `gate` command runs it every invocation (and `gate --selftest` runs it alone) and
+  refuses to gate if the control fails. Mirrors adh's `oracle selftest`.
+- [x] **D. Structured findings + machine gate → `skillet/finding`.** `canonizer gate`
+  parses the agent's findings into `finding.Result` and returns `root.ExitError(1)`
+  while `internal/gate.Blocking` finds any error-severity finding — the blocking
+  decision offloaded to skillet's severity model.
+
+Follow-ups surfaced while building: wire `critic`→`gate` into a scripted stage (F's
+rework loop); once the canonical-form work lands, feed each rule's ✗/✓ pair through the
+critic (B).
 
 ______________________________________________________________________
 
@@ -84,8 +88,9 @@ ______________________________________________________________________
   discriminating ✗/✓ worked-example pair to each `[MUST]`/`[SHOULD]`;
   `ruleset.Rule.Bad`/`Good` already model the pair. A cold agent (or `judge.Check` +
   `Score`) verifies the rule yields opposite verdicts on the pair. Rules with no
-  discriminating example fail the two-reviewer test and are cut. Requires emitting
-  rulesets in a parseable form — see *Ruleset parsing* below.
+  discriminating example fail the two-reviewer test and are cut. Depends on the
+  canonical-form output decided under *Ruleset parsing & verification* below (load via
+  `ruleset.Parse`).
 - [ ] **E. Proof-of-provenance → `skillet/{identity,proof,markdown}`.** Require each
   rule to cite the **source anchor** (section/quote) it derives from, plus a pass
   that confirms the anchor exists (`markdown` section lookup, deterministic) and —
@@ -109,12 +114,24 @@ ______________________________________________________________________
 
 ## Ruleset parsing & verification (canonizer-specific)
 
-- [ ] **Decide the ruleset output form.** `skillet/ruleset.Parse` round-trips only the
-  *canonical* `§N.M [SEV][LEVEL]` form `ruleset.Render` emits; the distilled
-  `*_rules.md` files are free-form (`## N.` + `**Do**`/`**Do not**`). Before any
-  verify command (B/E) can load rulesets as structured `ruleset.Rule`s, either the
-  synthesis prompt must emit the canonical form, or canonizer needs a free-form
-  reader. Resolve this before building B/E.
+- [x] **Decided: emit the canonical form.** The distill and synthesize prompts must
+  produce the canonical `§N.M [SEV][LEVEL]` form that `skillet/ruleset.Render` emits
+  and `ruleset.Parse` round-trips, rather than the free-form `## N.` +
+  `**Do**`/`**Do not**` layout. This makes structured loading (`[]ruleset.Rule`)
+  deterministic for the B/E verify commands, and honors skillet's locked
+  `Render`/`Parse` round-trip contract. Rejected: a free-form reader — parsing
+  free-form *model* output is brittle exactly where it must be reliable, and skillet
+  deliberately declined to parse hand-authored files.
+- [ ] **Emit canonical rulesets from the prompt templates.** Update the embedded
+  distill (and synthesize) templates so the model writes the `§N.M [SEV][LEVEL]
+  statement` + rationale + ✗/✓ form. Keep byte-compatibility with skillet's
+  placeholders (`{{SOURCE_CONTENT}}`/`{{DESTINATION_CONTENT}}`, `{{RULESETS}}`).
+  Optionally emit the rich prose alongside a canonical block if human readability
+  must be preserved. **Unblocks B and E.**
+- [ ] **Load rulesets via `ruleset.Parse` in the verify path.** Once templates emit
+  canonical form, replace the raw-text `synthesize.Input{Title, Body}` handling in the
+  verify commands with `ruleset.Parse` → `[]ruleset.Rule`, so B can feed each rule's
+  ✗/✓ pair to `judge` and E can attach per-rule provenance.
 
 ______________________________________________________________________
 

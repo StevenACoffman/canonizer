@@ -19,10 +19,18 @@ import (
 var Distill string
 
 // Synthesize is the default multi-ruleset synthesis template. Its single
-// {{RULESETS}} marker is filled by internal/synth with one block per input.
+// {{RULESETS}} marker is filled by skillet/ruleset/synthesize with one block per
+// input.
 //
 //go:embed synthesize_rulesets_prompt.md
 var Synthesize string
+
+// Critic is the default cold-critic template. Its {{SOURCE}} and {{RULESET}}
+// markers are filled by internal/critic with the source document and the
+// candidate ruleset a fresh grader critiques.
+//
+//go:embed critic_prompt.md
+var Critic string
 
 // Resolve returns the template to use: the contents of the file at path when path
 // is non-empty, otherwise the compiled-in fallback. It is the single home for the

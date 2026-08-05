@@ -3,12 +3,14 @@ package cmd_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/StevenACoffman/canonizer/cmd"
+	"github.com/StevenACoffman/canonizer/cmd/root"
 )
 
 func writeFile(t *testing.T, path, content string) {
@@ -115,5 +117,71 @@ func TestSynthesizeEmptyDirIsError(t *testing.T) {
 	if _, err := run(t, "synthesize", "--rulesets", t.TempDir()); err == nil ||
 		!strings.Contains(err.Error(), "_rules.md") {
 		t.Errorf("got %v, want an error about no _rules.md files", err)
+	}
+}
+
+func TestCriticEmitsPromptWithSourceAndRuleset(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	src := filepath.Join(dir, "s.md")
+	rules := filepath.Join(dir, "s_rules.md")
+	writeFile(t, src, "SOURCE-SENTINEL body\n")
+	writeFile(t, rules, "RULESET-SENTINEL body\n")
+
+	stdout, err := run(t, "critic", "--source", src, "--ruleset", rules)
+	if err != nil {
+		t.Fatalf("critic: %v", err)
+	}
+	for _, want := range []string{"SOURCE-SENTINEL", "RULESET-SENTINEL", "Cold Critique", "diagnostics"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("emitted prompt missing %q", want)
+		}
+	}
+}
+
+func TestCriticRequiresSourceAndRuleset(t *testing.T) {
+	t.Parallel()
+	if _, err := run(t, "critic", "--ruleset", "x"); err == nil ||
+		!strings.Contains(err.Error(), "--source is required") {
+		t.Errorf("got %v, want a missing --source error", err)
+	}
+}
+
+func TestGateCleanFindingsPass(t *testing.T) {
+	t.Parallel()
+	f := filepath.Join(t.TempDir(), "findings.json")
+	writeFile(t, f, `{"diagnostics":[{"severity":"warning","category":"note","message":"ok"}]}`)
+	stdout, err := run(t, "gate", "--findings", f)
+	if err != nil {
+		t.Fatalf("gate: %v", err)
+	}
+	if !strings.Contains(stdout, "clean") {
+		t.Errorf("expected a clean report, got %q", stdout)
+	}
+}
+
+func TestGateBlockingFindingsExitNonzero(t *testing.T) {
+	t.Parallel()
+	f := filepath.Join(t.TempDir(), "findings.json")
+	writeFile(
+		t,
+		f,
+		`{"diagnostics":[{"severity":"error","category":"unsupported","path":"§1","message":"bad"}]}`,
+	)
+	_, err := run(t, "gate", "--findings", f)
+	var exit root.ExitError
+	if !errors.As(err, &exit) || int(exit) != 1 {
+		t.Errorf("got %v, want root.ExitError(1)", err)
+	}
+}
+
+func TestGateSelfTestPasses(t *testing.T) {
+	t.Parallel()
+	stdout, err := run(t, "gate", "--selftest")
+	if err != nil {
+		t.Fatalf("gate --selftest: %v", err)
+	}
+	if !strings.Contains(stdout, "self-test passed") {
+		t.Errorf("expected self-test pass report, got %q", stdout)
 	}
 }
