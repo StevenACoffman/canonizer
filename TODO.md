@@ -162,6 +162,30 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Cross-repo alignment & follow-ups (2026-08-05 survey)
+
+canonizer is the **reference dependency posture** for the skillet family: on skillet
+**v0.5.0** and **toerr v0.1.0** directly, with no `replace` directive — the state the
+other consumers (skillsaw v0.1.0, adh v0.3.0, exegesis v0.4.0) are being brought toward.
+No bump is owed. The remaining work is canonizer's own governance follow-ups:
+
+- [ ] **Wire `critic` → `gate` into a scripted stage (F's rework loop).** The
+  P1 bundle exists as discrete commands (`critic`, `gate`, `verify`, `budget`), but
+  orchestration is still left to an external driver holding the attempt counter. A
+  scripted stage would make the independent-verification loop runnable end-to-end, not
+  just assemblable. (This is the "Follow-ups surfaced" note under P1, promoted to a
+  tracked item.)
+- [ ] **Enforce the convention-only policies, or accept them explicitly.** Two central
+  guarantees are documented in the root `LongHelp` but not mechanized: the reasoning-class
+  model gate (G) and the refinement policy that self-scores never gate adoption. Consider
+  a mechanism for at least one — e.g. record the model/attempt in the emitted prompt or a
+  proof packet — so the tool's "independent grader beats self-assessment" thesis is
+  enforced rather than trusted to the operator.
+- [ ] **No release tags yet.** `.goreleaser.yaml` + the ldflags `version.Version` seam are
+  in place, but no tag is cut; tag once a consumer pins canonizer by version.
+
+______________________________________________________________________
+
 *Recorded 2026-08-04. Sources: this repository's state, and
 `~/Documents/agent-orange/go-advice/ai_skill_todo.md` (rigor backlog + the
 "Centralize on skillet" offload analysis). See `PLAN.md` for the implementation
