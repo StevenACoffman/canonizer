@@ -49,7 +49,8 @@ gates the results. Every path is a flag; the prompt templates are built in.
 Pipeline: distill a source tree into per-source prompts; an agent produces canonical
 *_rules.md; synthesize merges them into one; verify and critic surface findings; gate
 blocks on them; budget bounds the rework loop and escalates to a human when the budget
-is spent.
+is spent. Off to the side, calibrate audits the critic's confidence against review
+outcomes — a report, never a gate.
 
 Model policy: run the emitted distill, synthesize, and critic prompts on a
 reasoning-class model. canonizer fills prompts an agent runs, so it cannot observe the

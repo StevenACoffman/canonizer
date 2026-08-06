@@ -440,3 +440,99 @@ func TestLoopRequiresSourceAndRuleset(t *testing.T) {
 		})
 	}
 }
+
+func TestCalibrateReportsMetrics(t *testing.T) {
+	t.Parallel()
+	f := filepath.Join(t.TempDir(), "log.json")
+	writeFile(t, f, `{"samples":[
+		{"confidence":0.9,"correct":true},
+		{"confidence":0.8,"correct":true},
+		{"confidence":0.3,"correct":false},
+		{"confidence":0.2,"correct":true}]}`)
+	stdout, err := run(t, "calibrate", "--samples", f)
+	if err != nil {
+		t.Fatalf("calibrate: %v", err)
+	}
+	for _, want := range []string{"4 samples scored", "ECE", "MCE", "Brier", "bins"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("report missing %q:\n%s", want, stdout)
+		}
+	}
+}
+
+// TestCalibrateSurfacesOverconfidence is the point of the command: a critic that states
+// 0.9 confidence but is right only half the time must show a visibly non-zero ECE — the
+// gap between confidence (0.9) and accuracy (0.5) is 0.4.
+func TestCalibrateSurfacesOverconfidence(t *testing.T) {
+	t.Parallel()
+	f := filepath.Join(t.TempDir(), "log.json")
+	writeFile(t, f, `{"samples":[
+		{"confidence":0.9,"correct":true},
+		{"confidence":0.9,"correct":false},
+		{"confidence":0.9,"correct":true},
+		{"confidence":0.9,"correct":false}]}`)
+	stdout, err := run(t, "calibrate", "--samples", f)
+	if err != nil {
+		t.Fatalf("calibrate: %v", err)
+	}
+	if !strings.Contains(stdout, "0.400") {
+		t.Errorf("expected ECE 0.400 for a 0.9-confident, 50%%-correct critic:\n%s", stdout)
+	}
+}
+
+// TestCalibrateEmptyLogIsHonest guards the misread: an empty (or all-out-of-range) log
+// must say so, never print ECE 0.000 — which reads as perfectly calibrated.
+func TestCalibrateEmptyLogIsHonest(t *testing.T) {
+	t.Parallel()
+	cases := map[string]string{
+		"empty":        `{"samples":[]}`,
+		"out of range": `{"samples":[{"confidence":5,"correct":true}]}`,
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := filepath.Join(t.TempDir(), "log.json")
+			writeFile(t, f, body)
+			stdout, err := run(t, "calibrate", "--samples", f)
+			if err != nil {
+				t.Fatalf("calibrate: %v", err)
+			}
+			if !strings.Contains(stdout, "no in-range samples") {
+				t.Errorf("expected the no-samples notice, got %q", stdout)
+			}
+			if strings.Contains(stdout, "0.000") {
+				t.Errorf("must not print zeroed metrics for an empty log: %q", stdout)
+			}
+		})
+	}
+}
+
+func TestCalibrateInvalidInput(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"missing samples", []string{"calibrate"}, "--samples is required"},
+		{"unreadable", []string{"calibrate", "--samples", "/no/such/file.json"}, "calibrate:"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := run(t, tt.args...)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("got %v, want an error containing %q", err, tt.want)
+			}
+		})
+	}
+	t.Run("malformed json", func(t *testing.T) {
+		t.Parallel()
+		f := filepath.Join(t.TempDir(), "bad.json")
+		writeFile(t, f, `{not json`)
+		if _, err := run(t, "calibrate", "--samples", f); err == nil ||
+			!strings.Contains(err.Error(), "calibrate: parse samples") {
+			t.Errorf("got %v, want a parse error", err)
+		}
+	})
+}

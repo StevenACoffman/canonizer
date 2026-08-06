@@ -17,6 +17,7 @@ import (
 	"github.com/peterbourgon/ff/v4/ffhelp"
 
 	"github.com/StevenACoffman/canonizer/cmd/budget"
+	"github.com/StevenACoffman/canonizer/cmd/calibrate"
 	"github.com/StevenACoffman/canonizer/cmd/critic"
 	"github.com/StevenACoffman/canonizer/cmd/distill"
 	"github.com/StevenACoffman/canonizer/cmd/gate"
@@ -45,6 +46,7 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	verify.New(r)
 	budget.New(r)
 	loop.New(r)
+	calibrate.New(r)
 	// register new commands here
 
 	if err := r.Command.Parse(args, ff.WithEnvVarPrefix("CANONIZER")); err != nil {
