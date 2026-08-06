@@ -176,12 +176,20 @@ No bump is owed. The remaining work is canonizer's own governance follow-ups:
   prompt-filler (no model call) and stateless (`--attempt`/`--max` passed in, per P3);
   its `LongHelp` documents the wrapping driver that holds the counter. So the
   independent-verification loop is now runnable end-to-end, not just assemblable.
-- [ ] **Enforce the convention-only policies, or accept them explicitly.** Two central
-  guarantees are documented in the root `LongHelp` but not mechanized: the reasoning-class
-  model gate (G) and the refinement policy that self-scores never gate adoption. Consider
-  a mechanism for at least one — e.g. record the model/attempt in the emitted prompt or a
-  proof packet — so the tool's "independent grader beats self-assessment" thesis is
-  enforced rather than trusted to the operator.
+- [x] **Enforce the convention-only policies, or accept them explicitly.** Resolved by
+  splitting the two along their nature:
+  - **Self-scores never gate adoption → enforced.** The invariant "a blocked ruleset
+    never ships" is pinned by `TestDecideBlockingNeverShips` (sweeping the attempt/limit
+    grid), and `budget.Decide`'s doc names it as the guard: its only inputs are
+    `blocking, attempt, limit` — a self-score must never become a fourth input or a Ship
+    path. A future self-score bypass fails the test loudly.
+  - **Reasoning-class model gate (G) → accepted, recorded for audit.** canonizer is a
+    prompt-filler and cannot observe the grader model, so a hard gate would be theater.
+    `loop --model` records the operator's attestation on stderr, explicitly labeled
+    "operator-attested, unverified", and never touches the verdict; the root `LongHelp`
+    states the gate is the operator's responsibility. Rejected recording it in the
+    skillet `proof.Packet`: that needs a cross-repo change to carry an unverifiable claim
+    and would read as a digest-bound fact like the real artifacts.
 - [ ] **No release tags yet.** `.goreleaser.yaml` + the ldflags `version.Version` seam are
   in place, but no tag is cut; tag once a consumer pins canonizer by version.
 

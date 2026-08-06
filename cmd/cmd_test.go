@@ -44,9 +44,17 @@ func writeFile(t *testing.T, path, content string) {
 // the error plus captured stdout for assertions.
 func run(t *testing.T, args ...string) (string, error) {
 	t.Helper()
-	var stdout, stderr bytes.Buffer
-	err := cmd.Run(context.Background(), args, strings.NewReader(""), &stdout, &stderr)
-	return stdout.String(), err
+	stdout, _, err := runIO(t, args...)
+	return stdout, err
+}
+
+// runIO is run for the cases that also need stderr — where a command writes its
+// machine result to stdout and human-facing rationale to stderr.
+func runIO(t *testing.T, args ...string) (stdout, stderr string, err error) {
+	t.Helper()
+	var out, errOut bytes.Buffer
+	err = cmd.Run(context.Background(), args, strings.NewReader(""), &out, &errOut)
+	return out.String(), errOut.String(), err
 }
 
 func TestDistillWritesPromptPerSource(t *testing.T) {
@@ -312,6 +320,41 @@ func TestLoopShipsCleanRuleset(t *testing.T) {
 	}
 	if strings.TrimSpace(stdout) != "ship" {
 		t.Errorf("expected a ship verdict on stdout, got %q", stdout)
+	}
+}
+
+// TestLoopModelAttestationRecordedNotGated shows --model records the operator's grader
+// attestation on stderr, labeled unverified, without changing the verdict on stdout.
+func TestLoopModelAttestationRecordedNotGated(t *testing.T) {
+	t.Parallel()
+	source, rules := writeLoopFixtures(t, t.TempDir())
+	stdout, stderr, err := runIO(t, "loop",
+		"--source", source, "--ruleset", rules, "--model", "some-reasoning-model",
+		"--attempt", "1", "--max", "3")
+	if err != nil {
+		t.Fatalf("loop: %v", err)
+	}
+	if strings.TrimSpace(stdout) != "ship" {
+		t.Errorf("--model must not change the verdict; stdout = %q", stdout)
+	}
+	if !strings.Contains(stderr, "some-reasoning-model") ||
+		!strings.Contains(stderr, "operator-attested, unverified") {
+		t.Errorf("expected an unverified grader-model attestation on stderr, got %q", stderr)
+	}
+}
+
+// TestLoopNoAttestationWithoutModel confirms the attestation line is absent when --model
+// is unset — it is opt-in, not a default claim.
+func TestLoopNoAttestationWithoutModel(t *testing.T) {
+	t.Parallel()
+	source, rules := writeLoopFixtures(t, t.TempDir())
+	_, stderr, err := runIO(t, "loop",
+		"--source", source, "--ruleset", rules, "--attempt", "1", "--max", "3")
+	if err != nil {
+		t.Fatalf("loop: %v", err)
+	}
+	if strings.Contains(stderr, "grader model") {
+		t.Errorf("no attestation should print without --model, got %q", stderr)
 	}
 }
 

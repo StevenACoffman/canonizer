@@ -29,6 +29,7 @@ type Config struct {
 	Source   string
 	Ruleset  string
 	Findings string
+	Model    string
 	Attempt  int
 	Max      int
 	Flags    *ff.FlagSet
@@ -44,6 +45,9 @@ func New(parent *root.Config) *Config {
 	cfg.Flags.StringVar(&cfg.Ruleset, 0, "ruleset", "", "candidate canonical *_rules.md")
 	cfg.Flags.StringVar(&cfg.Findings, 0, "findings", "",
 		"the agent's cold-critic findings JSON for this round (empty = none yet)")
+	cfg.Flags.StringVar(&cfg.Model, 0, "model", "",
+		"grader model the operator attests the prompts were run on "+
+			"(recorded for audit; unverified, never gates the verdict)")
 	cfg.Flags.IntVar(&cfg.Attempt, 0, "attempt", 1, "the refine attempt just completed (1-based)")
 	cfg.Flags.IntVar(&cfg.Max, 0, "max", 3, "the rework budget: total attempts allowed")
 	cfg.Command = &ff.Command{
@@ -61,7 +65,11 @@ rounds. A driver wraps this command, holding the attempt counter:
   canonizer critic --source S --ruleset R --out critic.md   # emit the cold-critic prompt
   # agent runs critic.md -> findings.json, then:
   canonizer loop --source S --ruleset R --findings findings.json --attempt K --max 3
-    -> exit 0 ship | 2 rework (agent reworks R; K++; repeat) | 1 needs-human`,
+    -> exit 0 ship | 2 rework (agent reworks R; K++; repeat) | 1 needs-human
+
+--model records, for audit, the grader model the operator attests they ran the prompts
+on. canonizer cannot observe the model, so it is an unverified attestation, never a gate:
+running the prompts on a reasoning-class model stays the operator's responsibility.`,
 		Flags: cfg.Flags,
 		Exec:  cfg.exec,
 	}
@@ -77,6 +85,16 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 	}
 	if cfg.Ruleset == "" {
 		return errors.New("loop: --ruleset is required")
+	}
+	if cfg.Model != "" {
+		// An operator attestation, not a check: canonizer fills prompts an agent runs,
+		// so it cannot observe the grader model. Record it for audit, labeled unverified,
+		// and never let it touch the verdict.
+		_, _ = fmt.Fprintf(
+			cfg.Stderr,
+			"loop: grader model (operator-attested, unverified): %s\n",
+			cfg.Model,
+		)
 	}
 	diags, err := cfg.roundFindings()
 	if err != nil {

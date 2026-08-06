@@ -33,3 +33,28 @@ func TestDecide(t *testing.T) {
 		})
 	}
 }
+
+// TestDecideBlockingNeverShips pins the ship-gate invariant across the whole
+// attempt/limit grid: a blocked ruleset is never Ship, and a clean one always is,
+// regardless of where it sits in the loop. This is the enforcement behind the
+// refinement policy — a self-score wired into Decide could only break the tool's
+// "independent grader, not self-assessment" thesis by shipping a blocked ruleset or
+// blocking a clean one, and this sweep fails loudly if a later change ever does.
+func TestDecideBlockingNeverShips(t *testing.T) {
+	t.Parallel()
+	for attempt := -1; attempt <= 5; attempt++ {
+		for limit := 0; limit <= 5; limit++ {
+			if got := budget.Decide(true, attempt, limit); got == budget.Ship {
+				t.Errorf(
+					"Decide(true, %d, %d) = Ship; a blocked ruleset must never ship",
+					attempt,
+					limit,
+				)
+			}
+			if got := budget.Decide(false, attempt, limit); got != budget.Ship {
+				t.Errorf("Decide(false, %d, %d) = %q, want Ship; a clean ruleset always ships",
+					attempt, limit, got)
+			}
+		}
+	}
+}

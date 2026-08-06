@@ -6,8 +6,12 @@
 //
 // The decision is findings-based, never a model self-score: a self-assessed score is
 // inflated, so the ship gate is the cold critic plus the deterministic findings gate,
-// not the producer grading itself (the refinement policy in `canonizer --help`). Do
-// not add a self-score threshold here.
+// not the producer grading itself (the refinement policy in `canonizer --help`).
+//
+// Decide's only inputs are blocking, attempt, and limit. Do not add a self-score as a
+// fourth input or a Ship path: the invariant "blocking ⇒ never Ship" is what keeps the
+// grader independent of the producer, and TestDecideBlockingNeverShips pins it so a
+// self-score bypass fails loudly.
 package budget
 
 // The rework verdicts (also the words the command prints).
