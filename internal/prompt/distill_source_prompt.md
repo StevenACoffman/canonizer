@@ -9,7 +9,7 @@ general training, the source wins. Rules must be written so Claude can apply
 them mechanically to a code sample, a design decision, or a proposed
 architecture without needing to re-read the source.
 
----
+______________________________________________________________________
 
 ## Task
 
@@ -21,9 +21,9 @@ development methodology. All of it should produce rules. A rule is ready when
 Claude can apply it to a concrete artefact — a function, a module boundary, a
 deployment plan — and reach the same verdict the source's author would reach.
 
----
+______________________________________________________________________
 
-## Output format
+## Output Format
 
 The output is parsed mechanically. It must contain **only** a two-line metadata block
 followed by rule blocks — nothing else. Any line that is not `Source:`, `Scope:`, a
@@ -36,7 +36,7 @@ reference from the source that this rule derives from, so its provenance is audi
 
 Begin with the metadata block:
 
-```
+```text
 Source: [title and author, or "unknown" if not stated]
 Scope:  [language(s), paradigm(s), domain(s), and architectural context — derived from the source, not assumed]
 ```
@@ -48,9 +48,9 @@ foundational constraints precede derived ones — a rule constraining how other 
 applied belongs before the rules it constrains. Within a section, order `[MUST]` before
 `[SHOULD]` before `[CONSIDER]`, and more fundamental rules before derived ones.
 
-### Rule format
+### Rule Format
 
-```
+```text
 §2.3  [MUST][CODE]   Never discard an error return without an explicit decision.
       Silently dropping errors removes the caller's only signal that an
       operation failed; bugs become invisible until they corrupt state downstream.
@@ -80,39 +80,39 @@ a structural contrast. For `[METHOD]` rules, a concrete counter-example is
 sufficient when one exists in the source. Use the source's own examples wherever
 available — they are the most authoritative test cases.
 
----
+______________________________________________________________________
 
-## Rule levels and severity
+## Rule Levels and Severity
 
 Tag every rule with a severity and a level. Both tags are required.
 
 ### Severity
 
-| Tag | In review | In generation or design |
-|---|---|---|
-| `[MUST]` | Always flag; block approval | Never produce or propose |
-| `[SHOULD]` | Flag with justification and alternative | Avoid; note explicitly when a tradeoff forces it |
-| `[CONSIDER]` | Raise only when asked to improve | Prefer but do not enforce |
+| Tag          | In review                               | In generation or design                          |
+| ------------ | --------------------------------------- | ------------------------------------------------ |
+| `[MUST]`     | Always flag; block approval             | Never produce or propose                         |
+| `[SHOULD]`   | Flag with justification and alternative | Avoid; note explicitly when a tradeoff forces it |
+| `[CONSIDER]` | Raise only when asked to improve        | Prefer but do not enforce                        |
 
-### Mapping source language to severity
+### Mapping Source Language to Severity
 
-| Source says | Assign |
-|---|---|
-| "never", "always", "must", "do not", "required" | `[MUST]` |
-| "should", "prefer", "avoid", "better to", "recommended" | `[SHOULD]` |
-| "consider", "may", "can", "sometimes useful", "worth exploring" | `[CONSIDER]` |
-| "it depends", conditional phrasing | Express as a conditional rule (see Special cases) |
+| Source says                                                     | Assign                                            |
+| --------------------------------------------------------------- | ------------------------------------------------- |
+| "never", "always", "must", "do not", "required"                 | `[MUST]`                                          |
+| "should", "prefer", "avoid", "better to", "recommended"         | `[SHOULD]`                                        |
+| "consider", "may", "can", "sometimes useful", "worth exploring" | `[CONSIDER]`                                      |
+| "it depends", conditional phrasing                              | Express as a conditional rule (see Special cases) |
 
 When the source's language is ambiguous, assign the lower severity and note the
 ambiguity inline.
 
 ### Level
 
-| Tag | Applies when Claude is |
-|---|---|
-| `[CODE]` | Reading or writing code at the expression, function, or module level |
-| `[ARCH]` | Evaluating or proposing system structure: service boundaries, dependencies, data flow, coupling |
-| `[METHOD]` | Advising on process: how work is organised, sequenced, tested, or deployed |
+| Tag        | Applies when Claude is                                                                          |
+| ---------- | ----------------------------------------------------------------------------------------------- |
+| `[CODE]`   | Reading or writing code at the expression, function, or module level                            |
+| `[ARCH]`   | Evaluating or proposing system structure: service boundaries, dependencies, data flow, coupling |
+| `[METHOD]` | Advising on process: how work is organised, sequenced, tested, or deployed                      |
 
 Always include a level tag; `[CODE]` is the default when the rule applies at
 the expression, function, or module level. `[ARCH]` and `[METHOD]` rules apply
@@ -125,23 +125,23 @@ open a database connection inside an HTTP handler" — tag it `[ARCH]` and
 describe the code-level manifestation in the rationale. The level tag reflects
 where the constraint is enforced, not where the violation is observed.
 
----
+______________________________________________________________________
 
-## Extracting rules
+## Extracting Rules
 
-### From prose
+### From Prose
 
 For each claim the source makes, ask: what would a reviewer need to check to
 verify this claim holds in a codebase? That check is the rule.
 
-### From examples
+### From Examples
 
 The source's code and design examples are as important as its prose. For each
 example, ask: what rule does this example demonstrate that the surrounding text
 does not state explicitly? The most important rules are sometimes only shown,
 never stated. Extract them.
 
-### From structural descriptions
+### From Structural Descriptions
 
 Architecture diagrams, system descriptions, and deployment topologies imply
 boundary rules. "Service A calls Service B synchronously" is not a fact to
@@ -154,24 +154,24 @@ use a shared mutable data store as the primary coordination mechanism between
 independently deployed services; it couples their deployment schedules and
 prevents independent scaling. `[MUST][ARCH]`"
 
----
+______________________________________________________________________
 
-## The quality bar
+## The Quality Bar
 
 A rule is ready when it passes all three tests.
 
-### 1. The replacement test
+### 1. The Replacement Test
 
 Negate the rule. If the negation is also defensible from the source text, the
 rule is too vague — sharpen it or discard it.
 
-### 2. The two-reviewer test
+### 2. The Two-Reviewer Test
 
 Two people applying the rule independently to the same code sample, design
 description, or process artefact should reach the same verdict. Rules that
 require unstated judgment fail this test.
 
-### 3. The failure-mode test
+### 3. The Failure-Mode Test
 
 The rationale must name what breaks — at runtime, at review time, at
 maintenance time, or at organisational scale — when the rule is violated.
@@ -179,23 +179,23 @@ Restatements of the principle in abstract terms do not pass.
 
 ### Examples
 
-| Fails | Passes |
-|---|---|
-| "Keep functions small." | "Extract any logic that requires understanding state not visible in the current function's signature, because the reader must hold invisible context to reason about correctness. `[SHOULD][CODE]`" |
-| "Handle errors properly." | "Never discard an error return without an explicit decision; silently dropping it removes the caller's only signal of failure. `[MUST][CODE]`" |
-| "Separate concerns." | "Do not let a module that owns persistence also own routing or serialisation; when one module changes for two unrelated reasons, all its dependents must be retested for both. `[SHOULD][ARCH]`" |
-| "Release often." | "Do not batch unrelated changes into a single deployment; when an incident occurs, the inability to isolate which change caused it forces rollback of all changes, including safe ones. `[SHOULD][METHOD]`" |
+| Fails                     | Passes                                                                                                                                                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Keep functions small."   | "Extract any logic that requires understanding state not visible in the current function's signature, because the reader must hold invisible context to reason about correctness. `[SHOULD][CODE]`"            |
+| "Handle errors properly." | "Never discard an error return without an explicit decision; silently dropping it removes the caller's only signal of failure. `[MUST][CODE]`"                                                                 |
+| "Separate concerns."      | "Do not let a module that owns persistence also own routing or serialisation; when one module changes for two unrelated reasons, all its dependents must be retested for both. `[SHOULD][ARCH]`"               |
+| "Release often."          | "Do not batch unrelated changes into a single deployment; when an incident occurs, the inability to isolate which change caused it forces rollback of all changes, including safe ones. `[SHOULD][METHOD]`"    |
 | "Design for scalability." | "Do not use a shared mutable data store as the coordination mechanism between independently deployed services; it couples their deployment schedules and makes independent scaling impossible. `[MUST][ARCH]`" |
-| "Write testable code." | "Do not instantiate collaborators inside a function; accept them as parameters so tests can substitute them without rewriting the function under test. `[MUST][CODE]`" |
+| "Write testable code."    | "Do not instantiate collaborators inside a function; accept them as parameters so tests can substitute them without rewriting the function under test. `[MUST][CODE]`"                                         |
 
 The trailing `[SEV][LEVEL]` above marks each example's tags for reference only; in the
 output the tags belong in the `§N.M  [SEV][LEVEL]` header, never trailing the statement.
 
----
+______________________________________________________________________
 
-## Special cases
+## Special Cases
 
-### Missing rationale
+### Missing Rationale
 
 When the source gives a rule without explanation, construct the rationale from
 the failure cases the source describes elsewhere. If no failure case exists,
@@ -208,7 +208,7 @@ When the source's advice depends on context, express the condition explicitly in
 statement rather than hedging, and put the deciding criterion in the rationale — both
 stay inside the rule block:
 
-```
+```text
 §4.1  [MUST][ARCH]  When a service boundary crosses a team boundary, treat inter-service calls as untrusted external I/O; when both sides are owned by one team, a shared library is acceptable.
       Ownership determines the boundary type, not deployment topology, so a call within one team need not pay the cost of untrusted I/O.
 ```
@@ -220,16 +220,16 @@ state both positions as conditional rules, name the tension, and provide a
 resolution criterion. Do not average them into vague advice, and do not silently
 prefer the position that matches Claude's training.
 
-### Source versus Claude's defaults
+### Source Versus Claude's Defaults
 
 When a rule from the source conflicts with Claude's general training or common
 practice, the source takes precedence. Note the override *inside* the statement so it
 stays on the rule's own header line — end the statement with
 `(overrides common practice — apply as stated)` — rather than on a separate line.
 
----
+______________________________________________________________________
 
-## Exclusions and volume
+## Exclusions and Volume
 
 **Do not include:**
 
@@ -246,9 +246,9 @@ rule leaves no case where Claude would generate, approve, or propose something
 the source would reject, remove it. Prefer twenty precise rules over fifty
 overlapping ones.
 
----
+______________________________________________________________________
 
-## Verification pass
+## Verification Pass
 
 Before submitting, confirm each rule satisfies all of the following:
 

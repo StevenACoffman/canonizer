@@ -8,7 +8,7 @@ ruleset distilled from it. Your job is to find the rules that should not ship.
 
 <source>{{SOURCE}}</source>
 
-## Candidate ruleset
+## Candidate Ruleset
 
 <ruleset>{{RULESET}}</ruleset>
 
