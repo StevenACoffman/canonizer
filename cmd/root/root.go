@@ -52,12 +52,15 @@ blocks on them; budget bounds the rework loop and escalates to a human when the 
 is spent.
 
 Model policy: run the emitted distill, synthesize, and critic prompts on a
-reasoning-class model. canonizer does not enforce this — it is a convention.
+reasoning-class model. canonizer fills prompts an agent runs, so it cannot observe the
+model and does not gate on it — this stays the operator's responsibility. "loop --model"
+records the operator's attestation for audit, labeled unverified.
 
 Refinement policy: the ship gate is the cold critic plus the deterministic findings
 gate (verify → gate → budget), never a model self-score. A self-assessed score is
 inflated, so if one is ever added, use it only to compare iterations — did a rework
-improve? — and never to gate adoption.`,
+improve? — and never to gate adoption. The invariant is test-enforced: budget.Decide
+takes only findings and the attempt count, and a blocked ruleset never ships.`,
 	}
 	return &cfg
 }
