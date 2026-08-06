@@ -201,10 +201,15 @@ Source: a survey of `~/Documents/git/unified-thinking` (a deterministic Go reaso
 toolkit). Modest relevance — canonizer's ship gate is findings-based, not score-based —
 so this is mostly inspiration.
 
-- [ ] Once `skillet/calibration` lands (Brier/ECE/MCE — see `../skillet/TODO.md`), consider
-  tracking the **cold critic's confidence vs. actual rule quality**: does a high-confidence
-  `unsupported`/`vague` flag hold up on review? Surfaces an over/under-confident critic.
-  Low urgency (canonizer ships on findings, not scores).
+- [x] Track the **cold critic's confidence vs. actual rule quality** — done: `skillet`
+  bumped to v0.7.0 (which ships `calibration`) and the `calibrate` command reports
+  ECE/MCE/Brier + a per-bin breakdown from a review log
+  (`{"samples":[{"confidence":..,"correct":..}]}`) via `calibration.Compute`. It is a
+  **report, never a gate**: the ship gate stays findings-based, so calibration never
+  blocks adoption (consistent with the self-score invariant `budget` enforces). Sourcing
+  the log is the operator's process — no confidence field was added to
+  `finding.Diagnostic` and the ship path is untouched. An empty/all-out-of-range log
+  says so rather than printing a misleading `ECE 0.000`.
 - Inspiration (not a lift): unified-thinking's deterministic **hypothesis-ranking** formula
   (`explanatory·0.4 + parsimony·0.3 + prior·0.3`, with Occam parsimony ≈ `1/(1+#assumptions)`)
   is an apt shape *if* canonizer ever scores/ranks candidate rules rather than only gating
