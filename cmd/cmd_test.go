@@ -13,6 +13,26 @@ import (
 	"github.com/StevenACoffman/canonizer/cmd/root"
 )
 
+// cleanRuleset is an executable, provenanced canonical ruleset: its MUST rule has a
+// discriminating ✗/✓ pair and a ↦ anchor that appears in cleanSource, so it clears both
+// verify checks.
+const cleanRuleset = "Source: demo\nScope:  Go\n\n" +
+	"§1.1  [MUST][CODE]  Always close the connection.\n" +
+	"      Leaked connections exhaust the pool.\n" +
+	"      ✗  // connection is never closed\n" +
+	"      ✓  defer conn.Close()\n" +
+	"      ↦  ANCHOR-SENTINEL always release the connection\n"
+
+// cleanSource contains cleanRuleset's anchor verbatim, so Provenance passes.
+const cleanSource = "The pool docs say: ANCHOR-SENTINEL always release the connection.\n"
+
+// unexecutableRuleset is cleanRuleset with its ✗/✓ pair stripped, so its MUST rule is
+// unexecutable — a blocking verify finding — while still citing a present anchor.
+const unexecutableRuleset = "Source: demo\nScope:  Go\n\n" +
+	"§1.1  [MUST][CODE]  Always close the connection.\n" +
+	"      Leaked connections exhaust the pool.\n" +
+	"      ↦  ANCHOR-SENTINEL always release the connection\n"
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
@@ -259,5 +279,121 @@ func TestBudgetEscalatesWhenBudgetSpent(t *testing.T) {
 	var exit root.ExitError
 	if !errors.As(err, &exit) || int(exit) != 1 {
 		t.Errorf("got %v, want root.ExitError(1) (needs-human)", err)
+	}
+}
+
+// writeLoopFixtures writes cleanRuleset and cleanSource into dir and returns their paths.
+func writeLoopFixtures(t *testing.T, dir string) (source, rules string) {
+	t.Helper()
+	source = filepath.Join(dir, "s.md")
+	rules = filepath.Join(dir, "s_rules.md")
+	writeFile(t, source, cleanSource)
+	writeFile(t, rules, cleanRuleset)
+	return source, rules
+}
+
+func TestLoopShipsCleanRuleset(t *testing.T) {
+	t.Parallel()
+	source, rules := writeLoopFixtures(t, t.TempDir())
+	stdout, err := run(
+		t,
+		"loop",
+		"--source",
+		source,
+		"--ruleset",
+		rules,
+		"--attempt",
+		"1",
+		"--max",
+		"3",
+	)
+	if err != nil {
+		t.Fatalf("loop: %v", err)
+	}
+	if strings.TrimSpace(stdout) != "ship" {
+		t.Errorf("expected a ship verdict on stdout, got %q", stdout)
+	}
+}
+
+func TestLoopReworksWhenBudgetRemaining(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	source := filepath.Join(dir, "s.md")
+	rules := filepath.Join(dir, "s_rules.md")
+	writeFile(t, source, cleanSource)
+	writeFile(t, rules, unexecutableRuleset)
+	_, err := run(t, "loop", "--source", source, "--ruleset", rules, "--attempt", "1", "--max", "3")
+	var exit root.ExitError
+	if !errors.As(err, &exit) || int(exit) != 2 {
+		t.Errorf("got %v, want root.ExitError(2) (rework)", err)
+	}
+}
+
+func TestLoopEscalatesWhenBudgetSpent(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	source := filepath.Join(dir, "s.md")
+	rules := filepath.Join(dir, "s_rules.md")
+	writeFile(t, source, cleanSource)
+	writeFile(t, rules, unexecutableRuleset)
+	_, err := run(t, "loop", "--source", source, "--ruleset", rules, "--attempt", "3", "--max", "3")
+	var exit root.ExitError
+	if !errors.As(err, &exit) || int(exit) != 1 {
+		t.Errorf("got %v, want root.ExitError(1) (needs-human)", err)
+	}
+}
+
+// TestLoopMergesCriticFindings is the point of the command: a ruleset that clears verify
+// on its own is still reworked when the agent's cold-critic findings carry a blocking
+// diagnostic — the critic → gate wire.
+func TestLoopMergesCriticFindings(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	source, rules := writeLoopFixtures(t, dir)
+	f := filepath.Join(dir, "findings.json")
+	writeFile(
+		t,
+		f,
+		`{"diagnostics":[{"severity":"error","category":"unsupported","path":"§1.1","message":"anchor does not support the claim"}]}`,
+	)
+	_, err := run(t, "loop",
+		"--source", source, "--ruleset", rules, "--findings", f, "--attempt", "1", "--max", "3")
+	var exit root.ExitError
+	if !errors.As(err, &exit) || int(exit) != 2 {
+		t.Errorf("got %v, want root.ExitError(2) (rework from a merged critic finding)", err)
+	}
+}
+
+func TestLoopRejectsNonCanonicalRuleset(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	source := filepath.Join(dir, "s.md")
+	rules := filepath.Join(dir, "s_rules.md")
+	writeFile(t, source, "a source\n")
+	writeFile(t, rules, "§1  no severity or level tags here\n") // malformed header
+	if _, err := run(t, "loop", "--source", source, "--ruleset", rules); err == nil ||
+		!strings.Contains(err.Error(), "loop:") {
+		t.Errorf("got %v, want a loop parse error for a non-canonical ruleset", err)
+	}
+}
+
+func TestLoopRequiresSourceAndRuleset(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"missing source", []string{"loop", "--ruleset", "x"}, "--source is required"},
+		{"missing ruleset", []string{"loop", "--source", "x"}, "--ruleset is required"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := run(t, tt.args...)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("got %v, want an error containing %q", err, tt.want)
+			}
+		})
 	}
 }
