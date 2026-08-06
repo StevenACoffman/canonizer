@@ -169,12 +169,13 @@ canonizer is the **reference dependency posture** for the skillet family: on ski
 other consumers (skillsaw v0.1.0, adh v0.3.0, exegesis v0.4.0) are being brought toward.
 No bump is owed. The remaining work is canonizer's own governance follow-ups:
 
-- [ ] **Wire `critic` → `gate` into a scripted stage (F's rework loop).** The
-  P1 bundle exists as discrete commands (`critic`, `gate`, `verify`, `budget`), but
-  orchestration is still left to an external driver holding the attempt counter. A
-  scripted stage would make the independent-verification loop runnable end-to-end, not
-  just assemblable. (This is the "Follow-ups surfaced" note under P1, promoted to a
-  tracked item.)
+- [x] **Wire `critic` → `gate` into a scripted stage (F's rework loop).** Done: the
+  `loop` command runs one deterministic round — verify the candidate ruleset
+  (executability + provenance), merge the agent's cold-critic findings, and decide
+  ship / rework / needs-human under the budget — exiting 0 / 2 / 1. It stays a
+  prompt-filler (no model call) and stateless (`--attempt`/`--max` passed in, per P3);
+  its `LongHelp` documents the wrapping driver that holds the counter. So the
+  independent-verification loop is now runnable end-to-end, not just assemblable.
 - [ ] **Enforce the convention-only policies, or accept them explicitly.** Two central
   guarantees are documented in the root `LongHelp` but not mechanized: the reasoning-class
   model gate (G) and the refinement policy that self-scores never gate adoption. Consider
@@ -183,6 +184,24 @@ No bump is owed. The remaining work is canonizer's own governance follow-ups:
   enforced rather than trusted to the operator.
 - [ ] **No release tags yet.** `.goreleaser.yaml` + the ldflags `version.Version` seam are
   in place, but no tag is cut; tag once a consumer pins canonizer by version.
+
+______________________________________________________________________
+
+## Reasoning-toolkit survey (unified-thinking, 2026-08-05)
+
+Source: a survey of `~/Documents/git/unified-thinking` (a deterministic Go reasoning
+toolkit). Modest relevance — canonizer's ship gate is findings-based, not score-based —
+so this is mostly inspiration.
+
+- [ ] Once `skillet/calibration` lands (Brier/ECE/MCE — see `../skillet/TODO.md`), consider
+  tracking the **cold critic's confidence vs. actual rule quality**: does a high-confidence
+  `unsupported`/`vague` flag hold up on review? Surfaces an over/under-confident critic.
+  Low urgency (canonizer ships on findings, not scores).
+- Inspiration (not a lift): unified-thinking's deterministic **hypothesis-ranking** formula
+  (`explanatory·0.4 + parsimony·0.3 + prior·0.3`, with Occam parsimony ≈ `1/(1+#assumptions)`)
+  is an apt shape *if* canonizer ever scores/ranks candidate rules rather than only gating
+  them; and its fallacy / argument-structure taxonomy could sharpen the cold-critic *prompt*
+  (never the deterministic gate).
 
 ______________________________________________________________________
 
