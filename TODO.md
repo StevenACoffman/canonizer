@@ -1,4 +1,4 @@
-# canonizer — TODO
+# Canonizer — TODO
 
 canonizer produces Claude coding rulesets from source documents. It reproduces the
 `ai-skill` pipeline (`~/Documents/agent-orange/go-advice/ai-skill`) as a
@@ -32,7 +32,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## Decided — architecture
+## Decided — Architecture
 
 - [x] **canonizer is a prompt-filler.** It fills prompts for a model an agent runs;
   it never calls a model itself. Every rigor item that needs judgment (cold critic,
@@ -43,7 +43,7 @@ ______________________________________________________________________
   that *a model handles only what a deterministic check cannot decide.* No
   model-invocation seam is added.
 
-## P0 — centralization
+## P0 — Centralization
 
 - [x] **Pushed synthesis upstream into skillet.** `internal/synth` is gone; canonizer
   now consumes `skillet/ruleset/synthesize` (`Marker`, `Input`, `FillTemplate`,
@@ -55,7 +55,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## P1 — independent verification (highest leverage) — IMPLEMENTED
+## P1 — Independent Verification (Highest Leverage) — IMPLEMENTED
 
 The `critic_step` bundle **A + C + D** is built: the `critic` command emits a
 cold-critic prompt; an agent runs it; the `gate` command self-tests, then blocks on
@@ -82,7 +82,7 @@ critic (B).
 
 ______________________________________________________________________
 
-## P2 — executable rules & provenance — IMPLEMENTED
+## P2 — Executable Rules & Provenance — IMPLEMENTED
 
 The `verify` command runs both deterministic gates over a parsed ruleset and emits
 `skillet/finding` JSON for `gate` to block on:
@@ -108,7 +108,7 @@ The `verify` command runs both deterministic gates over a parsed ruleset and emi
 
 ______________________________________________________________________
 
-## P3 — loop governance — IMPLEMENTED
+## P3 — Loop Governance — IMPLEMENTED
 
 - [x] **F. Rework budget with terminal escalation.** `internal/budget.Decide` returns
   ship / rework / needs-human from the blocking state and the attempt counter; the
@@ -121,7 +121,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## Ruleset parsing & verification (canonizer-specific)
+## Ruleset Parsing & Verification (Canonizer-Specific)
 
 - [x] **Decided: emit the canonical form.** The distill and synthesize prompts must
   produce the canonical `§N.M [SEV][LEVEL]` form that `skillet/ruleset.Render` emits
@@ -147,7 +147,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## Housekeeping (from ai_skill_todo)
+## Housekeeping (From Ai_skill_todo)
 
 - [x] **Rubric scores are relative, not absolute.** canonizer's ship gate is already
   findings-based by design — the cold critic (A) plus the deterministic `verify` → `gate`
@@ -162,7 +162,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-## Cross-repo alignment & follow-ups (2026-08-05 survey)
+## Cross-Repo Alignment & Follow-Ups (2026-08-05 Survey)
 
 canonizer is the **reference dependency posture** for the skillet family: on skillet
 **v0.5.0** and **toerr v0.1.0** directly, with no `replace` directive — the state the
@@ -195,7 +195,7 @@ No bump is owed. The remaining work is canonizer's own governance follow-ups:
 
 ______________________________________________________________________
 
-## Reasoning-toolkit survey (unified-thinking, 2026-08-05)
+## Reasoning-Toolkit Survey (Unified-Thinking, 2026-08-05)
 
 Source: a survey of `~/Documents/git/unified-thinking` (a deterministic Go reasoning
 toolkit). Modest relevance — canonizer's ship gate is findings-based, not score-based —
