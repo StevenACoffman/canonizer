@@ -18,19 +18,19 @@ output has as many rules as the inputs combined, the synthesis failed.
 Where inputs conflict, the conflict must be resolved — not suppressed — so the
 output is unambiguous on every point where the inputs were.
 
----
+______________________________________________________________________
 
 ## Task
 
 Synthesise the following rulesets into a single unified ruleset:
 
-```
+```text
 {{RULESETS}}
 ```
 
----
+______________________________________________________________________
 
-## Output format
+## Output Format
 
 Output **only** the final canonical ruleset. Run the synthesis pipeline below as
 internal reasoning; do not emit group inventories, per-step output, section headings,
@@ -41,7 +41,7 @@ to the merged rule (keep the surviving rule's anchor when merging a group).
 
 Begin with the metadata block:
 
-```
+```text
 Source: [the synthesised set — condense the input titles/authors to one line]
 Scope:  [union of all input scopes; note a narrower scope in the rule's own statement where scopes diverge]
 ```
@@ -51,7 +51,7 @@ header (Step 2 derives the sections); do not add section headings.
 
 Rule format is unchanged from the input rulesets:
 
-```
+```text
 §2.3  [MUST][CODE]   Imperative stated directly to Claude.
       Rationale naming the concrete failure mode on violation.
       ✗  Counter-example
@@ -59,9 +59,9 @@ Rule format is unchanged from the input rulesets:
       ↦  Source anchor carried from the input rule
 ```
 
----
+______________________________________________________________________
 
-## Synthesis pipeline
+## Synthesis Pipeline
 
 Apply these steps in order. Within Steps 3–6, different groups can be
 processed in parallel — but within each group, Steps 3, 4, and 5 are
@@ -80,7 +80,7 @@ This grouping is the working input to all subsequent steps.
 
 Format each group as:
 
-```
+```text
 Group [G]: [one-line description of the shared concern]
   - Ruleset 1 §N.M: [severity][level] [summary]
   - Ruleset 2 §N.M: [severity][level] [summary]
@@ -88,7 +88,7 @@ Group [G]: [one-line description of the shared concern]
 
 A rule that has no counterpart in any other input forms a group of one.
 
-### Step 2 — Derive the section structure
+### Step 2 — Derive the Section Structure
 
 Do not union the input section structures mechanically.
 
@@ -108,16 +108,17 @@ Do not union the input section structures mechanically.
    overlap. If the draft exceeds this, return to Step 1 and check whether groups
    were split too finely.
 
-### Step 3 — Resolve each group
+### Step 3 — Resolve Each Group
 
 Apply the first matching case to each group.
 
----
+______________________________________________________________________
 
 **Case A — Identical in substance.**
 All rules in the group assert the same constraint, differing only in wording.
 
 → Merge into one rule. Select wording by this priority:
+
   1. The wording from the more domain-specific source (Go-specific over
      language-agnostic; domain-specific over general).
   2. If equal specificity, the wording that passes the two-reviewer test with
@@ -128,7 +129,7 @@ Drop attribution. If any input version of the rule fails the quality bar
 (vague, no failure mode, does not pass the replacement test), do not carry
 forward the failure — rewrite the rule to pass before including it.
 
----
+______________________________________________________________________
 
 **Case B — One rule is a special case of another.**
 Rule X says "never do Y." Rule Z says "never do Y in situation S." Z adds no
@@ -138,7 +139,7 @@ constraint that X does not already impose.
 value, note it parenthetically: *(applies especially in situation S, where the
 failure manifests as …).* Do not keep Z as a separate rule.
 
----
+______________________________________________________________________
 
 **Case C — Complementary aspects of the same concern.**
 The rules address the same underlying principle but each captures an aspect the
@@ -148,7 +149,7 @@ other does not, and both aspects are independently applicable.
 test because it is too broad to apply consistently, keep two adjacent rules
 within the same section. Do not keep them in separate sections.
 
----
+______________________________________________________________________
 
 **Case D — Conflicting prescriptions.**
 Two or more rules give incompatible advice for the same situation.
@@ -162,7 +163,7 @@ Do not suppress the conflict. Resolve it:
 2. **Conditional form.** Express the resolution as a conditional rule with an
    explicit criterion:
 
-   > `§4.1  [MUST][ARCH]`  When P, apply A. When Q, apply B.
+   > `§4.1  [MUST][ARCH]` When P, apply A. When Q, apply B.
    > **Criterion:** [what distinguishes P from Q].
    > ⚠ [Source 1] prescribes A unconditionally; [Source 2] prescribes B
    > unconditionally. This conditional form is the synthesis.
@@ -180,7 +181,7 @@ Do not suppress the conflict. Resolve it:
 exist in either input individually — these arise from combining rules whose
 interaction was never tested. Resolve any found using the same criterion above.
 
----
+______________________________________________________________________
 
 **Case E — Unique rule.**
 No other input addresses the same concern.
@@ -190,26 +191,26 @@ fails (vague, no failure mode, does not survive the replacement test), rewrite
 it to pass or discard it. Do not include a poor-quality rule simply because no
 input contradicts it.
 
----
+______________________________________________________________________
 
-### Step 4 — Reconcile severity
+### Step 4 — Reconcile Severity
 
 When the same rule appears with different severity tags across inputs, use this
 table:
 
-| Input severities | Output severity | Annotation |
-|---|---|---|
-| All `[MUST]` | `[MUST]` | None |
-| `[MUST]` + `[SHOULD]` | `[MUST]` | *(one source treats as `[SHOULD]`; stricter applied)* |
-| `[MUST]` + `[CONSIDER]` | `[MUST]` | *(sources disagree significantly on severity)* |
-| All `[SHOULD]` | `[SHOULD]` | None |
-| `[SHOULD]` + `[CONSIDER]` | `[SHOULD]` | *(one source treats as `[CONSIDER]`; stricter applied)* |
-| All `[CONSIDER]` | `[CONSIDER]` | None |
+| Input severities          | Output severity | Annotation                                              |
+| ------------------------- | --------------- | ------------------------------------------------------- |
+| All `[MUST]`              | `[MUST]`        | None                                                    |
+| `[MUST]` + `[SHOULD]`     | `[MUST]`        | *(one source treats as `[SHOULD]`; stricter applied)*   |
+| `[MUST]` + `[CONSIDER]`   | `[MUST]`        | *(sources disagree significantly on severity)*          |
+| All `[SHOULD]`            | `[SHOULD]`      | None                                                    |
+| `[SHOULD]` + `[CONSIDER]` | `[SHOULD]`      | *(one source treats as `[CONSIDER]`; stricter applied)* |
+| All `[CONSIDER]`          | `[CONSIDER]`    | None                                                    |
 
 When input language maps ambiguously to severity, apply the severity–language
 mapping table from the distillation prompt before reconciling here.
 
-### Step 5 — Resolve scope
+### Step 5 — Resolve Scope
 
 - Rule applies across all input scopes → state without qualifier.
 - Rule applies only within a subset of the combined scope → append a scope
@@ -218,7 +219,7 @@ mapping table from the distillation prompt before reconciling here.
   include both; general rule first, specific rule as a refinement immediately
   after.
 
-### Step 6 — Select illustrations
+### Step 6 — Select Illustrations
 
 For each merged or reconciled rule, choose one illustration (code contrast,
 structural contrast, or counter-example):
@@ -236,14 +237,14 @@ there a concrete artefact — a function, a module boundary, a deployment plan �
 that Claude would now generate, approve, or propose that the combined inputs
 would reject? If not, remove the rule. Repeat until no more rules can be pruned.
 
----
+______________________________________________________________________
 
-## Coverage accounting
+## Coverage Accounting
 
 Before writing the final output, produce a one-line account for every rule in
 every input:
 
-```
+```text
 Ruleset 1 §2.3  → output §3.1  (merged with Ruleset 2 §4.7, Case A)
 Ruleset 1 §2.4  → output §3.1  (subsumed, Case B)
 Ruleset 2 §6.1  → dropped      (failed replacement test: negation equally defensible)
@@ -254,9 +255,9 @@ Produce this accounting as internal reasoning to guide pruning and confirm cover
 every input rule must have an entry — but do **not** include it in the output file. The
 output is the canonical ruleset only; an appendix here would corrupt the parse.
 
----
+______________________________________________________________________
 
-## The quality bar
+## The Quality Bar
 
 Every rule in the output must pass all four tests. Do not exempt rules carried
 over unchanged; re-verify them in the context of the combined document.
@@ -276,9 +277,9 @@ same situation without a conditional that disambiguates them. This includes
 emergent contradictions that arise from combining rules whose interaction was
 never tested in either input.
 
----
+______________________________________________________________________
 
-## Attribution policy
+## Attribution Policy
 
 **Omit attribution** when rules merge without conflict. The synthesis speaks for
 itself.
@@ -296,9 +297,9 @@ apply the rule:
 Every annotation goes *inside* the rule — folded into the statement or the rationale
 line — never on a line of its own, which would corrupt the parse.
 
----
+______________________________________________________________________
 
-## Verification pass
+## Verification Pass
 
 Before submitting, confirm:
 
