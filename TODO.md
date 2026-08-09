@@ -190,8 +190,26 @@ No bump is owed. The remaining work is canonizer's own governance follow-ups:
     states the gate is the operator's responsibility. Rejected recording it in the
     skillet `proof.Packet`: that needs a cross-repo change to carry an unverifiable claim
     and would read as a digest-bound fact like the real artifacts.
-- [ ] **No release tags yet.** `.goreleaser.yaml` + the ldflags `version.Version` seam are
-  in place, but no tag is cut; tag once a consumer pins canonizer by version.
+- [ ] **Cut `v0.3.0` — or decide not to. The release machinery is done and proven.**
+  Corrected 2026-08-09; the previous text ("No release tags yet") was false. Verified
+  against the repo rather than read from this entry:
+  - `v0.1.0` and `v0.2.0` exist locally **and** on the remote, are published as module
+    versions, and both have GitHub releases with artifacts — `v0.2.0` was cut on
+    2026-08-09.
+  - `.goreleaser.yaml` passes `goreleaser check`, and `release.yml` fires on `v*`.
+  - The ldflags seam **injects**: building with goreleaser's exact
+    `-X …/cmd/version.Version=` flag reports that version and a resolved `GitCommit`.
+    Worth having checked, because a stale module path there fails silently — the binary
+    still builds and still reports `dev`.
+
+  What is actually open is a judgment, not work. `HEAD` is **5 commits ahead of `v0.2.0`**,
+  including `verify.Specificity` and the critic-prompt change. This entry's own condition
+  is *"tag once a consumer pins canonizer by version"*, and **no sibling repo pins it** —
+  checked skillet, exegesis, skillsaw and unified-thinking. By that rule no tag is due.
+
+  Left open deliberately rather than closed: a tag publishes a module version, fires CI and
+  creates a public release, so it is not something to do because the diff looks big enough.
+  Either a consumer pins canonizer and the trigger fires, or the rule itself should change.
 
 ______________________________________________________________________
 
