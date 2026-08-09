@@ -195,6 +195,46 @@ No bump is owed. The remaining work is canonizer's own governance follow-ups:
 
 ______________________________________________________________________
 
+## SkillLens Quality Dimensions — Rule Specificity (2026-08-08)
+
+Source: `~/Documents/agent-orange/skillopt_changes_findings.md`. The sibling tools score
+three dimensions taken from `microsoft/SkillLens` (arXiv:2605.23899): failure-mechanism
+encoding, actionable specificity, and a high-risk action blacklist — each validated at
+65–66% predictive accuracy against downstream utility.
+
+**Why this lands here despite canonizer grading rulesets rather than skills.** The
+deterministic gates are `Executable` (does each enforced rule carry a discriminating ✗/✓
+pair?) and `Provenance` (does its anchor appear in the source?) — structural and
+citational. Neither can tell a rule that encodes a domain failure mechanism from one that
+says "handle errors carefully" with a valid anchor and a well-formed ✗/✓ pair. Generic
+advice is the characteristic failure of model-distilled rules, and it is precisely what
+SkillLens measures — so the gap sits exactly on canonizer's stated reason to exist.
+
+- [ ] **Add `verify.Specificity` over `skillet/skilllens` — advisory, never blocking.**
+      Flag any enforced rule whose text is softening-only or names no domain object, tool
+      or API. `finding.SeverityWarning`, so `gate.Blocking` ignores it and
+      `TestDecideBlockingNeverShips` stays exactly as true as it is now: `Executable` and
+      `Provenance` remain the only things that stop a ship. A general rule is sometimes
+      correct, and a deterministic check cannot tell which — so this reports and does not
+      decide. Blocked on the skillet promotion (see that TODO).
+- [ ] **Put the three dimensions in the cold-critic prompt (`internal/prompt/critic_prompt.md`).**
+      The better fit of the two, and it needs no new machinery. The dimensions are a
+      *judgment* rubric, and canonizer's whole architecture routes judgment to a fresh
+      grader while keeping deterministic decisions in code — so give the critic the three
+      questions and the anti-example for each ("handle errors carefully", "decompose into
+      smaller steps", "be careful with dangerous operations"). This extends the existing
+      `vague` category from a bare label into a stated test, at zero carrying cost. Feed
+      the result through `internal/budget` like any other finding so a rule failing on
+      specificity consumes rework budget.
+      Fits the P1 posture unchanged: canonizer emits, an agent runs it, the deterministic
+      gate decides.
+- Note: canonizer needs no `Config`/weights work. The other tools turn these dimensions
+      into weighted 1-10 scores; canonizer's gate is findings-based by design (see
+      "Rubric scores are relative, not absolute" above), so the dimensions arrive as
+      diagnostics and a prompt, never as a number that could become a ship threshold.
+
+______________________________________________________________________
+
 ## Reasoning-Toolkit Survey (Unified-Thinking, 2026-08-05)
 
 Source: a survey of `~/Documents/git/unified-thinking` (a deterministic Go reasoning

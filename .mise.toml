@@ -10,6 +10,14 @@ cosign = "latest"
 [env]
 LOG_LEVEL = "debug"
 
+[tasks.run]
+description = "Run the main application"
+run = "go run ."
+
+[tasks.build]
+description = "Build the binary with goreleaser"
+run = "goreleaser build --snapshot --clean"
+
 [tasks.sbom]
 description = "Build the source tarball + SBOM locally (goreleaser snapshot; signing skipped)"
 run = "goreleaser release --snapshot --clean --skip=sign"
