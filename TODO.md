@@ -210,14 +210,14 @@ says "handle errors carefully" with a valid anchor and a well-formed ✗/✓ pai
 advice is the characteristic failure of model-distilled rules, and it is precisely what
 SkillLens measures — so the gap sits exactly on canonizer's stated reason to exist.
 
-- [ ] **Add `verify.Specificity` over `skillet/skilllens` — advisory, never blocking.**
+- [x] **Add `verify.Specificity` over `skillet/skilllens` — advisory, never blocking.** DONE (2026-08-09).
       Flag any enforced rule whose text is softening-only or names no domain object, tool
       or API. `finding.SeverityWarning`, so `gate.Blocking` ignores it and
       `TestDecideBlockingNeverShips` stays exactly as true as it is now: `Executable` and
       `Provenance` remain the only things that stop a ship. A general rule is sometimes
       correct, and a deterministic check cannot tell which — so this reports and does not
       decide. Blocked on the skillet promotion (see that TODO).
-- [ ] **Put the three dimensions in the cold-critic prompt (`internal/prompt/critic_prompt.md`).**
+- [x] **Put the three dimensions in the cold-critic prompt (`internal/prompt/critic_prompt.md`).** DONE (2026-08-09).
       The better fit of the two, and it needs no new machinery. The dimensions are a
       *judgment* rubric, and canonizer's whole architecture routes judgment to a fresh
       grader while keeping deterministic decisions in code — so give the critic the three
@@ -228,6 +228,14 @@ SkillLens measures — so the gap sits exactly on canonizer's stated reason to e
       specificity consumes rework budget.
       Fits the P1 posture unchanged: canonizer emits, an agent runs it, the deterministic
       gate decides.
+      Landed as three numbered questions under `vague`, each with its anti-example, plus
+      the note that a rule can be well written, well sourced and still fail all three.
+      **No fourth category was added** — the output contract lists three and the severity
+      rule keys on them by name, and `internal/critic` validates nothing, so a new category
+      would fail silently downstream.
+      Tested on the **filled** prompt rather than the file, which caught a real defect: one
+      anti-example had been wrapped across a line break, so the phrase never reached the
+      grader intact. Reflowed.
 - Note: canonizer needs no `Config`/weights work. The other tools turn these dimensions
       into weighted 1-10 scores; canonizer's gate is findings-based by design (see
       "Rubric scores are relative, not absolute" above), so the dimensions arrive as
