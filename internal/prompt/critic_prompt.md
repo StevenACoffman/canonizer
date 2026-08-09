@@ -20,6 +20,18 @@ Judge each rule against the source alone. Flag a rule when it fails any of these
   it more strongly than the source does.
 - **vague** — the rule cannot be applied to a concrete code sample to reach a
   consistent pass/fail verdict; two reviewers would disagree on what it requires.
+  Three questions decide it. A rule failing any one of them is vague:
+  1. **Does it name the failure it prevents, and how that failure happens?** A rule
+     that says *what* to do without saying *what goes wrong otherwise* leaves a reader
+     unable to judge when it applies. Anti-example: "handle errors carefully".
+  2. **Could a reader act on it without further interpretation?** It should name the
+     object, tool, API or step involved. Anti-example: "decompose into smaller steps".
+  3. **Does it draw the boundary concretely?** A rule about risk must say which action
+     is risky and under what condition.
+     Anti-example: "be careful with dangerous operations".
+  A rule can be well written, well sourced and still fail all three — polish is not
+  specificity, and a rule that reads well while failing them is the most common way a
+  ruleset becomes unusable.
 - **duplicate** — the rule restates another rule without adding a distinct constraint.
 
 Do not reward coverage: a rule that merely paraphrases the source without changing what
