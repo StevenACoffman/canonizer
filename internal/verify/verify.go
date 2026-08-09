@@ -11,7 +11,9 @@ import (
 
 	"github.com/StevenACoffman/skillet/finding"
 	"github.com/StevenACoffman/skillet/judge"
+	"github.com/StevenACoffman/skillet/markdown"
 	"github.com/StevenACoffman/skillet/ruleset"
+	"github.com/StevenACoffman/skillet/skilllens"
 	errors "github.com/StevenACoffman/toerr/errors"
 )
 
@@ -67,6 +69,59 @@ func Provenance(rs ruleset.Ruleset, source string) []finding.Diagnostic {
 		}
 	}
 	return diags
+}
+
+// Specificity returns an advisory diagnostic for every enforced rule whose statement
+// reads as general advice rather than something a reader could act on: one that hedges
+// with softening language, or that names no concrete object at all.
+//
+// It is **always advisory**. The severity is fixed here rather than taken as an argument
+// so no caller can make it blocking: a general rule is sometimes exactly right, and no
+// deterministic check can tell which, so this reports and does not decide. Executable and
+// Provenance remain the only checks that stop a ship.
+//
+// False positives are expected and are not a defect to fix. "Prefer composition over
+// inheritance" names nothing concrete and is a good rule; it will be flagged, and a reader
+// will dismiss it in a second. Making the check quieter by blocking on it instead would
+// trade a cheap false alarm for an expensive false stop.
+//
+// Both signals come from skillet rather than being detected here. The softening
+// vocabulary is skilllens's -- the same one skillsaw and adh score -- and the concreteness
+// signal is markdown's Links, which carries code-span contents as well as link targets, so
+// a rule naming a tool or symbol in backticks has one. A local heuristic would make
+// canonizer the third independent implementation of a rubric that was just unified.
+//
+// Ensures: every returned diagnostic has finding.SeverityWarning; it is pure.
+func Specificity(rs ruleset.Ruleset) []finding.Diagnostic {
+	diags := make([]finding.Diagnostic, 0)
+	for i := range rs.Rules {
+		r := &rs.Rules[i]
+		if !enforced(r.Severity) {
+			continue
+		}
+		doc := markdown.Parse(r.Statement)
+		if hedges := skilllens.SofteningPhrases(doc); len(hedges) > 0 {
+			diags = append(diags, advisory(r, "softening",
+				"statement hedges ("+hedges[0].Text+"); a reader cannot tell when it applies"))
+			continue
+		}
+		if len(doc.Links) == 0 {
+			diags = append(diags, advisory(r, "unspecific",
+				"statement names no object, tool or API a reader could act on"))
+		}
+	}
+	return diags
+}
+
+// advisory builds a warning-severity diagnostic located at rule r. Separate from diag
+// because the severity is the point: these must never reach gate.Blocking.
+func advisory(r *ruleset.Rule, category, message string) finding.Diagnostic {
+	return finding.Diagnostic{
+		Severity: finding.SeverityWarning,
+		Category: category,
+		Path:     "§" + r.Section,
+		Message:  message,
+	}
 }
 
 // enforced reports whether a rule's severity is gated. MUST/SHOULD are enforced;
