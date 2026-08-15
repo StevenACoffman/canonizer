@@ -120,7 +120,10 @@ canonizer gate --findings findings.json
   distilled rulesets.
 - **`verify --ruleset PATH [--source PATH] [--proof PATH] [--out FILE]`** — Check
   executability and provenance, then emit findings JSON. `--proof` writes a packet binding
-  the ruleset (and source) to their exact bytes.
+  the ruleset (and source) to their exact bytes. It also reports rule *specificity* — a
+  rule that is softening-only or names no domain object, tool or API — as a **warning that
+  never blocks**: a general rule is sometimes correct and a deterministic check cannot tell
+  which, so this reports and does not decide.
 - **`critic --source PATH --ruleset PATH [--out FILE]`** — Emit a cold-critic prompt for a
   fresh grader.
 - **`gate [--findings FILE] [--selftest]`** — Block (exit 1) while any finding is blocking.
