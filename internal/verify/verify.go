@@ -13,7 +13,9 @@ import (
 	"github.com/StevenACoffman/skillet/judge"
 	"github.com/StevenACoffman/skillet/markdown"
 	"github.com/StevenACoffman/skillet/ruleset"
+	"github.com/StevenACoffman/skillet/ruleset/conflict"
 	"github.com/StevenACoffman/skillet/skilllens"
+	"github.com/StevenACoffman/skillet/textnorm"
 	errors "github.com/StevenACoffman/toerr/errors"
 )
 
@@ -50,7 +52,7 @@ func Executable(rs ruleset.Ruleset) ([]finding.Diagnostic, error) {
 // so a quote the model re-wrapped still matches. Whether a present anchor *supports*
 // the claim is the critic's `unsupported` judgment.
 func Provenance(rs ruleset.Ruleset, source string) []finding.Diagnostic {
-	haystack := normalize(source)
+	haystack := textnorm.Fold(source)
 	diags := make([]finding.Diagnostic, 0)
 	for i := range rs.Rules {
 		r := &rs.Rules[i]
@@ -61,7 +63,7 @@ func Provenance(rs ruleset.Ruleset, source string) []finding.Diagnostic {
 			diags = append(diags, diag(r, "no-anchor", "rule cites no source anchor"))
 			continue
 		}
-		if !strings.Contains(haystack, normalize(r.SourceAnchor)) {
+		if !strings.Contains(haystack, textnorm.Fold(r.SourceAnchor)) {
 			diags = append(
 				diags,
 				diag(r, "anchor-absent", "source anchor is not present in the source"),
@@ -115,9 +117,13 @@ func Specificity(rs ruleset.Ruleset) []finding.Diagnostic {
 
 // advisory builds a warning-severity diagnostic located at rule r. Separate from diag
 // because the severity is the point: these must never reach gate.Blocking.
+//
+// Action is guided rather than automatic: a tool can propose concrete wording for a softened
+// or unspecific rule, but only a person can confirm the rewrite is still true of the source.
 func advisory(r *ruleset.Rule, category, message string) finding.Diagnostic {
 	return finding.Diagnostic{
 		Severity: finding.SeverityWarning,
+		Action:   finding.ActionGuided,
 		Category: category,
 		Path:     "§" + r.Section,
 		Message:  message,
@@ -131,16 +137,43 @@ func enforced(sev ruleset.Severity) bool {
 }
 
 // diag builds an error-severity diagnostic located at rule r.
+//
+// Action is human for all of these, and nothing canonizer emits is automatic. Every blocking
+// category needs someone who knows what the source says: an unexecutable rule needs
+// rewriting, a missing anchor needs the passage found, and an absent one needs deciding
+// whether the source moved or the rule was fabricated. Claiming a tool could close them
+// unattended is the misclassification this axis exists to prevent.
 func diag(r *ruleset.Rule, category, message string) finding.Diagnostic {
 	return finding.Diagnostic{
 		Severity: finding.SeverityError,
+		Action:   finding.ActionHuman,
 		Category: category,
 		Path:     "§" + r.Section,
 		Message:  message,
 	}
 }
 
-// normalize collapses every run of whitespace to a single space.
-func normalize(s string) string {
-	return strings.Join(strings.Fields(s), " ")
+// Conflicts reports decidable inconsistencies between rules -- the same statement asserted
+// at two severities or two levels, or one section claimed twice -- as warnings.
+//
+// Advisory for the same reason Specificity is: a severity divergence may be a deliberate
+// refinement of a general rule, and a deterministic check cannot tell that from a genuine
+// contradiction. It reports; the cold critic and a person decide.
+//
+// The detection itself is skillet's ruleset/conflict, which returns diagnostics with no
+// severity precisely so this decision is made here. Action is guided: a tool can propose
+// which of two divergent rules to keep, but only a person can say which is right.
+func Conflicts(rs ruleset.Ruleset) []finding.Diagnostic {
+	found := conflict.Find(rs)
+	out := make([]finding.Diagnostic, 0, len(found))
+	for i := range found {
+		d := found[i]
+		d.Severity = finding.SeverityWarning
+		d.Action = finding.ActionGuided
+		// skillet emits the bare section; the "§" is this repo's presentation convention,
+		// applied here so one verify run does not mix "2.4" and "§2.4" in its output.
+		d.Path = "§" + d.Path
+		out = append(out, d)
+	}
+	return out
 }
