@@ -4,7 +4,7 @@ go 1.26.3
 
 require github.com/peterbourgon/ff/v4 v4.0.0-beta.1
 
-require github.com/StevenACoffman/skillet v0.13.0
+require github.com/StevenACoffman/skillet v0.16.0
 
 require github.com/StevenACoffman/toerr v0.1.0
 

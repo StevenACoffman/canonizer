@@ -295,6 +295,98 @@ so this is mostly inspiration.
   them; and its fallacy / argument-structure taxonomy could sharpen the cold-critic *prompt*
   (never the deterministic gate).
 
+## Agent-Red Survey (2026-08-15)
+
+Source: a survey of `~/Documents/agent-red` (26 agent-tooling projects) driven by the
+knowledge-base ingestion work. Claims below were checked against the code in both
+repositories.
+
+- [x] **`normalize` disagrees with exegesis about what "present in the source" means.** DONE
+  2026-08-15 on skillet v0.16.0. `verify` calls `textnorm.Fold` and the local `normalize` is
+  deleted. The accepted set grew, as predicted: curly apostrophes, curly doubles and em
+  dashes all emitted `anchor-absent` before and do not now — verified by reverting, not
+  assumed. `TestFoldingOnlyWidensAcceptance` pins the direction, because folding strictly
+  widens what matches and a rule that *stopped* being accepted would mean the normalization
+  changed meaning rather than reach.
+  Original entry:
+  `internal/verify/verify.go:144` is `strings.Join(strings.Fields(s), " ")` — whitespace
+  folding only. `exegesis/internal/textnorm.Fold` folds whitespace runs **and** typographic
+  characters (curly quotes, en/em dashes, non-breaking and zero-width spaces) before the
+  same comparison, precisely because a book, a plain-text extraction, and a Markdown file
+  each spell those differently — as that package puts it, a guard that fired on every curly
+  apostrophe would not get run. **Consequence today:** a rule whose `↦` anchor was copied
+  from a source containing a curly apostrophe emits `anchor-absent` here and blocks, while
+  the identical passage passes `exegesis quotecheck`. Two tools in one family answering one
+  question differently is the drift skillet exists to prevent. `textnorm` has two callers in
+  exegesis (`quotecheck`, `a2check`) and canonizer is the third — recorded as a promotion
+  candidate in skillet's TODO under *Contradiction Detection*. Adopt it here when it lands;
+  expect the set of accepted anchors to grow, which is the point.
+- [ ] **`anchor-absent` conflates a fabrication with a drift, and they warrant opposite
+  responses.** `Provenance` emits one category when `r.SourceAnchor` is not found in the
+  haystack, whether the anchor was **invented by the model** (a real defect — block, always)
+  or the **source moved under it** (a new edition, a reformat, a re-exported PDF — where the
+  rule may be entirely sound and only its anchor needs refreshing). Both block identically,
+  so the response to a routine source update is indistinguishable from the response to a
+  hallucination. `llmwiki` makes the same conflation from the other end (`evidence_invalid`
+  on `promote`), and for the same underlying reason: neither tool retains the source bytes
+  the anchor was validated against, so "the quote is wrong" and "the source changed" are not
+  separable facts. **Separating them needs the immutable evidence archive** described in
+  `agent-red/manifesto.md` — with it, `quote ≠ archived bytes` is corruption (fail hard) and
+  `archived bytes ≠ current source` is staleness (flag for re-review, do not block). Until
+  then, the cheap half is available now: record the source's content hash beside the ruleset
+  at distill time, so a later `anchor-absent` can at least *report* whether the source has
+  changed since — a different message, not yet a different verdict.
+- [x] **Findings say what is wrong, not who acts.** DONE 2026-08-15: `finding.Action` landed
+  in skillet v0.16.0 and every diagnostic here carries one. `diag` is `human` and `advisory`
+  is `guided`; **nothing canonizer emits is `automatic`**, because every category needs
+  someone who knows what the source says — an unexecutable rule needs rewriting, an absent
+  anchor needs deciding whether the source moved or the rule was fabricated.
+  **No severity changed**, which this entry required: `gate` and `budget` are untouched and
+  `TestDecideBlockingNeverShips` is the same test, verified by diff rather than by it still
+  passing. `budget.Decide` deliberately still takes a bool — making rework budget depend on
+  `Action` is a policy change with its own before/after.
+  Original entry: A `finding.Diagnostic` is
+  `{severity, category, path, message}`; severity says whether it blocks. `AgentLint` carries
+  `fix_type` per check (`guided` — the tool proposes and a human confirms; `assisted` — the
+  tool can generate the fix), stored as data in `standards/evidence.json` alongside the
+  evidence for the check itself. Relevant here because `loop` and `budget` govern rework
+  rounds: a rework budget spent on findings a human must adjudicate is not the same
+  expenditure as one spent on findings the agent can close, and today the two are
+  indistinguishable to the loop. A fixed classification per check, no new measurement, and
+  **not a severity change** — `Specificity` stays advisory by construction.
+- [x] **Contradiction detection lands here first — canonizer is consumer #1.** DONE
+  2026-08-15. `verify.Conflicts` wraps `skillet/ruleset/conflict`, which returns diagnostics
+  with **no severity** precisely so the policy is made here: warning, for the same reason
+  `Specificity` is advisory — a severity divergence may be a deliberate refinement and a
+  deterministic check cannot tell. Proven non-blocking by running `gate` over the result
+  rather than by reading the constant.
+  The sequencing this entry called for held: `textnorm` first, so the conflict checker and
+  `Provenance` fold identically inside one binary.
+  **Found while wiring: `verify.Specificity` was never called.** Built 2026-08-09, tested,
+  and absent from `cmd/verify`, which ran `Executable` and `Provenance` only — canonizer had
+  been shipping a check nobody ran. Wired in the same pass.
+  Original entry: A ruleset's
+  entire claim is that its rules are *internally consistent*, and nothing checks it.
+  `verify` establishes that each rule is executable and anchored; two rules can both pass
+  and still contradict each other. The shared half is recorded in skillet's TODO as
+  `ruleset/conflict`: three predicates exactly decidable over the canonical form today —
+  severity divergence, level divergence, and `§`-identity collision after a merge — emitting
+  `finding.Diagnostic`, **never a score**, since a "contradiction score" is exactly the ship
+  threshold this repo refuses to have. The residue (genuine semantic conflict between two
+  prose rules) routes to the existing cold critic, which already sees the source and the
+  ruleset but not the reasoning that produced them — no new machinery needed for it.
+  Note the sequencing: `conflict` compares normalized rule text, so it depends on the
+  `textnorm` item above being settled first, or it will inherit the same disagreement.
+- [ ] **Adjudication records have no home and fail `Provenance` by construction.** When two
+  rules conflict and a person decides, the decision is knowledge present in neither source,
+  so it can carry no `↦` anchor — and `Provenance` will block it as `no-anchor`. That is
+  the highest-value artifact the team produces, rejected by the check that exists to
+  protect quality. Shape when it is time: a supersession edge plus a human warrant (who,
+  when, which review) beside `SourceAnchor`, so an adjudicated rule is *sourced differently*
+  rather than *unsourced*, and `enforced(r.Severity)` gates on the warrant's presence
+  instead of the anchor's. Held in skillet's TODO until a second consumer wants it; recorded
+  here because canonizer is where the false rejection will actually fire.
+
 ______________________________________________________________________
 
 *Recorded 2026-08-04. Sources: this repository's state, and

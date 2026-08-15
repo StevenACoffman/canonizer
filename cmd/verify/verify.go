@@ -81,6 +81,10 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 	if err != nil {
 		return errors.Wrap(err) // vfy already prefixes "verify:"
 	}
+	// Both are advisory and independent of --source, so they run before the provenance
+	// block rather than inside it: a run without a source must still report them.
+	diags = append(diags, vfy.Specificity(rs)...)
+	diags = append(diags, vfy.Conflicts(rs)...)
 	if cfg.Source != "" {
 		source, readErr := os.ReadFile(cfg.Source)
 		if readErr != nil {
