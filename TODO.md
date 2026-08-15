@@ -190,9 +190,16 @@ No bump is owed. The remaining work is canonizer's own governance follow-ups:
     states the gate is the operator's responsibility. Rejected recording it in the
     skillet `proof.Packet`: that needs a cross-repo change to carry an unverifiable claim
     and would read as a digest-bound fact like the real artifacts.
-- [ ] **Cut `v0.3.0` — or decide not to. The release machinery is done and proven.**
-  Corrected 2026-08-09; the previous text ("No release tags yet") was false. Verified
-  against the repo rather than read from this entry:
+- [x] **Release tags — DONE, and the "tag once a consumer pins canonizer" rule is retired.**
+  `v0.3.0` was cut on 2026-08-14 and `HEAD` sits on it. The rule this entry set for itself
+  never fired and never will as stated: **nothing pins canonizer by version** — rechecked
+  2026-08-14 across skillet, adh, exegesis, skillsaw and unified-thinking — yet three
+  releases have been cut anyway. The rule described a consumer-driven cadence this repo
+  does not have, so it is replaced by what actually happens: **tag when meaningful work
+  lands.** Recorded rather than silently dropped, so the absent trigger is not read as an
+  oversight at the next survey.
+  The verification below is kept because it is what makes tagging routine — it proves the
+  machinery, and none of it needs redoing:
   - `v0.1.0` and `v0.2.0` exist locally **and** on the remote, are published as module
     versions, and both have GitHub releases with artifacts — `v0.2.0` was cut on
     2026-08-09.
@@ -202,14 +209,10 @@ No bump is owed. The remaining work is canonizer's own governance follow-ups:
     Worth having checked, because a stale module path there fails silently — the binary
     still builds and still reports `dev`.
 
-  What is actually open is a judgment, not work. `HEAD` is **5 commits ahead of `v0.2.0`**,
-  including `verify.Specificity` and the critic-prompt change. This entry's own condition
-  is *"tag once a consumer pins canonizer by version"*, and **no sibling repo pins it** —
-  checked skillet, exegesis, skillsaw and unified-thinking. By that rule no tag is due.
-
-  Left open deliberately rather than closed: a tag publishes a module version, fires CI and
-  creates a public release, so it is not something to do because the diff looks big enough.
-  Either a consumer pins canonizer and the trigger fires, or the rule itself should change.
+  Standing note for the next release: a tag publishes a module version, fires CI and
+  creates a public GitHub release, so it stays a deliberate act. Nothing here needs
+  re-verifying first — `goreleaser check` and the ldflags probe above already passed, and
+  they only need repeating if `.goreleaser.yaml` or the `cmd/version` symbol path changes.
 
 ______________________________________________________________________
 
@@ -258,6 +261,16 @@ SkillLens measures — so the gap sits exactly on canonizer's stated reason to e
       into weighted 1-10 scores; canonizer's gate is findings-based by design (see
       "Rubric scores are relative, not absolute" above), so the dimensions arrive as
       diagnostics and a prompt, never as a number that could become a ship threshold.
+- Note (2026-08-09): a cross-repo survey is adding a **derived applicability predicate** to
+  `skilllens` so adh and skillsaw can tighten their failure-mechanism dimensions without
+  docking documents that legitimately encode no failure mechanism (see
+  `../skillet/TODO.md`). **`verify.Specificity` is deliberately not a consumer of it, and
+  should stay advisory.** Its false positives are irreducible rather than categorical:
+  "prefer composition over inheritance" names nothing concrete and is a perfectly good
+  rule, and no derived predicate separates that from a vague one — which is the reason the
+  entry above chose advisory severity in the first place. Adding a gate here would be
+  machinery that cannot be right. Recorded so the resemblance to the skillsaw/adh work does
+  not get mistaken for a shared fix at the next survey.
 
 ______________________________________________________________________
 
