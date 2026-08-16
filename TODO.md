@@ -387,6 +387,92 @@ repositories.
   instead of the anchor's. Held in skillet's TODO until a second consumer wants it; recorded
   here because canonizer is where the false rejection will actually fire.
 
+## Agent-Blue Survey (2026-08-15)
+
+Source: a survey of `~/Documents/agent-blue` (22 projects — the sources the practice came
+from). Checked against the code in both repositories.
+
+- [ ] **Nothing asserts a stored ruleset is in canonical form.** `verify` parses
+  (`ruleset.Parse`) and never renders: a grep for `Render` across this repo returns no
+  non-test hit, and no command carries a `--check` flag. So a ruleset an agent wrote can be
+  *parseable* while `Render(Parse(x)) != x` — reordered, reformatted, or quietly dropping a
+  field `Parse` tolerates and `Render` does not reproduce. The locked design decision
+  (*Ruleset Parsing & Verification*, above) is that we emit and consume the canonical form
+  precisely so structured loading is deterministic; nothing enforces that today.
+  **This is load-bearing for contradiction detection**, not cosmetic: `ruleset/conflict`
+  compares normalized rule text, so a non-canonical ruleset makes two identical rules look
+  different, or two different rules look identical, before any comparison runs.
+  The pattern to copy is one flag: `agent-blue/modelith`'s
+  `render --check` — "verify the committed output is up to date; non-zero exit on drift"
+  (`cmd/modelith/main.go:461`), mutually exclusive with `--stdout`, with CI regenerating and
+  failing on drift like a generated-code check. **exegesis already has this shape** —
+  `cmd/index/index.go:23` and `cmd/normalize/normalize.go:22` both carry `Check bool` — so
+  this is family convergence, not a new idea. Emit as a `finding.Diagnostic` so `gate` can
+  block on it like every other check.
+  **Sequenced behind the format version decided in skillet 2026-08-15.** A round-trip check
+  is only meaningful *within* a known grammar: `Render(Parse(x)) != x` on a file written by a
+  newer version would report drift where the real answer is "this is v2 and I read v1". So
+  the check must refuse an unknown major before it compares, not after. Ship the version
+  reader first, then this.
+  **canonizer is the whole migration.** The `ruleset` canonical form has exactly two
+  consumers — this repo and skillet itself; exegesis, skillsaw and adh have zero references —
+  and roughly ten stored files exist, most of them 1-4 rule prompt examples. So a breaking
+  format change is a bump here rather than a family-wide event, which is why skillet chose to
+  do it now rather than defer it again.
+- [ ] **The cold critic reports what it found, never what it did not look at.**
+  `critic_prompt.md` asks for `unsupported` / `vague` / `duplicate` findings; an empty
+  category is therefore indistinguishable from an uninspected one, and `gate` ships on that
+  silence. `agent-blue/super-hermes` closes exactly this hole:
+  `skills/prism-scan/SKILL.md:57` appends a **constraint footer** — "This analysis
+  maximized X. It did not examine: [1-2 specific alternative angles]" — and `prism-reflect`
+  persists a fuller constraint report that **later runs read to steer their lens away from
+  angles already exhausted**.
+  **It does not compromise the cold split**, which is the reason it is admissible here: a
+  coverage record says *what was looked at*, never *what was concluded* or how the ruleset
+  was produced. It is categorically unlike the distillation, which `critic` withholds by
+  design. Shape: an additive `examined` / `not_examined` block beside the findings array,
+  advisory only — a critic that declares a gap must not thereby block, or it will learn to
+  declare none.
+- [ ] **One cold critic is one opinion.** `agent-blue/evals-differential-oracle` is the
+  source of adh's `oracle` self-test, and its thesis applies verbatim to grading:
+  *agreement between two independently-built systems is a far stronger signal than either
+  passing its own tests*. canonizer runs a single critic prompt; a second grader given the
+  same source and ruleset but a different prompt (or a different model, per the model-gate
+  convention) would make disagreement visible instead of invisible. Its second net is worth
+  noting separately: `src/invariants.py` — "the rules any correct implementation must obey,
+  **checked against a board independently of how the result was produced**" — is the
+  deterministic complement, and `verify.Executable` / `verify.Provenance` already are that
+  net for rulesets. So the gap is only the *second opinion*, not the invariant tier.
+  Already absorbed and worth not re-deriving: `gate.SelfTest`'s planted-defect negative
+  control is that repo's `impl_buggy.py` idea, and mirrors adh's `oracle selftest`.
+- [ ] **OKF states our thesis as two data fields.**
+  `agent-blue/knowledge-catalog/okf/SPEC.md` §5.2 keeps `generated` and `verified` separate
+  "because who *wrote* a concept need not be who *confirmed* it" — which is this repo's
+  entire reason to exist, expressed as frontmatter rather than as a pipeline stage. Two
+  details are directly usable if rulesets ever carry provenance metadata: `verified` is a
+  **list** of independent verification events, each `{by, at}`, so a human sign-off and an
+  automated pass are recorded as distinct checks rather than collapsed; and `verified` is
+  **independent of `generated.at`**, so "content changed without re-confirmation" and
+  "re-confirmed without regeneration" are separately representable. That is the vocabulary
+  the `anchor-absent` split above needs, and adopting it would mean not inventing a third.
+- [ ] **Say what a score is not allowed to claim.**
+  `agent-blue/cc-thinking-skills/analysis/AUDIT.md` pins its evidence file *and* the
+  registry it references by SHA-256, then states "If this narrative disagrees with the JSON,
+  **the JSON wins**", carries a global disposition of `no_automatic_elevation`, and
+  enumerates the claims not authorized: "No public 'proven / validated / improves /
+  eval-informed / auto-invoke' claim is authorized. Inferences are labeled." Its published
+  headline is that **zero of 28 skills hold a replicated ELEVATE verdict**. This repo already
+  refuses to emit a weighted score for exactly this reason; the remaining exposure is prose —
+  a `verify` pass with no blocking findings is easy to describe as "verified" when it means
+  "no deterministic check objected and one critic agreed". Cheap and entirely documentation:
+  state in the README what a clean `gate` does and does not license anyone to say.
+- Deliberately NOT adopted: `PolyBrain`'s multi-model orchestration (its "verified claims"
+  output contract is the right instinct, but canonizer never calls a model — a second
+  grader is a second *prompt*, which is the item above, not an orchestration layer);
+  `NFRLocator`'s classifier (statistical, no per-decision provenance);
+  `hermes-skill-factory` and `hermes-dojo` (producer- and optimizer-side, no ruleset
+  surface).
+
 ______________________________________________________________________
 
 *Recorded 2026-08-04. Sources: this repository's state, and
