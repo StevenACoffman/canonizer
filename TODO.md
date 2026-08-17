@@ -455,6 +455,16 @@ from). Checked against the code in both repositories.
   **independent of `generated.at`**, so "content changed without re-confirmation" and
   "re-confirmed without regeneration" are separately representable. That is the vocabulary
   the `anchor-absent` split above needs, and adopting it would mean not inventing a third.
+  **Evaluated in skillet 2026-08-17 and deliberately not promoted there.** All three repos
+  referencing OKF want it conditionally — this entry says *"if rulesets ever carry provenance
+  metadata"* — and skillet already carries one speculative extraction with zero importers
+  (`provenance`) as the precedent for what that produces. **So when this lands it lands here,
+  local to canonizer, until a second consumer appears** — the same call that kept `quotecheck`
+  in exegesis.
+  This is the nearest of the three to real, because the `anchor-absent` split above is a
+  *present* defect rather than a conditional want, and §5.2's independence of `verified` from
+  `generated.at` is exactly the distinction it needs: *content changed without
+  re-confirmation* versus *re-confirmed without regeneration*.
 - [ ] **Say what a score is not allowed to claim.**
   `agent-blue/cc-thinking-skills/analysis/AUDIT.md` pins its evidence file *and* the
   registry it references by SHA-256, then states "If this narrative disagrees with the JSON,
