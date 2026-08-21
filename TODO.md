@@ -336,6 +336,28 @@ repositories.
   then, the cheap half is available now: record the source's content hash beside the ruleset
   at distill time, so a later `anchor-absent` can at least *report* whether the source has
   changed since — a different message, not yet a different verdict.
+  - [ ] **It is a three-way split, not two.** `gnosis`
+    (`~/Documents/git/gnosis/SPEC.md` §4.2–§4.3) has now settled the archive design, and it
+    is text-only with **deliberately no PDF extractor** — so a source that cannot be archived
+    is admitted as `referenced`: hash and URI recorded, no local text retained. That is a
+    third state and it is the one canonizer will hit first, because a rule distilled from a
+    book or a PDF standard is the normal case here:
+
+    | State            | Condition                               | Verdict                  |
+    | ---------------- | --------------------------------------- | ------------------------ |
+    | fabricated       | anchor ∉ archived text                  | block, always            |
+    | drifted          | archived text ≠ current source          | flag stale, do not block |
+    | **unverifiable** | no archived text exists for this source | **report, never block**  |
+
+    Collapsing `unverifiable` into `fabricated` would block every rule drawn from a PDF —
+    which is most of `go-advice`. Collapsing it into a pass would let a fabricated anchor
+    through whenever the source happens to be unarchivable, which is the more dangerous
+    error. It has to be its own state, carried on the finding, and paired with the
+    already-landed `finding.Action` (`human`) so a reader knows the next move is to find a
+    quotable source rather than to rewrite the rule.
+    Note the shared prerequisite: this is the same not-applicable outcome recorded against
+    the `quotecheck` promotion in skillet's TODO. One state, two consumers — which is what
+    makes it skillet's to define rather than either tool's to invent.
 - [x] **Findings say what is wrong, not who acts.** DONE 2026-08-15: `finding.Action` landed
   in skillet v0.16.0 and every diagnostic here carries one. `diag` is `human` and `advisory`
   is `guided`; **nothing canonizer emits is `automatic`**, because every category needs
@@ -482,6 +504,69 @@ from). Checked against the code in both repositories.
   `NFRLocator`'s classifier (statistical, no per-decision provenance);
   `hermes-skill-factory` and `hermes-dojo` (producer- and optimizer-side, no ruleset
   surface).
+
+## Agent-Fuschia Survey (2026-08-18)
+
+Source: a survey of `~/Documents/agent-fuschia` (26 repositories). canonizer takes the most
+from it, because `vac-protocol` independently arrived at this repo's central distinction.
+
+- [ ] **`verify` and `critic` are VAC's structural/semantic split, and the output should
+  say so.** `agent-fuschia/vac-protocol` §4 calls them "two distinct acts, **never to be
+  conflated**": *structural verification* is zero-network, zero-issuer-code — schema valid,
+  artifacts hash-identical, closure, limitations stated, every declared number recomputed
+  from the artifacts; *semantic replay* clones the issuer at a pinned commit and re-earns
+  the verdicts. That is exactly `verify` (Executable, Provenance, deterministic, local) and
+  `critic` (a fresh grader's judgment) — arrived at independently, which is the strongest
+  evidence the split is right.
+  The part we do not do: **"the structural verifier never performs it and says so in its
+  output."** A clean `canonizer verify` says nothing about whether the rules are supported;
+  a reader or a driver script can easily take it for one. The line to internalize is
+  **"a structural PASS means the bundle is *internally honest*, not that the issuer's grader
+  agrees."** Emit the fact — `semantic_verification: "not-performed"` in the findings
+  result, and a sentence in the human output — pairing with `vac-gate`'s rule that "every
+  PASS states what ran and what deliberately did not."
+  And the case worth designing for, which the taxonomy currently has no name for: a ruleset
+  that passes `verify` and fails `critic` "is a precise, reproducible accusation" — not a
+  malformed artifact but a well-formed wrong one.
+- [ ] **A ruleset that will not say what it does not cover is an advertisement.** VAC makes
+  `claim.limitations` **REQUIRED and non-empty**; a bundle without explicit non-claims is
+  invalid (`empty-limitations`), because "a capability statement that will not say what it
+  does not cover is an advertisement, and VAC does not carry advertisements". A distilled
+  ruleset has exactly this failure mode — `go-advice` rules drawn from one book, presented
+  without the scope of that book. This is the same mechanism as the constraint-footer item
+  already filed above, but stronger: rather than asking the critic to declare coverage,
+  make the *artifact* unable to be well-formed without a stated scope and stated limits.
+  Candidate: `ruleset.Ruleset` already carries `Source:` and `Scope:` header lines; a
+  `Limitations:` sibling, checked non-empty by `verify`, is a small change with a large
+  honesty return.
+- [ ] **The critic's categories are missing coverage.** `critic_prompt.md` asks for
+  `unsupported` / `vague` / `duplicate` — all properties of an individual rule. VAC §6's
+  challenge protocol has three classes and the middle one has no analogue here:
+  **coverage** — "the evidence does not support the stated `capability`/`scope`", e.g. "the
+  task set is narrower than the scope sentence implies". Applied to a ruleset: the rules may
+  each be supported and the set may still not cover what the `Scope:` line claims. That is a
+  property of the *set*, invisible to any per-rule category, and it is the failure a reader
+  is most likely to be harmed by. Pairs with the limitations item — a stated scope is what
+  makes a coverage challenge decidable at all.
+- [ ] **Named reasons, from a closed vocabulary.** VAC enumerates nineteen structural
+  failure reasons and emits exactly one per failure. `internal/verify` currently produces
+  `no-anchor`, `anchor-absent`, and the Executable categories as string literals into
+  `finding.Category`, which `skillet` types as a bare `string`. Define canonizer's set as
+  constants in one place so the vocabulary is enumerable and a typo is a compile error;
+  recorded against skillet as the shared question of whether `Category` should be
+  registrable rather than free.
+- Note on the three-way `anchor-absent` split filed above: `vac-gate`'s **"'cannot regrade'
+  is not 'regraded'"** is the same rule from another direction — an honest "I could not
+  check this" must fail closed as its own state, never pass as a check that ran. Three
+  consumers now want that state (here, `quotecheck`, adh's `eval`), which is what makes it
+  skillet's to define.
+- Deliberately NOT adopted: `vac-protocol`'s bundle format itself (its claims are about
+  system capability, ours about rules drawn from a source — the discipline transfers, the
+  schema does not); `evalmut` (mutation testing for evals is skillsaw's axis — canonizer's
+  `gate.SelfTest` planted-defect control is the piece of that idea this repo needs, and it
+  already exists); `claim-segmenter-kit` (a `§` rule statement can carry two assertions just
+  as a wiki sentence can, so this may become canonizer's problem too — but it is gnosis's
+  first, and a second consumer is what would move it into skillet).
 
 ______________________________________________________________________
 
