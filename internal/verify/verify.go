@@ -103,7 +103,7 @@ func Specificity(rs ruleset.Ruleset) []finding.Diagnostic {
 		}
 		doc := markdown.Parse(r.Statement)
 		if hedges := skilllens.SofteningPhrases(doc); len(hedges) > 0 {
-			diags = append(diags, advisory(r, "softening",
+			diags = append(diags, advisory(r, skilllens.CategorySoftening,
 				"statement hedges ("+hedges[0].Text+"); a reader cannot tell when it applies"))
 			continue
 		}
