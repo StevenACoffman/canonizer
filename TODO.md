@@ -358,6 +358,19 @@ repositories.
     Note the shared prerequisite: this is the same not-applicable outcome recorded against
     the `quotecheck` promotion in skillet's TODO. One state, two consumers — which is what
     makes it skillet's to define rather than either tool's to invent.
+    **The prerequisite is met — `quotecheck` shipped it in `skillet` v0.18.0 and this entry
+    was not updated.** `quotecheck/status.go` carries `Status` with **`Unchecked` as the
+    zero value**, `locate` returns it when there are no haystacks, and `Finding.Missing()`
+    is deliberately false for an `Unchecked` finding so a caller gating on it asks *"did the
+    check find this absent"* rather than *"did the check pass"*. That is the `unverifiable`
+    row above, already defined, already shared, and already carrying the fail-safe default
+    this entry argued for. The remaining work is canonizer's alone: map `Provenance`'s
+    output onto the three states and stop emitting one category for all of them.
+    Worth noting the direction the zero value points, because it is the opposite of what a
+    naive port would do. `Unchecked` being the zero value means a `Finding` that nothing
+    populated reads as *not checked*, never as *checked and clean* — so a caller that
+    forgets to run the guard fails closed. Preserve that when mapping: `unverifiable` must
+    not be spelled as an absent value that a later refactor can silently turn into a pass.
 - [x] **Findings say what is wrong, not who acts.** DONE 2026-08-15: `finding.Action` landed
   in skillet v0.16.0 and every diagnostic here carries one. `diag` is `human` and `advisory`
   is `guided`; **nothing canonizer emits is `automatic`**, because every category needs
@@ -408,6 +421,37 @@ repositories.
   rather than *unsourced*, and `enforced(r.Severity)` gates on the warrant's presence
   instead of the anchor's. Held in skillet's TODO until a second consumer wants it; recorded
   here because canonizer is where the false rejection will actually fire.
+  **REVIEWED 2026-08-22. Still held, for a different and better reason, and the shape is
+  now settled.**
+  The hold was "until a second consumer wants it". There are three specifications — this
+  one, skillet's, and gnosis's SPEC, which uses the same sentence — so that reason has
+  expired. **The real blocker is that `ruleset.Rule` cannot safely gain an optional field
+  yet**: a per-rule warrant is a marker line, not frontmatter, and skillet's canonical-form
+  entry records that an unknown marker is folded into `Rationale` rather than rejected until
+  a format version ships. This is that entry's *second* asker.
+  **UNBLOCKED 2026-08-23 by `skillet` v0.19.0.** `ruleset.Parse` now refuses a body line
+  opening with an unrecognised symbol, and the format header was already refusing a newer
+  `format:` — so the canonical form can gain an optional marker safely and this entry's
+  stated blocker is gone. Two things carry over into the work rather than being resolved by
+  it. The rejection is on a leading **Unicode symbol**, so a warrant marker must be one
+  (`⊢` or similar) and not an ASCII prefix, which the new rule cannot see. And adding a
+  marker means bumping `FormatVersion`: skillet's `TestEveryMarkerIsNonASCII` counts the
+  table, so forgetting is loud, but the bump is still the author's to make.
+  Also worth stating plainly: **the false rejection is not live and cannot be.** `Provenance`
+  does reject `SourceAnchor == ""` as `no-anchor`, but an adjudicated rule cannot be
+  expressed today, so there is nothing for it to reject. The entry is correctly written in
+  future tense and should stay that way rather than reading as a present defect.
+  **When it unblocks, canonizer gets a smaller warrant than gnosis's, deliberately.**
+  skillet will carry `{By, At, Rationale}` on `ruleset.Rule` and nothing more — no tiers, no
+  co-signers, no reversal links. Those are gnosis's §10.6 authority model, which **this repo
+  explicitly bet against**: §10.6.4 holds that a required rationale filters more bad
+  adjudications than a permission check, and importing a tier model would be adopting the
+  position canonizer declined. Two warrants with different obligations is the right outcome,
+  the same way `Unexamined` and `limitations` are two fields that look alike and are
+  opposites.
+  What canonizer owns is the policy: gate `Provenance` on *warrant present* where the anchor
+  is absent, so an adjudicated rule is sourced differently rather than blocked. The kernel
+  carries the datum because `ruleset` is skillet's type; the decision stays here.
 
 ## Agent-Blue Survey (2026-08-15)
 
@@ -487,6 +531,36 @@ from). Checked against the code in both repositories.
   *present* defect rather than a conditional want, and §5.2's independence of `verified` from
   `generated.at` is exactly the distinction it needs: *content changed without
   re-confirmation* versus *re-confirmed without regeneration*.
+  **Re-reviewed in skillet 2026-08-22. The decision holds, the trigger changed, and this
+  entry is no longer the nearest of the three.** Three things moved, and the sentence above
+  claiming primacy is now wrong.
+  - **The trigger was replaced.** It was *the first repo that actually stores trust
+    metadata*; it is now **the second repo that classifies an actor or derives a trust
+    tier**. The reason is that gnosis shipped `gnosis.Actor` — a closed three-kind enum
+    (`human:` / `agent:` / `check:`) whose parser rejects `<producer>/<version>` and
+    `process:<id>`, two of OKF §7's three forms — **without touching trust metadata at
+    all**. A storage trigger could not have fired on that. Storage is not the event;
+    classification is, because a mis-classified tier reads as a stronger claim than it is.
+  - **Two repos now implement the tier vocabulary and neither derives it as specified.**
+    Besides gnosis, `adh`'s `contextstore.Unit.Verified` is a `TrustTier` *string* holding
+    `unverified` / `machine-confirmed` / `human-reviewed` directly, serialised under the key
+    `verified`, where §5.2 defines that key as a **list of `{by, at}` events**. Same field
+    name, same tier names, holding the conclusion instead of the evidence. canonizer is
+    therefore third in line rather than nearest, and the useful consequence is that **the
+    tier names matching across two hand-written implementations is luck** — if this repo
+    ever spells them, spell them from the spec.
+  - **Only the fold is promotable, not the record types.** gnosis's `okf` retains
+    frontmatter *verbatim* because re-encoding YAML cannot round-trip, so a
+    `Generated`/`Verified` struct in skillet would be decode-only. What will move, when a
+    second consumer classifies, is §5.3's **fold** — a pure function over a list of actor
+    strings, with the contract §7 states outright: *"Consumers that classify trust key off
+    the `human:` prefix."* Only `human:` needs recognising; everything else is non-human by
+    definition, and an unrecognised actor is never an error and never promotes a tier.
+  What survives unchanged is the reason this entry exists: §5.2's independence of `verified`
+  from `generated.at` is still the vocabulary the `anchor-absent` split needs, and adopting
+  it still beats inventing a third. When it lands it lands **here, local to canonizer**,
+  until a second consumer appears — and if what lands is a fold rather than a stored tier,
+  that *is* the trigger, so say so in the commit.
 - [ ] **Say what a score is not allowed to claim.**
   `agent-blue/cc-thinking-skills/analysis/AUDIT.md` pins its evidence file *and* the
   registry it references by SHA-256, then states "If this narrative disagrees with the JSON,
@@ -570,7 +644,215 @@ from it, because `vac-protocol` independently arrived at this repo's central dis
 
 ______________________________________________________________________
 
+## Adopt `skilllens.CategorySoftening` (2026-08-22)
+
+`skillet/skilllens` now exports the category names for its own three detectors, because
+**canonizer emitted `softening` while exegesis emitted `skilllens-softening` for the same
+`skilllens.SofteningPhrases` call.** One kernel detector, two names — the drift an untyped
+`finding.Category` was always going to allow. The full reasoning, including why a closed
+enum and a registration seam were both refused, is in `skillet/TODO.md`.
+
+- [ ] **Import `skilllens.CategorySoftening` in `internal/verify/verify.go:106`.** Waits on
+  a skillet release; canonizer pins v0.18.0 and carries no `replace`.
+  **The value does not change** — the constant is `"softening"`, which is what canonizer
+  emits today. No output moves, `verify_test.go:96`'s `wantCat` stays as it is, and the
+  whole change is a literal becoming an identifier. Worth doing anyway: the point is that
+  the next person editing either side cannot drift without deleting a reference.
+  Two of exegesis's three *do* change value, since it was the one carrying the prefix.
+- Recorded rather than actioned: **canonizer's naming was the correct one and the family
+  adopted it.** The unprefixed form won because across thirty category values there is not
+  one same-word-different-meaning collision, while the only observed defect is one concept
+  spelled two ways — so a prefix defends a hazard that never occurred and manufactures the
+  one that did. And **canonizer's `no-anchor` / `anchor-absent` pair became the convention
+  for the polarity fix**: `no-X` for never declared, `X-absent` for declared and not found.
+  exegesis's `skilllens-failure` fired when *no* failure handling was written and read as
+  its opposite; it becomes `no-failure-mode`. Two independent derivations of a naming rule,
+  and this repo had it first.
+
+## Deep Reads — `ruflo`, `oh-my-agent`, `superpowers` (2026-08-22)
+
+Three repositories the `agent-green` survey had filed as read-shallowly, opened. Written up
+in gnosis's `manifesto.md`; these are canonizer's, and they were recorded against gnosis
+first, which was the wrong home for a backlog belonging to this tool.
+
+The first one resolves the oldest open defect in this file, and it does it with a mechanism
+rather than with the evidence archive that entry has been waiting on.
+
+- [ ] **`verify.Provenance` wants two signals crossed, not one anchor looked up.** The
+  `anchor-absent` entry above concludes that separating a fabrication from a drift *"needs
+  the immutable evidence archive"*, and offers only a cheap half in the meantime — record the
+  source hash so a later failure can at least *report* whether the source changed. `ruflo`'s
+  witness manifest (`docs/validation/README.md`, Layer 2) gets the full split with no archive
+  at all, by keeping **two** signals per entry and crossing them: a whole-file sha256 **and**
+  a *marker substring* that must remain present while the fix is.
+  Its four verdicts map onto this repo's problem directly — hash matches is `Pass`; hash
+  differs but the marker is still present is `Drift`, *"acceptable, the codebase advanced"*,
+  recorded and **not** blocking; the marker missing is `Regressed`; the file gone is
+  `Missing`. Their reason for the second signal is the one that transfers: *"A SHA-256-only
+  check would flag every benign whitespace change as a regression. The marker is the
+  semantic invariant."*
+  For canonizer the marker already exists and is better chosen than theirs, because it was
+  picked by whoever wrote the rule rather than by whoever wrote the check: **`r.SourceAnchor`
+  is the marker**, and the missing half is the file hash beside it. Crossing the two gives
+  *anchor present, source changed* (drift — refresh, do not block) and *anchor absent,
+  source changed* (the anchor did not survive an edition change — a different message and a
+  different fix from a fabrication), which is exactly the pair the entry above says it cannot
+  distinguish. It does not need tier 0. The cheap half already recorded is the whole
+  prerequisite.
+  Two meta-signals come free from keeping the history, and both are about the check rather
+  than the rule: a check that **flaps** between pass and regressed indicts its own marker,
+  and a source that **persistently drifts** is one whose rules want re-anchoring rather than
+  re-litigating. gnosis reached the same three-state split independently for archived
+  sources (SPEC §14.3.2), which is the second derivation.
+  One thing not to take: ruflo signs the manifest with an Ed25519 key whose seed is
+  `sha256(gitCommit + ':ruflo-witness/v1')` — the commit is public and the derivation is
+  published beside the signature, so anyone can forge it. It detects accidental corruption
+  and presents as authentication. This repo already holds the correct position (`gate`
+  refuses a weighted score for the same class of reason); the instance is worth knowing
+  because it is what `vac-protocol`'s refusal of signatures predicts, observed in the wild.
+- [ ] **A critic that ran with reduced independence must say so, and there is no state for
+  it.** `critic` withholds the distillation by design and that is the whole basis for calling
+  its opinion cold. `oh-my-agent`'s judge protocol reaches the same design from scratch — a
+  spawned subagent with fresh context, briefed on the criteria and never on what the
+  implementer claims — and states outright that *"independence is structural, not a
+  prompt-level role-play."*
+  What it has that canonizer does not is the degraded path: when the runtime cannot spawn a
+  fresh context it runs the protocol inline **and emits an event recording the downgrade**.
+  canonizer is either cold or it does not run, which is stricter and therefore fine — until
+  the first environment where the cold path is unavailable, at which point the pressure is to
+  relax the contract quietly. **Neither `checked` nor `unchecked` covers *checked under
+  reduced independence*.** Add the third disposition before it is needed, so the answer to
+  that pressure is a recorded downgrade rather than an edit to the contract. Pairs with the
+  coverage record below: both are the critic reporting on its own conditions rather than on
+  the ruleset.
+  **CLOSED 2026-08-22: the state cannot occur here either, and the entry copied a failure
+  mode canonizer does not have.** `oh-my-agent`'s downgrade event exists because its judge
+  is a **spawned subagent**, a runtime operation that can be unavailable. canonizer spawns
+  nothing — the *Decided — Architecture* entry at the top of this file settles it:
+  *"canonizer is a prompt-filler… it never calls a model itself."* The critic prompt either
+  gets emitted or it does not; there is no fallback path and no capability to probe, so a
+  downgrade field could only ever be empty, which reads as evidence of an isolation nobody
+  checked.
+  **What is true instead, and belongs beside the cold-critic entry rather than as a new
+  state:** the critic is cold **by construction of the prompt, not by isolation of the
+  reader.** `critic.FillPrompt` withholds the distillation, and that is a fact about the
+  text. Whatever runs that prompt may have produced the distillation moments earlier in the
+  same session, and canonizer cannot see it — it emits and an agent replies.
+  The guarantee is that the distillation is not **supplied**. It is not that the critic did
+  not **have** it. Narrow, true, and better than the broad version, which invites a reader
+  to stop checking. adh reached the identical conclusion for the same architectural reason;
+  both entries were written from a project whose critic works differently.
+  **Rejected — a self-declared "fresh context" flag**, testimony from the party that
+  benefits from misreporting it. The only real fix is identity on the reply, refusing a
+  critic answer from the session that produced the distillation, and that is a relay feature
+  neither tool has. Recorded so the trigger is one that can fire.
+- [ ] **The coverage record is one design that four entries in this family describe
+  separately, and it should be promoted once.** *This is not new work here — it is a note on
+  the `cold critic reports what it found` entry above, so it is not double-counted.* The same
+  shape appears as: this repo's `examined` / `not_examined` block; this repo's *"a ruleset
+  that will not say what it does not cover is an advertisement"* (VAC's REQUIRED non-empty
+  `limitations`); adh's *"name the refusals"*; and `skillet`'s own coverage-record entry,
+  which already carries the load-bearing constraint — **advisory only; a critic that declares
+  a gap must not thereby block, or it will learn to declare none.**
+  Four descriptions of one mechanism is how a family ends up with four implementations.
+  Reconcile them into one promotion rather than three, and keep skillet's constraint as the
+  thing that survives.
+
 *Recorded 2026-08-04. Sources: this repository's state, and
 `~/Documents/agent-orange/go-advice/ai_skill_todo.md` (rigor backlog + the
 "Centralize on skillet" offload analysis). See `PLAN.md` for the implementation
 plan and its design review against `summary_rules.md`.*
+
+## Applicability Is a Rule, and `verify` Does Not Follow It (2026-08-22)
+
+`skillet` closed its open note about a general `Applicability` type: the answer is **no
+type**, because the five real sites across skillsaw, adh and gnosis each suppress a
+different thing deliberately. What is shared is a rule, lifted from gnosis's `internal/lint`
+package doc:
+
+> Applicability is derived, not declared, and a run states what it skipped. A check that
+> silently declines to run is indistinguishable from a check that found nothing.
+
+canonizer was not one of the five sites — it has no derived-applicability mechanism — but
+the rule's second half lands on it anyway, and this is the first thing found by applying it.
+
+- [ ] **`verify` silently drops every non-enforced rule, so a clean result cannot be told
+  from an unexamined one.** All three checks open with `if !enforced(r.Severity) { continue }`
+  (`internal/verify/verify.go:31`, `:59`, `:101`) and nothing downstream records how many
+  rules that skipped. A ruleset of entirely `[MAY]` rules produces **zero diagnostics** —
+  byte-identical to a ruleset where every enforced rule passed. `gate` then ships on that
+  silence, which is the same shape as the cold critic's empty-category problem already filed
+  above.
+  **This is scope rather than applicability, and the distinction matters for the fix.** A
+  `MAY` rule genuinely is not required to carry a ✗/✓ pair or a source anchor, so skipping
+  it is correct — the defect is only that the skipping is invisible. So the repair is not a
+  predicate; it is a count. Report the enforced and total rule counts alongside the
+  diagnostics, and `verify` over a ruleset with zero enforced rules says so rather than
+  saying nothing.
+  Cheap, and it closes a gap that widens as rulesets grow: the proportion of `MAY` rules is
+  exactly the proportion of a ruleset these gates never look at, and today nobody can see
+  that number.
+
+## Adopt `finding.Unexamined` (2026-08-22)
+
+`skillet/finding` gained `Unexamined{Aspect, Reason}` and a `Result.Unexamined` field,
+promoted on this repo's *cold critic reports what it found, never what it did not look at*
+entry plus adh's matching one — two consumers with present defects. Design record in
+`skillet/TODO.md`; the parts that bind a caller:
+
+- **Advisory, always.** `Result.HasBlocking` iterates `Diagnostics` only, so a declared gap
+  cannot make a result blocking no matter how the caller is written. That is structural
+  rather than a discipline, and `TestUnexaminedCannotBlock` pins it against the refactor
+  that would break it.
+- **`Reason` is required.** `Valid()` rejects either field empty or whitespace-only.
+- **It is testimony, not a derived fact** — a critic's claim about its own behaviour.
+- [ ] **Parse `unexamined` from the critic reply and render it in `gate`.** The prompt in
+  `internal/prompt/critic_prompt.md` gains a constraint footer asking the critic to name
+  the angles it did not take, in `super-hermes`' form — *"This analysis maximized X. It did
+  not examine: …"*. The parse is pure and belongs beside the findings parse.
+  **Reject the whole reply on an invalid entry rather than dropping it.** That matches how
+  adh already handles a malformed finding, and the reason is the same: silently discarding
+  half a reply is how an answer that says nothing passes for an answer that found nothing.
+  Render below the findings, clearly separated, and never count it toward the exit code.
+- [ ] **Say in `critic_prompt.md` that declaring a gap is free.** The whole mechanism turns
+  on the critic believing that, and a critic that suspects a declared gap will be held
+  against it declares none — which costs both the gap and the finding it would have come
+  with. State it in the prompt, not only in the code.
+
+______________________________________________________________________
+
+**One sentence to keep, because two fields here look alike and are opposites.**
+`Unexamined` is **generated, per-run, and advisory** — a critic saying what it did not look
+at this time. `limitations` (the *"a ruleset that will not say what it does not cover is an
+advertisement"* entry above) is **authored, committed, and required** — VAC makes a bundle
+without it invalid. Same words, opposite obligations, and merging them would either make
+declared gaps blocking or make stated non-claims optional. Both entries now carry this note
+so the next reader does not reconcile them.
+
+## Commissioned Gap Report, Round Two — Nothing Lands (2026-08-22)
+
+Source: `~/Documents/agent-green/FPF/canonizer_todo.md`. Checked; nothing lands. **Full
+reasoning is in `skillet/TODO.md` under "Round Two, and What Asking for Code-Reality
+Verification Actually Bought"**, recorded once for the family.
+
+Its one finding is that `Provenance` emits a flat `anchor-absent` and should map onto
+`quotecheck`'s three states. That is the `anchor-absent` entry above, returned in shorter
+form — and the entry is the better statement of it: the split is **three-way by state of the
+evidence** (fabricated / drifted / unverifiable), not a relabelling of `quotecheck`'s
+`Checked`/`Missing`/`Unchecked`, and the entry already records that the v0.18.0 prerequisite
+is met and that the remaining work is canonizer's alone. Nothing to add.
+
+The addendum proposes parameterised rulesets via `ailloy`-style templated blanks, so one
+master ruleset can be distributed with local overrides. **Refused, and the reason is the
+citation rather than the idea.** Its supporting references do not survive a lookup: the same
+five source lines are cited verbatim in `steve-skill-market_todo.md` for an unrelated
+recommendation, and the lines named as `cloudstrategy_book.md` and `eip_book.md` are
+extracts from Russell's *A History of Western Philosophy*. A second item cites "65 other
+articles" for the claim that backend and frontend systems have different performance
+profiles.
+
+If parameterised rulesets are wanted, they should be argued from a team that needs one —
+and the argument has to clear a bar this repo already set: **a threshold a team may override
+locally is a threshold whose loosening nobody reviews**, which is the failure `standards/`
+was built to make visible. That is a real design question and it is not what the report
+asked.
