@@ -856,3 +856,38 @@ and the argument has to clear a bar this repo already set: **a threshold a team 
 locally is a threshold whose loosening nobody reviews**, which is the failure `standards/`
 was built to make visible. That is a real design question and it is not what the report
 asked.
+
+## Two Items Transferred From gnosis's Backlog (2026-08-23)
+
+A re-read of gnosis's `TODO.md` on 2026-08-23 found fourteen entries filed against
+sibling repositories. Nine were already in their real homes — `verify.Provenance`'s
+two-signal cross and the reduced-independence critic are both above — and two were
+nowhere. These are the two.
+
+Worth recording alongside them: gnosis was still carrying five `skillsaw` items as
+open that `skillsaw` had already closed. **A backlog that mirrors another
+repository's work goes stale in the direction that flatters.** One home, and a
+pointer from everywhere else.
+
+- [ ] **A known-answer soundness test per rule.** `gate.SelfTest`'s planted-defect
+  control generalised from the gate to the *rules*: every rule ships a case it must
+  flag and a case it must not, and the set refuses to load if any rule fails either.
+  gnosis now does this for its §9.3 pattern table, at load rather than in a test — the
+  argument being that a test catches the same defect one commit later and only for
+  whoever ran it — and it caught a pattern whose own positive example did not match on
+  the first run.
+  This repository has the control at the gate and not at the rule, which is the
+  difference: `SelfTest` proves the gate discriminates, and says nothing about whether
+  any individual rule does. **Soundness before completeness**, because trust is more
+  sensitive to false alarms than to misses — a rule that fires on ordinary work gets
+  the tool switched off, and the negative case is the one an author will not write
+  unprompted.
+- [ ] **The cache key should carry the rubric edition.** gnosis's relay key
+  deliberately omits its `standards/` version, and the reason it can is that the rubric
+  never enters the prompt there: a threshold change cannot stale a model's reply about
+  a source. Wherever the rubric **is** what is being applied, a key without it serves
+  yesterday's grade under today's rules — and silently, because the score comes back, it
+  is a number, and nothing says which edition produced it.
+  The design question is what identifies an edition: it has to change when scoring
+  changes and not when prose does, or every comment edit invalidates every cached
+  result.
