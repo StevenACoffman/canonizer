@@ -19,6 +19,57 @@ import (
 	errors "github.com/StevenACoffman/toerr/errors"
 )
 
+// The categories this package reports, as one enumerable set.
+//
+// They were string literals at each emit site until 2026-09-05. Naming them is not
+// tidying: finding.Category is a bare string, so a typo in a literal produced a category no
+// consumer matched and nothing failed -- the diagnostic simply stopped being recognised. As
+// constants a typo is a compile error, and the vocabulary can be read in one place instead
+// of grepped out of five.
+//
+// Deliberately constants and not a named type. Whether finding.Category should become
+// registrable is a question recorded against skillet, and typing it here would be canonizer
+// answering a kernel question for the family on its own.
+//
+// skilllens.CategorySoftening is referenced where it is emitted rather than restated here,
+// for the same reason one spelling matters: skillsaw and adh score that category too, and a
+// copy in canonizer would be a second definition of a shared word.
+const (
+	// CategoryUnexecutable is a rule carrying no discriminating ✗/✓ pair at all.
+	CategoryUnexecutable = "unexecutable"
+	// CategoryNonDiscriminating is a pair whose ✓ appears inside its ✗, showing no change.
+	CategoryNonDiscriminating = "non-discriminating"
+	// CategoryNoAnchor is an enforced rule citing no source anchor.
+	CategoryNoAnchor = "no-anchor"
+	// CategoryAnchorAbsent is an anchor that does not appear in the source.
+	CategoryAnchorAbsent = "anchor-absent"
+	// CategoryUnspecific is a statement naming no object a reader could act on.
+	CategoryUnspecific = "unspecific"
+	// CategoryNothingExamined is a ruleset in which no rule is enforced, so the gates
+	// examined nothing. It reports on the run rather than on any rule, which is why its
+	// Path is the ruleset and not a section.
+	CategoryNothingExamined = "nothing-examined"
+	// CategoryNonCanonical is a stored ruleset that does not round-trip through Render.
+	CategoryNonCanonical = "non-canonical"
+	// CategoryAnchorDrift is an anchor still present in a source that has since changed.
+	CategoryAnchorDrift = "anchor-drift"
+	// CategoryAnchorStale is an anchor absent from a source that has since changed, so
+	// whether it was ever there cannot be decided from these bytes.
+	CategoryAnchorStale = "anchor-stale"
+	// CategoryAnchorFabricated is an anchor absent from the unchanged source it was
+	// distilled from -- the one case a missing anchor is certainly a defect.
+	CategoryAnchorFabricated = "anchor-fabricated"
+	// CategoryUnbounded is a ruleset whose scope states no exclusion, so nothing says
+	// where its rules stop applying.
+	CategoryUnbounded = "unbounded"
+	// CategoryWarrantIncomplete is an adjudicated rule whose warrant does not record all
+	// of who, when and why.
+	CategoryWarrantIncomplete = "warrant-incomplete"
+	// CategoryAnchorUnverifiable is an anchor nothing searched for, because no source was
+	// supplied. Distinct from anchor-absent, which means a search ran and found nothing.
+	CategoryAnchorUnverifiable = "anchor-unverifiable"
+)
+
 // Executable returns a diagnostic for every enforced rule that lacks a discriminating
 // ✗/✓ pair (B): one with no ✗ or no ✓, or one whose ✓ preferred form appears verbatim
 // inside its ✗ counter-example (so the pair demonstrates no change). It scores the
@@ -32,7 +83,10 @@ func Executable(rs ruleset.Ruleset) ([]finding.Diagnostic, error) {
 			continue
 		}
 		if r.Bad == "" || r.Good == "" {
-			diags = append(diags, diag(r, "unexecutable", "rule has no discriminating ✗/✓ pair"))
+			diags = append(
+				diags,
+				diag(r, CategoryUnexecutable, "rule has no discriminating ✗/✓ pair"),
+			)
 			continue
 		}
 		score, err := judge.Score(r.Bad, []judge.Check{{Op: judge.OpContains, Arg: r.Good}})
@@ -40,7 +94,7 @@ func Executable(rs ruleset.Ruleset) ([]finding.Diagnostic, error) {
 			return nil, errors.WrapWithMessage(err, "verify: judge")
 		}
 		if score.Hard == 1.0 {
-			diags = append(diags, diag(r, "non-discriminating",
+			diags = append(diags, diag(r, CategoryNonDiscriminating,
 				"the ✓ form appears inside the ✗ example; the pair shows no change"))
 		}
 	}
@@ -52,7 +106,6 @@ func Executable(rs ruleset.Ruleset) ([]finding.Diagnostic, error) {
 // so a quote the model re-wrapped still matches. Whether a present anchor *supports*
 // the claim is the critic's `unsupported` judgment.
 func Provenance(rs ruleset.Ruleset, source string) []finding.Diagnostic {
-	haystack := textnorm.Fold(source)
 	diags := make([]finding.Diagnostic, 0)
 	for i := range rs.Rules {
 		r := &rs.Rules[i]
@@ -60,13 +113,15 @@ func Provenance(rs ruleset.Ruleset, source string) []finding.Diagnostic {
 			continue
 		}
 		if r.SourceAnchor == "" {
-			diags = append(diags, diag(r, "no-anchor", "rule cites no source anchor"))
+			if d, ok := unanchored(r); ok {
+				diags = append(diags, d)
+			}
 			continue
 		}
-		if !strings.Contains(haystack, textnorm.Fold(r.SourceAnchor)) {
+		if !anchorPresent(source, r.SourceAnchor) {
 			diags = append(
 				diags,
-				diag(r, "anchor-absent", "source anchor is not present in the source"),
+				diag(r, CategoryAnchorAbsent, "source anchor is not present in the source"),
 			)
 		}
 	}
@@ -108,7 +163,7 @@ func Specificity(rs ruleset.Ruleset) []finding.Diagnostic {
 			continue
 		}
 		if len(doc.Links) == 0 {
-			diags = append(diags, advisory(r, "unspecific",
+			diags = append(diags, advisory(r, CategoryUnspecific,
 				"statement names no object, tool or API a reader could act on"))
 		}
 	}
@@ -128,6 +183,49 @@ func advisory(r *ruleset.Rule, category, message string) finding.Diagnostic {
 		Path:     "§" + r.Section,
 		Message:  message,
 	}
+}
+
+// unanchored returns the diagnostic for an enforced rule citing no source anchor, and
+// whether there is one.
+//
+// **A rule with a warrant is sourced differently, not unsourced.** When two rules conflict
+// and a person decides, the decision is knowledge present in neither source, so it can carry
+// no anchor -- and gating on the anchor alone would reject the highest-value artifact the
+// team produces with the check that exists to protect quality. The gate is therefore the
+// warrant's presence where the anchor is absent.
+//
+// An invalid warrant is reported rather than accepted. skillet requires who, when and why,
+// and a warrant missing any of them records no decision anyone can review -- which is the
+// same failure as no warrant at all, dressed to pass. Present and Valid are separate
+// questions in skillet for exactly this reason, and both are asked here.
+//
+// canonizer's warrant is deliberately smaller than gnosis's: no tiers, no co-signers, no
+// reversal links. Those are an authority model this repo bet against, holding that a
+// required rationale filters more bad adjudications than a permission check does. Presence
+// plus validity is the whole policy.
+//
+// Ensures: ok is false only for a rule carrying a valid warrant; pure.
+func unanchored(r *ruleset.Rule) (finding.Diagnostic, bool) {
+	switch {
+	case !r.Warrant.Present():
+		return diag(r, CategoryNoAnchor, "rule cites no source anchor"), true
+	case !r.Warrant.Valid():
+		return diag(r, CategoryWarrantIncomplete,
+			"rule is adjudicated but its warrant does not record who, when and why; "+
+				"an unreviewable decision is not a source"), true
+	default:
+		return finding.Diagnostic{}, false
+	}
+}
+
+// anchorPresent reports whether anchor appears in source.
+//
+// Whitespace-normalized on both sides so a quote the model re-wrapped still matches. It is
+// one function rather than a repeated strings.Contains because Provenance and Drift must
+// agree on what "present" means -- two spellings of the anchor test is how one check starts
+// blocking what the other passes.
+func anchorPresent(source, anchor string) bool {
+	return strings.Contains(textnorm.Fold(source), textnorm.Fold(anchor))
 }
 
 // enforced reports whether a rule's severity is gated. MUST/SHOULD are enforced;

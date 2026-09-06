@@ -27,8 +27,24 @@ ______________________________________________________________________
   `--template`; no binary-relative / cwd lookup, no absolute paths, no `os.Getenv`.
   (Replaces ai-skill's fragile three-tier template lookup and the hardcoded absolute
   paths in `make_distill.sh`.)
+- **`verify`** — the deterministic floor over a parsed ruleset. Blocking: `Executable`
+  (every enforced rule carries a discriminating ✗/✓ pair), `Provenance` / `Drift` (its
+  anchor is in the source), `Canonical` (the stored form round-trips through
+  `ruleset.Render`). Advisory: `Specificity`, `Conflicts`, and the scope report. With
+  `--against-proof` an absent anchor splits four ways instead of one — see the anchor
+  entries below. With `--proof` it writes a packet binding ruleset and source bytes.
+- **`gate`** — reads a critic reply via `critic.ParseReply` (which rejects a reply whose
+  coverage record is malformed rather than draining it), blocks on error-severity findings,
+  and renders the critic's `unexamined` record after the decision so it can never affect it.
+  Self-tests with a planted defect on every invocation.
 - Lint-clean (`golangci-lint`), structurally clean (`climax lint`), tested (pure
   `synth` core + end-to-end command tests through `cmd.Run`).
+
+**State as of 2026-09-05.** Pinned to `skillet v0.27.0`; `golangci-lint run ./...` reports
+0 issues and the suite passes. Entries written before that pin may reason about an older
+kernel — three did, and were found stale rather than blocked when checked against the code
+(`CategorySoftening`, the adjudication warrant, and the canonical-form version reader). **An
+entry citing a skillet version below v0.27.0 is worth re-checking before acting on it.**
 
 ______________________________________________________________________
 
@@ -321,7 +337,15 @@ repositories.
   exegesis (`quotecheck`, `a2check`) and canonizer is the third — recorded as a promotion
   candidate in skillet's TODO under *Contradiction Detection*. Adopt it here when it lands;
   expect the set of accepted anchors to grow, which is the point.
-- [ ] **`anchor-absent` conflates a fabrication with a drift, and they warrant opposite
+- [x] **`anchor-absent` conflates a fabrication with a drift, and they warrant opposite
+  responses.** RESOLVED 2026-09-05 by the entry below, not by this one's own plan.
+  **This entry concluded the split "needs the immutable evidence archive" and offered only a
+  cheap half in the meantime. That was wrong, and the `ruflo` entry shows why**: crossing two
+  signals — the anchor and the source's digest — gets the *full* split with no archive at
+  all. The archive would answer a further question (what did the source say *then*), but
+  separating a fabrication from a drift never needed it.
+  Kept for the reasoning and for the three-way sub-item, which is about gnosis's archive
+  design and is untouched by this. Original entry:
   responses.** `Provenance` emits one category when `r.SourceAnchor` is not found in the
   haystack, whether the anchor was **invented by the model** (a real defect — block, always)
   or the **source moved under it** (a new edition, a reformat, a re-exported PDF — where the
@@ -336,7 +360,41 @@ repositories.
   then, the cheap half is available now: record the source's content hash beside the ruleset
   at distill time, so a later `anchor-absent` can at least *report* whether the source has
   changed since — a different message, not yet a different verdict.
-  - [ ] **It is a three-way split, not two.** `gnosis`
+  - [x] **It is a three-way split, not two — and `Drift` now implements two of the three.**
+    DONE 2026-09-06 as `verify.Unverifiable`, advisory, reported when no `--source` is
+    supplied.
+    **The 2026-09-05 update above framed this as a decision about whether `SourceUnknown`
+    should block. That was the wrong question, and reading this entry to its end answers
+    it.** `SourceUnknown` means no *proof packet* while the source is readable, so an absent
+    anchor is a real finding and still blocks — unchanged. `unverifiable` is the case where
+    there is nothing to search, and it was not covered at all.
+    **The gap was live and worse than filed.** With no `--source`, `cmd/verify` ran no
+    provenance check and emitted nothing, so a ruleset whose rules all cite anchors produced
+    output byte-identical to one where every anchor was found — the entry's own warning that
+    *"`unverifiable` must not be spelled as an absent value"*, already true. And the summary
+    line added the day before asserted *"a pass means this ruleset is well-formed **and its
+    anchors are present**"*, which was false on exactly those runs. Both are fixed; the
+    clause is now conditional on a source having been supplied.
+    **The vocabulary is skillet's, not a third local tri-state.** `quotecheck.Status` is
+    reused, and its zero value is pinned by a test rather than by a comment — a comment
+    saying "Unchecked must stay the zero value" is what a refactor deletes.
+    One diagnostic for the ruleset rather than one per rule: the repair is a single action,
+    so N lines would repeat one instruction, and the count of unverified anchors is in the
+    message. Original entry: `gnosis`
+    **UPDATED 2026-09-05.** `verify.Drift` ships `SourceUnchanged` and `SourceChanged`,
+    which are this table's `fabricated` and `drifted`. The third state is the one still
+    open, and building the other two made the disagreement precise rather than resolving it:
+    **`SourceUnknown` currently falls back to `Provenance`, which blocks.** This table says
+    `unverifiable` must *report, never block*. Both readings are defensible and they are not
+    the same claim — `SourceUnknown` means *no proof packet was supplied* while the current
+    source is still readable, whereas `unverifiable` means *no archived text exists at all*.
+    An anchor absent from a readable current source is a stronger signal than an anchor with
+    nothing to check against.
+    So the open question is narrower than the entry states: **does an absent anchor with no
+    second signal block?** It does today, which preserves the pre-2026-09-05 verdict and is
+    the conservative choice; the argument against is this entry's, that it blocks every rule
+    drawn from a PDF. Deciding it needs the archive distinction, not just the flag.
+    Original entry: `gnosis`
     (`~/Documents/git/gnosis/SPEC.md` §4.2–§4.3) has now settled the archive design, and it
     is text-only with **deliberately no PDF extractor** — so a source that cannot be archived
     is admitted as `referenced`: hash and URI recorded, no local text retained. That is a
@@ -412,7 +470,25 @@ repositories.
   ruleset but not the reasoning that produced them — no new machinery needed for it.
   Note the sequencing: `conflict` compares normalized rule text, so it depends on the
   `textnorm` item above being settled first, or it will inherit the same disagreement.
-- [ ] **Adjudication records have no home and fail `Provenance` by construction.** When two
+- [x] **Adjudication records have no home and fail `Provenance` by construction.** DONE
+  2026-09-05. The entry's own scoping held exactly: *"the kernel carries the datum because
+  `ruleset` is skillet's type; the decision stays here."* skillet v0.27.0 shipped
+  `ruleset.Rule.Warrant{By, At, Rationale}` with `Present()` and `Valid()`; what landed here
+  is the policy -- **an enforced rule with no anchor but a valid warrant is sourced
+  differently, not unsourced**, and `Provenance` gates on the warrant where the anchor is
+  absent.
+  **An invalid warrant is reported, not accepted**, as `warrant-incomplete`. Without that the
+  warrant becomes a way to opt out of provenance entirely: a rule could carry an empty
+  marker and pass. skillet keeps `Present` and `Valid` as separate questions precisely so
+  both can be asked, and both are.
+  **`Provenance` and `Drift` route through one `unanchored()`**, so the two cannot disagree
+  about the policy -- the same reason `anchorPresent` was factored out when `Drift` landed.
+  The smaller-than-gnosis scoping was kept: presence plus validity, no tiers, no co-signers,
+  no reversal links, because importing a permission model would be adopting the position
+  this repo declined.
+  **The false rejection is still not live**, as the entry says: a ruleset carrying a warrant
+  renders as format 2 and none exist yet. So this is enabling work, and the test is the
+  artifact. Original entry: When two
   rules conflict and a person decides, the decision is knowledge present in neither source,
   so it can carry no `↦` anchor — and `Provenance` will block it as `no-anchor`. That is
   the highest-value artifact the team produces, rejected by the check that exists to
@@ -458,7 +534,20 @@ repositories.
 Source: a survey of `~/Documents/agent-blue` (22 projects — the sources the practice came
 from). Checked against the code in both repositories.
 
-- [ ] **Nothing asserts a stored ruleset is in canonical form.** `verify` parses
+- [x] **Nothing asserts a stored ruleset is in canonical form.** DONE 2026-09-05 as
+  `verify.Canonical`, blocking, wired into `verify` — `Render(Parse(raw)) != raw` is now a
+  finding.
+  **This entry's stated sequencing was satisfied and its stated hazard was not real.** It
+  sequenced the check behind a format-version reader, reasoning that re-rendering an older
+  file would report drift where the honest answer is "this is format N and I write M".
+  skillet answers that inside `Render`: `formatOf` returns the ruleset's *own* format and
+  `renderFormat` emits no header below 2.
+  **A version guard was written, measured, and removed — it made the check vacuous.**
+  Guarding on `rs.Format != FormatVersion` declined on every file in the corpus, because no
+  stored ruleset declares a version and they all parse as format 1. Measured before removing
+  it: a header-less ruleset parses as format 1 and round-trips byte-identically. A check that
+  can never fire is the trap this file keeps catching, and it was nearly shipped here as
+  care. Original entry: `verify` parses
   (`ruleset.Parse`) and never renders: a grep for `Render` across this repo returns no
   non-test hit, and no command carries a `--check` flag. So a ruleset an agent wrote can be
   *parseable* while `Render(Parse(x)) != x` — reordered, reformatted, or quietly dropping a
@@ -485,7 +574,12 @@ from). Checked against the code in both repositories.
   and roughly ten stored files exist, most of them 1-4 rule prompt examples. So a breaking
   format change is a bump here rather than a family-wide event, which is why skillet chose to
   do it now rather than defer it again.
-- [ ] **The cold critic reports what it found, never what it did not look at.**
+- [x] **The cold critic reports what it found, never what it did not look at.** DONE
+  2026-09-05: `critic_prompt.md` gained the constraint footer, and the record is carried in
+  `finding.Result.Unexamined` — which skillet already defines, with the advisory-only
+  guarantee structural rather than remembered. The prompt asks for gaps named *specifically*
+  ("I read the rules against §3 and did not cross-check §7"), because "I may have missed
+  things" records nothing. Original entry:
   `critic_prompt.md` asks for `unsupported` / `vague` / `duplicate` findings; an empty
   category is therefore indistinguishable from an uninspected one, and `gate` ships on that
   silence. `agent-blue/super-hermes` closes exactly this hole:
@@ -499,7 +593,22 @@ from). Checked against the code in both repositories.
   design. Shape: an additive `examined` / `not_examined` block beside the findings array,
   advisory only — a critic that declares a gap must not thereby block, or it will learn to
   declare none.
-- [ ] **One cold critic is one opinion.** `agent-blue/evals-differential-oracle` is the
+- [x] **One cold critic is one opinion.** REJECTED 2026-09-05 — recorded rather than built,
+  and the reason is architectural rather than effort.
+  A second prompt file is cheap. The **independence** is not, and it is the whole of the
+  claim: this entry's own thesis is that *agreement between two independently-built systems*
+  is the strong signal. canonizer *"is a prompt-filler… it never calls a model itself"*
+  (**Decided — Architecture**), so it can emit two prompts and has no way to learn whether
+  they were answered by two graders or twice by one session.
+  Shipping the cheap half would claim a property the architecture cannot deliver — the same
+  ground the reduced-independence entry above was closed on: a field canonizer cannot
+  populate honestly *"reads as evidence of an isolation nobody checked."*
+  Worth keeping from the entry: it notes the deterministic complement is **already built** —
+  *"`verify.Executable` / `verify.Provenance` already are that net"* — so the gap was only
+  ever the second opinion, which is exactly the part that needs the seam canonizer declines
+  to add. The trigger that could reopen this is identity on the reply, letting a critic
+  answer from the session that produced the distillation be refused; that is a relay feature
+  no tool in the family has. Original entry: `agent-blue/evals-differential-oracle` is the
   source of adh's `oracle` self-test, and its thesis applies verbatim to grading:
   *agreement between two independently-built systems is a far stronger signal than either
   passing its own tests*. canonizer runs a single critic prompt; a second grader given the
@@ -561,7 +670,15 @@ from). Checked against the code in both repositories.
   it still beats inventing a third. When it lands it lands **here, local to canonizer**,
   until a second consumer appears — and if what lands is a fold rather than a stored tier,
   that *is* the trigger, so say so in the commit.
-- [ ] **Say what a score is not allowed to claim.**
+- [x] **Say what a score is not allowed to claim.** DONE 2026-09-05 as a README policy
+  section enumerating the four claims a clean gate does *not* license — the rules are
+  correct, the anchor supports the claim, the set covers its scope, nothing was flagged —
+  each with the reason the pipeline cannot support it. `verify` and `gate` now state the
+  same thing at the moment it matters (see the entry below).
+  **The reason it is written down is that the failure is silent**: a gate that blocks says
+  why, and a gate that passes says nothing — so the word chosen for that silence in a commit
+  message is where the overclaim enters. The README asks for "passed canonizer's structural
+  gate" over "verified". Original entry:
   `agent-blue/cc-thinking-skills/analysis/AUDIT.md` pins its evidence file *and* the
   registry it references by SHA-256, then states "If this narrative disagrees with the JSON,
   **the JSON wins**", carries a global disposition of `no_automatic_elevation`, and
@@ -584,7 +701,20 @@ from). Checked against the code in both repositories.
 Source: a survey of `~/Documents/agent-fuschia` (26 repositories). canonizer takes the most
 from it, because `vac-protocol` independently arrived at this repo's central distinction.
 
-- [ ] **`verify` and `critic` are VAC's structural/semantic split, and the output should
+- [x] **`verify` and `critic` are VAC's structural/semantic split, and the output should
+  say so.** DONE 2026-09-05. `verify` states on every run — passing or failing — that it ran
+  structural checks only and did not perform semantic replay; `gate` qualifies its *clean*
+  verdict and only that one, since a blocked run is in no danger of being read as a pass.
+  **`semantic_verification: "not-performed"` was not added to the findings JSON, and the
+  reasoning is the same one that produced `Scope` last pass.** `finding.Unexamined` is the
+  obvious home and is the wrong one: skillet documents it as *testimony* — an agent's
+  unverifiable claim about its own behaviour — and separates it explicitly from the case
+  "where code decided a check did not apply and can say so mechanically", which is this. A
+  diagnostic is worse: it would fire on every run, so every clean `verify` would report one
+  finding and the count would stop meaning anything.
+  So the human half shipped and **the machine-readable half needs a producer field on
+  `finding.Result`**, which is skillet's to add — the third item this pass to end there.
+  Original entry:
   say so.** `agent-fuschia/vac-protocol` §4 calls them "two distinct acts, **never to be
   conflated**": *structural verification* is zero-network, zero-issuer-code — schema valid,
   artifacts hash-identical, closure, limitations stated, every declared number recomputed
@@ -602,7 +732,21 @@ from it, because `vac-protocol` independently arrived at this repo's central dis
   And the case worth designing for, which the taxonomy currently has no name for: a ruleset
   that passes `verify` and fails `critic` "is a precise, reproducible accusation" — not a
   malformed artifact but a well-formed wrong one.
-- [ ] **A ruleset that will not say what it does not cover is an advertisement.** VAC makes
+- [x] **A ruleset that will not say what it does not cover is an advertisement.** PARTLY
+  DONE 2026-09-05 as `verify.Limitations`, advisory — and the half that is missing is the
+  half this entry actually asked for.
+  **The `Limitations:` header cannot be added from here, and it was measured rather than
+  assumed.** skillet's parser reads only `Source:` and `Scope:` and `Render` writes only
+  those two, so a `Limitations:` line parses without error, is dropped on render, and the
+  file then **fails the blocking canonical-form check** that landed earlier this pass. The
+  header needs a skillet marker and a `FormatVersion` bump, exactly like the warrant.
+  What shipped instead asks the same question of the field that exists: a `Scope:` stating
+  only what is covered, with no exclusion, is the advertisement the entry objects to.
+  **Advisory for two independent reasons**, both worth keeping when the header lands: the
+  detection is a word list and cannot be more than a prompt to look; and every ruleset in
+  the corpus would fail on day one, and a gate that turns a whole corpus red teaches people
+  to bypass the gate. VAC's `empty-limitations` *invalid* verdict is reachable only once the
+  header exists and the corpus has been migrated. Original entry: VAC makes
   `claim.limitations` **REQUIRED and non-empty**; a bundle without explicit non-claims is
   invalid (`empty-limitations`), because "a capability statement that will not say what it
   does not cover is an advertisement, and VAC does not carry advertisements". A distilled
@@ -613,7 +757,14 @@ from it, because `vac-protocol` independently arrived at this repo's central dis
   Candidate: `ruleset.Ruleset` already carries `Source:` and `Scope:` header lines; a
   `Limitations:` sibling, checked non-empty by `verify`, is a small change with a large
   honesty return.
-- [ ] **The critic's categories are missing coverage.** `critic_prompt.md` asks for
+- [x] **The critic's categories are missing coverage.** DONE 2026-09-05: `coverage` is the
+  fourth category, documented as a property of the *set* and reported once with
+  `"path": "ruleset"`.
+  **The test that existed to prevent exactly this change did not fire, and that was the more
+  useful find.** `TestCriticPromptKeepsThreeCategories` asserted the substring
+  "one of `unsupported`, `vague`, `duplicate`" — which stays true when a fourth is appended.
+  It now asserts the whole contract line and checks every named category is also defined
+  above it. Original entry: `critic_prompt.md` asks for
   `unsupported` / `vague` / `duplicate` — all properties of an individual rule. VAC §6's
   challenge protocol has three classes and the middle one has no analogue here:
   **coverage** — "the evidence does not support the stated `capability`/`scope`", e.g. "the
@@ -622,7 +773,14 @@ from it, because `vac-protocol` independently arrived at this repo's central dis
   property of the *set*, invisible to any per-rule category, and it is the failure a reader
   is most likely to be harmed by. Pairs with the limitations item — a stated scope is what
   makes a coverage challenge decidable at all.
-- [ ] **Named reasons, from a closed vocabulary.** VAC enumerates nineteen structural
+- [x] **Named reasons, from a closed vocabulary.** DONE 2026-09-05. `internal/verify` now
+  defines its categories as constants in one block, and a new test pins each one's *string*
+  because the behavioural tests must keep asserting literals: a test comparing a constant
+  against itself passes however the value is edited, so the one change it cannot catch is
+  the one that breaks every consumer.
+  **The registrable-`Category` question is left open deliberately**, as this entry filed it
+  against skillet. Constants get the whole benefit — one place, compile-checked references —
+  without canonizer answering a kernel question for the family on its own. Original entry: VAC enumerates nineteen structural
   failure reasons and emits exactly one per failure. `internal/verify` currently produces
   `no-anchor`, `anchor-absent`, and the Executable categories as string literals into
   `finding.Category`, which `skillet` types as a bare `string`. Define canonizer's set as
@@ -652,8 +810,13 @@ ______________________________________________________________________
 `finding.Category` was always going to allow. The full reasoning, including why a closed
 enum and a registration seam were both refused, is in `skillet/TODO.md`.
 
-- [ ] **Import `skilllens.CategorySoftening` in `internal/verify/verify.go:106`.** Waits on
-  a skillet release; canonizer pins v0.18.0 and carries no `replace`.
+- [x] **Import `skilllens.CategorySoftening`.** DONE — the constant is referenced at
+  `internal/verify/verify.go:150`, and go.mod pins **v0.27.0**, nine releases past the
+  v0.18.0 this entry was written against. The checkbox was stale rather than the work
+  outstanding; corrected 2026-09-05 while auditing the file against the code.
+  The line reference in the original title has moved and is left as written, since the entry
+  is a record of a decision rather than a pointer. Original entry: waits on a skillet
+  release; canonizer pins v0.18.0 and carries no `replace`.
   **The value does not change** — the constant is `"softening"`, which is what canonizer
   emits today. No output moves, `verify_test.go:96`'s `wantCat` stays as it is, and the
   whole change is a literal becoming an identifier. Worth doing anyway: the point is that
@@ -678,7 +841,19 @@ first, which was the wrong home for a backlog belonging to this tool.
 The first one resolves the oldest open defect in this file, and it does it with a mechanism
 rather than with the evidence archive that entry has been waiting on.
 
-- [ ] **`verify.Provenance` wants two signals crossed, not one anchor looked up.** The
+- [x] **`verify.Provenance` wants two signals crossed, not one anchor looked up.** DONE
+  2026-09-05 as `verify.Drift` plus `verify --against-proof PATH`.
+  **The second signal was already on disk and nothing read it back.** `verify --proof` has
+  been writing a `proof.Packet` binding the ruleset *and the source bytes* since it shipped,
+  and `proof.Artifact` carries `{Path, Digest}`. So the file hash this entry asks for
+  required no new record at all — only `proof.Load` and a comparison.
+  The four verdicts are as filed: anchor present + source unchanged passes; present +
+  changed is `anchor-drift` (advisory); **absent + unchanged is `anchor-fabricated`, the one
+  certain defect and the only blocking one**; absent + changed is `anchor-stale` (advisory).
+  Without `--against-proof` the behaviour is exactly as before — with one signal,
+  `anchor-absent` blocking remains the honest verdict, and that fallback is pinned by a test.
+  `anchorPresent` was factored out so `Provenance` and `Drift` cannot disagree about what
+  "present" means. Original entry: The
   `anchor-absent` entry above concludes that separating a fabrication from a drift *"needs
   the immutable evidence archive"*, and offers only a cheap half in the meantime — record the
   source hash so a later failure can at least *report* whether the source changed. `ruflo`'s
@@ -710,7 +885,10 @@ rather than with the evidence archive that entry has been waiting on.
   and presents as authentication. This repo already holds the correct position (`gate`
   refuses a weighted score for the same class of reason); the instance is worth knowing
   because it is what `vac-protocol`'s refusal of signatures predicts, observed in the wild.
-- [ ] **A critic that ran with reduced independence must say so, and there is no state for
+- [x] **A critic that ran with reduced independence must say so, and there is no state for
+  it.** CLOSED 2026-08-22 in this entry's own body; the checkbox was never ticked and is
+  corrected 2026-09-05. The conclusion stands and is restated at the end of the entry: the
+  state cannot occur, because canonizer spawns nothing. Original entry:
   it.** `critic` withholds the distillation by design and that is the whole basis for calling
   its opinion cold. `oh-my-agent`'s judge protocol reaches the same design from scratch — a
   spawned subagent with fresh context, briefed on the criteria and never on what the
@@ -746,8 +924,18 @@ rather than with the evidence archive that entry has been waiting on.
   benefits from misreporting it. The only real fix is identity on the reply, refusing a
   critic answer from the session that produced the distillation, and that is a relay feature
   neither tool has. Recorded so the trigger is one that can fire.
-- [ ] **The coverage record is one design that four entries in this family describe
-  separately, and it should be promoted once.** *This is not new work here — it is a note on
+- [x] **The coverage record is one design that four entries in this family describe
+  separately, and it should be promoted once.** RESOLVED 2026-09-05, and it resolved the way
+  the entry asked: **promoted once, into skillet, as `finding.Unexamined` + `Result.Unexamined`**
+  — carrying the load-bearing constraint structurally rather than by convention, since a
+  consumer walking `Diagnostics` to decide an outcome never sees the coverage list. canonizer
+  now consumes that type rather than inventing an `examined`/`not_examined` block of its own.
+  **One of the four descriptions does not collapse into it, and should not be made to.** The
+  `Limitations:` item below is the *ruleset* declaring what it does not cover; this is the
+  *critic* reporting what it did not look at. Different author, different moment, different
+  object — and a reader needs both, because a well-scoped ruleset graded narrowly and a
+  badly-scoped one graded thoroughly are different failures. Kept open on its own terms.
+  Original entry: *This is not new work here — it is a note on
   the `cold critic reports what it found` entry above, so it is not double-counted.* The same
   shape appears as: this repo's `examined` / `not_examined` block; this repo's *"a ruleset
   that will not say what it does not cover is an advertisement"* (VAC's REQUIRED non-empty
@@ -776,7 +964,20 @@ package doc:
 canonizer was not one of the five sites — it has no derived-applicability mechanism — but
 the rule's second half lands on it anyway, and this is the first thing found by applying it.
 
-- [ ] **`verify` silently drops every non-enforced rule, so a clean result cannot be told
+- [x] **`verify` silently drops every non-enforced rule, so a clean result cannot be told
+  from an unexamined one.** DONE 2026-09-05 as `verify.Scope` plus a stderr line on every
+  run and one advisory diagnostic when nothing was enforced.
+  **The entry was right that this is a count and not a predicate**, and right that skipping a
+  CONSIDER rule is correct — the defect was only that the skipping was invisible.
+  **It must not be `finding.Unexamined`, and skillet's own doc is why.** That type is
+  *testimony*: a critic's unverifiable claim about its own behaviour. This is mechanical —
+  code applied a documented rule and can say so exactly — and skillet documents the two as
+  "deliberately different types" for that reason. skillet has no type for the mechanical
+  half, so `Scope` stays local until a consumer beyond canonizer wants one.
+  The advisory goes into the findings JSON rather than only to stderr, so it reaches `gate`;
+  a fact that lives in a terminal is a fact somebody did not read. Never blocking: a
+  CONSIDER-only ruleset is legitimate. An *empty* ruleset is not the advisory case — it
+  examines nothing and misleads nobody. Original entry:
   from an unexamined one.** All three checks open with `if !enforced(r.Severity) { continue }`
   (`internal/verify/verify.go:31`, `:59`, `:101`) and nothing downstream records how many
   rules that skipped. A ruleset of entirely `[MAY]` rules produces **zero diagnostics** —
@@ -806,7 +1007,16 @@ entry plus adh's matching one — two consumers with present defects. Design rec
   that would break it.
 - **`Reason` is required.** `Valid()` rejects either field empty or whitespace-only.
 - **It is testimony, not a derived fact** — a critic's claim about its own behaviour.
-- [ ] **Parse `unexamined` from the critic reply and render it in `gate`.** The prompt in
+- [x] **Parse `unexamined` from the critic reply and render it in `gate`.** DONE 2026-09-05
+  as `critic.ParseReply`, which replaced the bare `json.Unmarshal` in `gate.readFindings`.
+  **Parsing and validating are one call so a caller cannot do the first and forget the
+  second** — `finding.Result` already has the field and a json tag, so the reply was in fact
+  already being read; what was missing was that nothing checked it. A malformed entry rejects
+  the whole reply, as filed, and the error names which entry.
+  `gate` renders the record after the blocking decision is made, so nothing in it can change
+  the outcome — the ordering is the guarantee, not a formality. A reply naming no gaps prints
+  nothing: "no gaps declared" would read as a positive fact about coverage and is the absence
+  of one. Original entry: The prompt in
   `internal/prompt/critic_prompt.md` gains a constraint footer asking the critic to name
   the angles it did not take, in `super-hermes`' form — *"This analysis maximized X. It did
   not examine: …"*. The parse is pure and belongs beside the findings parse.
@@ -814,7 +1024,9 @@ entry plus adh's matching one — two consumers with present defects. Design rec
   adh already handles a malformed finding, and the reason is the same: silently discarding
   half a reply is how an answer that says nothing passes for an answer that found nothing.
   Render below the findings, clearly separated, and never count it toward the exit code.
-- [ ] **Say in `critic_prompt.md` that declaring a gap is free.** The whole mechanism turns
+- [x] **Say in `critic_prompt.md` that declaring a gap is free.** DONE 2026-09-05, and
+  pinned by a test that compares with whitespace collapsed, so re-wrapping the prose cannot
+  silently drop the sentence the mechanism depends on. Original entry: The whole mechanism turns
   on the critic believing that, and a critic that suspects a declared gap will be held
   against it declares none — which costs both the gap and the finding it would have come
   with. State it in the prompt, not only in the code.
@@ -869,7 +1081,20 @@ open that `skillsaw` had already closed. **A backlog that mirrors another
 repository's work goes stale in the direction that flatters.** One home, and a
 pointer from everywhere else.
 
-- [ ] **A known-answer soundness test per rule.** `gate.SelfTest`'s planted-defect
+- [ ] **A known-answer soundness test per rule.** **BLOCKED on skillet, established
+  2026-09-05.** gnosis does this over a *pattern table*, where a regex either matches its
+  positive example or it does not. canonizer's rules are prose statements for a model:
+  `ruleset.Rule` carries `Statement`, `Bad`, `Good` and **no executable predicate**, so there
+  is nothing to run against the two cases. `judge` has the matcher ops (`OpRegex`,
+  `OpContains`, …) — the machinery exists; the field to hold per-rule checks does not, and
+  canonizer has no `replace` directive.
+  **A cheap proxy was considered and rejected, and the rejection is the useful part.**
+  `Executable` already checks one direction (the ✓ does not appear inside the ✗); the
+  converse looks free. It is wrong: `✗ conn.Close()` / `✓ defer conn.Close()` has the ✓
+  containing the ✗, and that is the most natural shape a fix takes. Shipping it would flag
+  correct rules — the false-alarm failure *this entry itself* warns about, that a rule firing
+  on ordinary work gets the tool switched off.
+  Unblocks when `ruleset.Rule` can carry `judge.Check`s. Original entry: `gate.SelfTest`'s planted-defect
   control generalised from the gate to the *rules*: every rule ships a case it must
   flag and a case it must not, and the set refuses to load if any rule fails either.
   gnosis now does this for its §9.3 pattern table, at load rather than in a test — the
@@ -882,7 +1107,21 @@ pointer from everywhere else.
   sensitive to false alarms than to misses — a rule that fires on ordinary work gets
   the tool switched off, and the negative case is the one an author will not write
   unprompted.
-- [ ] **The cache key should carry the rubric edition.** gnosis's relay key
+- [ ] **The cache key should carry the rubric edition.** **NOT ACTIONABLE — there is no
+  cache.** Established 2026-09-05: `grep -rni cache --include=*.go` returns nothing outside
+  tests. There is no key to extend, and building a cache in order to key it correctly would
+  be inventing the problem to solve it. Keep as a **constraint on a future cache**, not as
+  work.
+  **The principle underneath is live and separable, and is proposed rather than built.** A
+  verdict that does not say which rubric produced it is silently yesterday's grade under
+  today's rules — and canonizer already emits findings a consumer stores, with nothing in
+  that document naming the edition of the checks or the critic prompt behind it.
+  The entry's hard question — what identifies an edition, given it must change when scoring
+  changes and not when prose does — has an exact answer for the critic half: **the prompt
+  template *is* the rubric, all of it is instructions, so `identity.Hash(prompt.Critic)`
+  changes precisely when the rubric changes.** The deterministic half would need a
+  hand-bumped constant, since its "edition" is the set of checks and their severities.
+  Not built because it is adjacent to the item rather than the item. Original entry: gnosis's relay key
   deliberately omits its `standards/` version, and the reason it can is that the rubric
   never enters the prompt there: a threshold change cannot stale a model's reply about
   a source. Wherever the rubric **is** what is being applied, a key without it serves

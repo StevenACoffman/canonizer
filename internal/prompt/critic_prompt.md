@@ -33,10 +33,29 @@ Judge each rule against the source alone. Flag a rule when it fails any of these
   specificity, and a rule that reads well while failing them is the most common way a
   ruleset becomes unusable.
 - **duplicate** — the rule restates another rule without adding a distinct constraint.
+- **coverage** — the *set* does not cover what the `Scope:` line claims. The other three
+  categories are properties of one rule; this one is a property of the whole ruleset, and
+  no per-rule reading can find it. Every rule may be supported, specific and distinct while
+  the set still leaves out most of what the scope promises. Report it once, with `"path":
+  "ruleset"`, naming what the scope claims that no rule addresses.
 
 Do not reward coverage: a rule that merely paraphrases the source without changing what
 a reader would flag, generate, or avoid is not worth keeping. Judge only against the
 source, never against your own prior knowledge.
+
+## What you did not examine
+
+After the findings, name the angles you did not take — the readings of this source you did
+not pursue, the kinds of defect you did not look for. One or two, specifically.
+
+**Declaring a gap costs you nothing.** It is recorded beside your findings, never counted
+against them, and it cannot cause the ruleset to be rejected. This is not a formality: a
+critic who suspects an admitted gap will be held against it declares none, and then the gap
+is lost *and* so is the finding it would have come with. An empty findings list from a
+critic that named no gaps is indistinguishable from one that never looked.
+
+Say what you examined narrowly, not what you examined badly. "I read the rules against the
+source's §3 and did not cross-check §7" is useful. "I may have missed things" is not.
 
 ## Output
 
@@ -52,15 +71,26 @@ after it:
       "path": "§2.3",
       "message": "The source never claims X; this rule invents it."
     }
+  ],
+  "unexamined": [
+    {
+      "aspect": "the source's §7 worked examples",
+      "reason": "judged the rules against the prose sections only"
+    }
   ]
 }
 ```
 
-- Use `"severity": "error"` for every `unsupported`, `vague`, or `duplicate` finding —
+- Use `"severity": "error"` for every `unsupported`, `vague`, `duplicate` or `coverage` finding —
   these block the ruleset from shipping.
 - Use `"severity": "warning"` for a softer observation that should be recorded but must
   not block.
-- `"category"` is one of `unsupported`, `vague`, `duplicate` (or a short kind for a
-  warning). `"path"` locates the rule (its `§` number or heading). `"message"` says why
-  it fails, in one sentence.
-- If every rule holds, output `{"diagnostics": []}`.
+- `"category"` is one of `unsupported`, `vague`, `duplicate`, `coverage` (or a short kind
+  for a warning). `"path"` locates the rule (its `§` number or heading), or `ruleset` for a
+  `coverage` finding. `"message"` says why it fails, in one sentence.
+- `"unexamined"` carries one entry per angle you did not take, each with an `"aspect"` and
+  a `"reason"`. Both are required: an aspect with no reason records nothing. It is never
+  read as a defect and never blocks.
+- If every rule holds, output `{"diagnostics": [], "unexamined": [...]}` — the empty
+  findings list still needs the gaps named, because that is what makes it readable as
+  "found none" rather than "looked at none".

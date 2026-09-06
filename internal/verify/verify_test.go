@@ -1,6 +1,7 @@
 package verify_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/StevenACoffman/canonizer/internal/verify"
@@ -170,5 +171,149 @@ func TestSpecificityReportsOneFindingPerRule(t *testing.T) {
 	})
 	if len(got) != 1 {
 		t.Errorf("want a single finding for one rule, got %+v", got)
+	}
+}
+
+// TestCategoryValuesAreTheWireContract pins each category's string, which the constants
+// deliberately do not.
+//
+// The behavioural tests above assert literals for the same reason: a test that compares
+// the constant against itself passes however the value is edited, so the one thing it
+// cannot catch is the change that matters. These strings are read by `gate` and by
+// anything consuming the findings JSON, so renaming one is a breaking change and should
+// fail here rather than downstream.
+func TestCategoryValuesAreTheWireContract(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct{ got, want string }{
+		"unexecutable":        {verify.CategoryUnexecutable, "unexecutable"},
+		"non-discriminating":  {verify.CategoryNonDiscriminating, "non-discriminating"},
+		"no-anchor":           {verify.CategoryNoAnchor, "no-anchor"},
+		"anchor-absent":       {verify.CategoryAnchorAbsent, "anchor-absent"},
+		"unspecific":          {verify.CategoryUnspecific, "unspecific"},
+		"nothing-examined":    {verify.CategoryNothingExamined, "nothing-examined"},
+		"non-canonical":       {verify.CategoryNonCanonical, "non-canonical"},
+		"anchor-drift":        {verify.CategoryAnchorDrift, "anchor-drift"},
+		"anchor-stale":        {verify.CategoryAnchorStale, "anchor-stale"},
+		"anchor-fabricated":   {verify.CategoryAnchorFabricated, "anchor-fabricated"},
+		"unbounded":           {verify.CategoryUnbounded, "unbounded"},
+		"warrant-incomplete":  {verify.CategoryWarrantIncomplete, "warrant-incomplete"},
+		"anchor-unverifiable": {verify.CategoryAnchorUnverifiable, "anchor-unverifiable"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if tc.got != tc.want {
+				t.Errorf(
+					"category = %q, want %q; renaming it breaks every consumer",
+					tc.got,
+					tc.want,
+				)
+			}
+		})
+	}
+}
+
+func TestRulesCountsWhatTheGatesExamine(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		severities   []ruleset.Severity
+		wantEnforced int
+		wantTotal    int
+		wantAdvisory bool
+	}{
+		"all enforced": {
+			severities:   []ruleset.Severity{ruleset.MUST, ruleset.SHOULD},
+			wantEnforced: 2, wantTotal: 2, wantAdvisory: false,
+		},
+		"mixed": {
+			severities:   []ruleset.Severity{ruleset.MUST, ruleset.CONSIDER, ruleset.SHOULD},
+			wantEnforced: 2, wantTotal: 3, wantAdvisory: false,
+		},
+		// The shape the whole item exists for: rules present, none examined, zero
+		// diagnostics -- indistinguishable from a clean pass until this reports it.
+		"none enforced is advisory": {
+			severities:   []ruleset.Severity{ruleset.CONSIDER, ruleset.CONSIDER},
+			wantEnforced: 0, wantTotal: 2, wantAdvisory: true,
+		},
+		// An empty ruleset examines nothing but misleads nobody, so it is not the
+		// advisory case.
+		"empty ruleset is not advisory": {
+			severities:   nil,
+			wantEnforced: 0, wantTotal: 0, wantAdvisory: false,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			rs := ruleset.Ruleset{}
+			for i, sev := range tc.severities {
+				rs.Rules = append(rs.Rules, rule(string(rune('a'+i)), sev, "b", "g", "a"))
+			}
+			got := verify.Rules(rs)
+			if got.Enforced != tc.wantEnforced || got.Total != tc.wantTotal {
+				t.Errorf("Rules = %+v, want {Enforced:%d Total:%d}",
+					got, tc.wantEnforced, tc.wantTotal)
+			}
+			if got.Advisory() != tc.wantAdvisory {
+				t.Errorf("Advisory() = %t, want %t", got.Advisory(), tc.wantAdvisory)
+			}
+		})
+	}
+}
+
+func TestCanonical(t *testing.T) {
+	t.Parallel()
+	const canonical = "Source: demo\nScope:  Go\n\n" +
+		"§1.1  [MUST][CODE]  Always close the connection.\n" +
+		"      Leaked connections exhaust the pool.\n" +
+		"      ✗  // connection is never closed\n" +
+		"      ✓  defer conn.Close()\n" +
+		"      ↦  ANCHOR-SENTINEL always release the connection\n"
+	cases := map[string]struct {
+		raw      string
+		wantDiag bool
+	}{
+		// A format-1 ruleset declares no version and must still round-trip; guarding on
+		// the version made this check decline on every file in the corpus.
+		"canonical form round-trips": {raw: canonical, wantDiag: false},
+		// Two spaces after Scope: is the canonical spelling; one is parseable and not
+		// canonical, which is exactly the drift nothing detected before.
+		"a reformatted header is not canonical": {
+			raw:      strings.Replace(canonical, "Scope:  Go", "Scope: Go", 1),
+			wantDiag: true,
+		},
+		"a reindented rationale is not canonical": {
+			raw:      strings.Replace(canonical, "      Leaked", "   Leaked", 1),
+			wantDiag: true,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			rs, err := ruleset.Parse(tc.raw)
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+			assertCanonical(t, verify.Canonical(tc.raw, rs), tc.wantDiag)
+		})
+	}
+}
+
+// assertCanonical checks the diagnostic count and, when one is expected, that it blocks.
+// Extracted to keep TestCanonical's table flat: three assertions inside a subtest are what
+// push it over the complexity cap.
+func assertCanonical(t *testing.T, got []finding.Diagnostic, wantDiag bool) {
+	t.Helper()
+	if !wantDiag {
+		if len(got) != 0 {
+			t.Fatalf("Canonical = %+v, want none", got)
+		}
+		return
+	}
+	if len(got) != 1 {
+		t.Fatalf("Canonical = %+v, want one diagnostic", got)
+	}
+	if !got[0].Severity.Blocking() {
+		t.Errorf("severity = %q, want a blocking one", got[0].Severity)
 	}
 }

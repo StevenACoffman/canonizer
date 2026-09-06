@@ -176,6 +176,30 @@ confidence matched how its flags held up on review (ECE/MCE/Brier over a
 `{confidence, correct}` log). It surfaces an over- or under-confident critic. It never
 blocks adoption, because the ship gate stays findings-based.
 
+**What a clean gate does and does not license (documentation, not a mechanism).** A run
+where `verify` reports nothing blocking and `gate` exits zero means exactly this: *no
+deterministic check objected, and one cold critic did not object either.* It is worth
+stating what that is not, because the short way to say it — "the ruleset is verified" —
+claims all four of the following, and the pipeline supports none of them.
+
+- **Not "the rules are correct."** The deterministic checks are structural: a rule carries a
+  discriminating ✗/✓ pair, cites an anchor that appears in the source, and the file
+  round-trips through the canonical form. None of them reads the rule for truth.
+- **Not "the anchor supports the claim."** `Provenance` finds the quoted text in the source.
+  Whether the passage *says what the rule says it says* is the critic's `unsupported`
+  judgment, and the critic is one grader running one prompt.
+- **Not "the ruleset covers its scope."** Every rule can be individually sound while the set
+  omits most of what the `Scope:` line promises. That is the `coverage` category, and it is
+  a judgment rather than a check.
+- **Not "nothing was flagged."** `Specificity` and `Conflicts` are advisory by design and a
+  clean gate may still carry them; so may a critic's coverage record naming what it did not
+  examine. A zero exit means *nothing blocking*, not *nothing found*.
+
+The reason to write this down is that the failure is silent. A gate that blocks says why; a
+gate that passes says nothing, and the word chosen for that silence in a commit message or a
+PR description is where the overclaim enters. Prefer "passed canonizer's structural gate"
+over "verified".
+
 ## Development
 
 ```sh
