@@ -164,7 +164,7 @@ func Specificity(rs *ruleset.Ruleset) []finding.Diagnostic {
 				"statement hedges ("+hedges[0].Text+"); a reader cannot tell when it applies"))
 			continue
 		}
-		if len(doc.Links) == 0 {
+		if !concrete(r.Statement, doc) {
 			diags = append(diags, advisory(r, CategoryUnspecific,
 				"statement names no object, tool or API a reader could act on"))
 		}

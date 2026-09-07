@@ -13,8 +13,8 @@ import (
 	"github.com/peterbourgon/ff/v4"
 
 	"github.com/StevenACoffman/canonizer/cmd/root"
+	"github.com/StevenACoffman/canonizer/internal/distillgen"
 	"github.com/StevenACoffman/canonizer/internal/prompt"
-	skdistill "github.com/StevenACoffman/skillet/ruleset/distill"
 	errors "github.com/StevenACoffman/toerr/errors"
 )
 
@@ -25,6 +25,7 @@ type Config struct {
 	Template string
 	Source   string
 	Out      string
+	RulesOut string
 	Flags    *ff.FlagSet
 	Command  *ff.Command
 }
@@ -40,12 +41,27 @@ func New(parent *root.Config) *Config {
 		"directory tree of source .md files to distill")
 	cfg.Flags.StringVar(&cfg.Out, 0, "out", "",
 		"directory to write the *_prompt.md files into")
+	cfg.Flags.StringVar(&cfg.RulesOut, 0, "rulesout", "",
+		"directory each prompt should write its ruleset into (default: beside the source)")
 	cfg.Command = &ff.Command{
 		Name:      "distill",
-		Usage:     "canonizer distill --source DIR --out DIR [--template PATH]",
+		Usage:     "canonizer distill --source DIR --out DIR [--rulesout DIR] [--template PATH]",
 		ShortHelp: "fill a distillation prompt for every source in a tree",
 		LongHelp: `Walk --source for Markdown files and, for each one, write a
 *_prompt.md into --out that asks a model to distill that source into a ruleset.
+
+--rulesout is where each prompt tells the agent to write the ruleset it produces.
+Without it the prompt points at a path beside the source, which is the historical
+behaviour.
+
+INVOCATION: every link inside a prompt is relative to that prompt's own directory,
+so run the agent with that directory as its working directory:
+
+    (cd "$(dirname "$p")" && claude -p < "$(basename "$p")")
+
+A Markdown link carries no anchor, so an agent started anywhere else resolves the
+"../" from the wrong place and reads -- or writes -- the wrong file. This is a
+convention the prompt cannot enforce, which is why it is stated here.
 
 The template defaults to a built-in prompt; pass --template to use your own. The
 template must contain the {{SOURCE_CONTENT}} and {{DESTINATION_CONTENT}}
@@ -73,7 +89,7 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 	if err != nil {
 		return errors.WrapWithMessage(err, "distill")
 	}
-	written, err := skdistill.Generate(tmpl, cfg.Source, cfg.Out)
+	written, err := distillgen.Generate(tmpl, cfg.Source, cfg.Out, cfg.RulesOut)
 	if err != nil {
 		return errors.Wrap(err, slog.String("source", cfg.Source), slog.String("out", cfg.Out))
 	}

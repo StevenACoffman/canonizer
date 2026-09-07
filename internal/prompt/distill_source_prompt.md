@@ -265,6 +265,12 @@ Before submitting, confirm each rule satisfies all of the following:
    source hedges, the rule hedges or assigns lower severity.
 7. **Format purity:** The document contains only the `Source:`/`Scope:` lines and
    `§` rule blocks — no headings, tables, or lines outside a rule block.
+8. **Backtick every identifier:** Wrap each package, type, function, method,
+   field, file name and flag in backticks — `database/sql`, `*sql.DB`,
+   `Open()`, `ctx context.Context`. A rule naming a real symbol in plain prose
+   reads to a checker as a rule naming nothing, so the same rule scores as
+   vague or concrete depending on typography alone. Backtick the identifier,
+   not the sentence around it.
 
 Revise or drop any rule that fails. Do not pad the ruleset to appear
 comprehensive.

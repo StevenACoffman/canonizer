@@ -93,8 +93,15 @@ A worked run:
 
 ```sh
 # 1. Distill each source document into a per-source prompt the agent runs to write rules.
-canonizer distill --source ./docs --out ./prompts
-#    the agent runs each *_prompt.md and writes a canonical *_rules.md
+canonizer distill --source ./docs --out ./prompts --rulesout ./rulesets
+#    Run each prompt from its own directory -- every link inside it is relative to that
+#    directory, and a Markdown link carries no anchor, so an agent started anywhere else
+#    resolves the "../" from the wrong place:
+for p in ./prompts/*_prompt.md; do
+  ( cd "$(dirname "$p")" && claude -p < "$(basename "$p")" )
+done
+#    The agent writes each *_rules.md into --rulesout. Do not capture its stdout as the
+#    artifact: the reply is a report about the work, and the ruleset is the file.
 
 # 2. Merge the per-source rulesets into one synthesis prompt; the agent produces the
 #    single candidate ruleset R.

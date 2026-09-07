@@ -621,6 +621,62 @@ from). Checked against the code in both repositories.
   Already absorbed and worth not re-deriving: `gate.SelfTest`'s planted-defect negative
   control is that repo's `impl_buggy.py` idea, and mirrors adh's `oracle selftest`.
 - [ ] **OKF states our thesis as two data fields.**
+  **Skillet decided 2026-09-07: the verification *record* is promoted, the *fold* is not**
+  — `Verification{By, At}`, list-valued, with each consumer keeping its own tier derivation.
+  The trigger fired on two repos having independently hand-written that same type
+  (`bundle.Verification` in gnosis, `contextstore.Verification` in adh) while their folds
+  differ by design.
+  **So this entry's own conclusion is half-superseded.** It said *"when this lands it lands
+  here, local to canonizer, until a second consumer appears"* — the record now arrives from
+  skillet instead, so the `anchor-absent` split can use the shared element rather than
+  inventing a third copy, which is what this entry was trying to avoid. What stays local is
+  any tier derivation canonizer wants.
+  **MEASURED 2026-09-07: the type is available and there is nowhere to put it, so this is
+  adopt-on-arrival rather than adopt-now.** `verification.Event` is a *record*, and canonizer
+  persists nothing that could hold one. Every candidate slot was checked rather than assumed:
+  rulesets carry no provenance metadata — this entry's own unmet condition, and adding a
+  header is a skillet format bump; `proof.Packet` is `{Arc, Provenance{GitSHA}, Artifacts}`
+  with no field for events and is skillet's type to change; `finding.Result` is
+  `{Diagnostics, Unexamined}`, and an envelope around it changes the format `gate` reads,
+  which was rejected on this same ground for `semantic_verification`. A grep for every write
+  canonizer performs finds three — the findings JSON, the proof packet, and prompt files.
+  There is no ledger and no state file.
+  **A canonizer-local events file was considered and rejected** — it would be building a
+  feature to consume a type, and the events would be testimony canonizer cannot check, the
+  ground on which the critic's independence flag was already refused.
+  **Corrected 2026-09-07 on both halves of that reasoning.** It cited skillet's package doc
+  saying `verification` *"has no importers yet"*; that is stale — **gnosis and adh both pin
+  v0.31.0 and use `verification.Event` today**, so the risk it invoked does not apply and
+  the doc needs rewriting. And the objection about testimony was right about a **flag** and
+  wrong to stop there: adh's `RecordVerification` shows the buildable form, taking the actor
+  from *"the repository's configured identity, never from a flag on the invocation"*, since
+  a caller-supplied actor lets anyone mint a `human:` event. Config-derived is still
+  self-asserted, and adh states that limit rather than implying it.
+  **Where the events go is settled by precedent, not open.** Both consumers store them in the
+  artifact they are about, under a `verified` key — gnosis in document frontmatter, adh
+  appended to the unit's own file. canonizer's artifact is the ruleset, so the slot is a
+  `Verified:` header at **format 4**, which is also the only candidate that satisfies this
+  entry's own trigger, *"if rulesets ever carry provenance metadata"*. Filed in
+  `skillet/TODO.md`; a `proof.Packet` field was the alternative until the precedent was
+  checked.
+  **What `Event` buys when a slot exists**, recorded so the next reader need not re-derive
+  it: `anchor-drift` and `anchor-stale` both say *the source changed* and neither can say
+  whether anyone re-confirmed the anchors since. That is §5.2's independence of `verified`
+  from `generated.at`, and it is the one distinction the four-verdict split still cannot
+  draw.
+  **The `Warrant`/`Event` overlap noticed here is answered and closed in skillet**: they stay
+  unrelated. A warrant *substitutes* for evidence — `unanchored` reads it exactly where
+  `SourceAnchor` is empty, and its `Rationale` is the only reviewable content there is — while
+  an event *attests to* evidence that already stands. Adding `Rationale` to `Event` would
+  break a list that mixes `human:` and `check:` actors; embedding `Event` in `Warrant` would
+  imply there was something to verify, which is the case a warrant exists for the absence of.
+  What is shared is the raw-string grammar of `By`, and only that.
+  **What is still not promoted is the `Generated`/`Verified` block**, and the reason is
+  recorded in skillet: YAML cannot round-trip, gnosis re-emits its frontmatter verbatim, so
+  a block struct would be decode-only. This entry cites §5.2's independence of `verified`
+  from `generated.at` as the vocabulary it needs; that independence is a property of the
+  *document*, and reading it still means reading the block yourself.
+  Original entry:
   `agent-blue/knowledge-catalog/okf/SPEC.md` §5.2 keeps `generated` and `verified` separate
   "because who *wrote* a concept need not be who *confirmed* it" — which is this repo's
   entire reason to exist, expressed as frontmatter rather than as a pipeline stage. Two
@@ -1162,3 +1218,115 @@ pointer from everywhere else.
   The design question is what identifies an edition: it has to change when scoring
   changes and not when prose does, or every comment edit invalidates every cached
   result.
+
+______________________________________________________________________
+
+## No Ruleset Has Ever Been Through This Pipeline (2026-09-07)
+
+Noticed while looking for something to exercise the format-3 gates on, and it turned out to
+be a larger fact than the one being looked for. Filed here rather than in `go-advice` or
+`skillet` because canonizer owns the pipeline the gap is in, and because a corpus item filed
+in a repository with no backlog is one nobody will read.
+
+- [ ] **Every canonical-form ruleset in existence is a test fixture.** `grep -rln '^§[0-9]'`
+      across `~/Documents/agent-orange` and this repository returns no stored ruleset: the
+      `*_rules.md` files in `go-advice` are prose documents with **zero** `§` rule headers,
+      and the only canonical-form text is in `cmd/*_test.go`. skillet's own estimate —
+      *"roughly ten stored files exist, most of them 1-4 rule prompt examples"* — was
+      generous.
+      **So the format-3 gates being idle is a symptom, not the problem.** `verify.Limitations`
+      flags every ruleset advisory-only and `Soundness` finds nothing to judge, and the
+      reason is not that nobody has migrated a ruleset to format 3 — it is that **nobody has
+      produced one at all**. `distill` and `synthesize` emit prompts; an agent is supposed to
+      run them and write the ruleset back; that last step has never been completed against a
+      real source and committed.
+      **What this means for every gate here, and it is uncomfortable.** `Executable`,
+      `Provenance`, `Drift`, `Canonical`, `Conflicts`, `Specificity`, `Limitations`,
+      `Soundness` and the `--against-proof` split are all tested and none has met content it
+      did not come packaged with. Their tests are honest about the logic and say nothing
+      about whether the *rules a real distillation produces* trip them — the distinction
+      between a check that works and a check that is calibrated.
+      **The smallest thing that would change that:** run `distill` over one real source,
+      have an agent produce the ruleset, and commit it. Everything else follows from having
+      a subject — the format-3 features are then an edit to a real document rather than an
+      exercise, and the first honest measurement of how noisy `Specificity` is on genuine
+      rules becomes possible.
+      **Expect the first run to find defects in the gates, not in the ruleset**, and treat
+      that as the return on it. Every measured surprise in this backlog came from running
+      something over real content: `normalize` deleting rationales, the `anchor-absent`
+      conflation, the description predicate flagging the good case. None came from a test.
+
+______________________________________________________________________
+
+## `Specificity` Measures Typography, Not Concreteness (2026-09-07)
+
+The first real distillation run — eight sources under `go-advice/Sources/benbjohnson` —
+produced the first content these gates have ever seen, and this is what it found. It is the
+return the *No Ruleset Has Ever Been Through This Pipeline* entry predicted: a defect in a
+gate rather than in a ruleset.
+
+Two rulesets carried parseable rules. Measured on both:
+
+| ruleset                          | statements with backticks | `unspecific`      |
+| -------------------------------- | ------------------------- | ----------------- |
+| `real-world-sql-part-one`        | **0 of 29**               | 26 of 26 enforced |
+| `structuring-applications-in-go` | **15 of 19**              | 4                 |
+
+19 − 15 = 4, and `unspecific` = 4 exactly. **The check is not erratic: it fires precisely
+when a statement holds no code span.** An earlier reading of the first file alone called it
+"miscalibrated at 100%", which was too strong and is corrected here.
+
+- [x] **The proxy is wrong whenever concrete prose is unbackticked.** DONE 2026-09-07 as
+      `internal/verify.concrete`, which asks `doc.Links` first and falls back to four
+      identifier shapes — `pkg.Name`, `pkg/name`, `Foo()`, `*T`.
+      **Measured on the 48 real statements, code spans stripped so each pattern is judged on
+      bare prose**: `pkg.Name` 7, `Foo()` 5, `*T` 4, `pkg/name` 2. A `snake_case` pattern was
+      written and **dropped at 0 matches** — a pattern that fires on nothing is a claim
+      nobody has checked.
+      **Result: `real-world-sql-part-one` falls 29 → 15, and `structuring-applications-in-go`
+      stays at exactly 4.** The second number is the one that matters: widening bought
+      accuracy without going blind, which a laxer check would not have.
+      Widened locally rather than in skillet: `markdown.Links` is the kernel's and its doc
+      records the mixing as deliberate *because four consumers read it*, so what was widened
+      is canonizer's question, not skillet's datum.
+      **A residual is recorded in the code, because it bounds what this check can mean.** The
+      15 that survive name no symbol and are still perfectly actionable — *"Open a
+      transaction at the top of every service method"* is a definite instruction with a
+      definite target. **Naming an identifier is not the same as being actionable**, and no
+      widening of these patterns closes that. It is why the check is advisory and must stay
+      so.
+- [ ] **The convention it depends on is unstated, so the score is non-deterministic.** Same
+      command, same source tree, one run: one distillation backticked throughout, another
+      backticked nothing. Nothing in `distill_source_prompt.md` asked for it and its own
+      worked examples do not use it, so the same source distilled twice can score 0% or
+      100% unspecific. **That is the more serious of the two**, because noise can be
+      dismissed and a signal that varies run to run cannot be read at all.
+      **Partly addressed 2026-09-07**: the prompt's pre-submission checklist gained item 8,
+      "Backtick every identifier", with the reason stated — a rule naming a real symbol in
+      plain prose reads to a checker as a rule naming nothing. Left open until a re-run
+      measures whether it holds.
+      **Also reduced, not removed, by the widened check above.** With identifier shapes read
+      out of bare prose, the unbackticked ruleset scores 15 rather than 29 — so typography
+      still moves the number, by half as much. The two fixes are independent and both are
+      wanted: the prompt makes the input consistent, the widened check makes the score less
+      hostage to it. Neither alone would have been enough.
+- [ ] **When the convention is followed the check looks sound, and that is the argument for
+      keeping it.** The 4 it flagged in the well-formatted ruleset are the softest rules
+      there — *"a real dependency boundary"*, *"closely related"*, *"by importance"*,
+      *"roughly 10,000 SLOC"*. Judgement-laden, naming nothing an agent can match on:
+      exactly what the check exists to surface.
+      So the fix is **not** to relax it. Confirm this on a second corpus before treating the
+      four as evidence — one file is an anecdote, and this entry exists because the first
+      file alone produced a wrong conclusion.
+      **Strengthened 2026-09-07: all four survived the widening unchanged.** They name no
+      identifier in any form, so the accuracy gain that halved the other ruleset did not
+      touch them. That is the best evidence so far that the check catches something real.
+      **And a hypothesis was formed, tested and refused in the same pass.** It looked as
+      though the axis separating these four from the 15 was *hedging* rather than
+      identifiers, and that `SofteningPhrases` — which `Specificity` already runs first —
+      might make the second signal redundant. It does not: `skilllens.SofteningTerms` is a
+      short list of **discretion** phrases (*"as appropriate"*, *"it depends"*, *"at your
+      discretion"*), and none of the four matches one. Verified by running the gate: the
+      output carries `unspecific` and no `softening` at all. The two signals detect different
+      things and both are load-bearing. Recorded because the hypothesis was plausible enough
+      to act on and wrong.
