@@ -732,7 +732,24 @@ from it, because `vac-protocol` independently arrived at this repo's central dis
   And the case worth designing for, which the taxonomy currently has no name for: a ruleset
   that passes `verify` and fails `critic` "is a precise, reproducible accusation" — not a
   malformed artifact but a well-formed wrong one.
-- [x] **A ruleset that will not say what it does not cover is an advertisement.** PARTLY
+- [x] **A ruleset that will not say what it does not cover is an advertisement.** COMPLETED
+  2026-09-06 against `skillet v0.30.0`, which shipped the `Limitations:` header this entry
+  was waiting on. `verify.Limitations` now reads `rs.Limitations`.
+  **The word list is deleted, not demoted to a fallback.** `exclusionWords`,
+  `statesAnExclusion` and `notLetter` are gone. Keeping them would have been worse than the
+  original guess: a ruleset with an empty `Limitations:` would still pass because its
+  `Scope:` happened to contain "only" -- the guess silently overriding the fact it was
+  standing in for.
+  **The check stays advisory and its justification changed rather than lapsed.** It was
+  advisory because the detection was a word list; it is advisory now because no ruleset in
+  the corpus carries the header, so blocking would fail every one on the day it ships. That
+  reason expires on a migrated corpus, which is the trigger for making it blocking -- and it
+  is recorded in the doc comment, because a rule whose stated reason no longer applies is one
+  nobody can evaluate later.
+  **Deliberately not checked: whether the stated limits are any good.** `Limitations: none`
+  satisfies the field and states nothing, and detecting that is the same word list in a new
+  place. Presence is what a deterministic check can honestly assert; the rest is the critic's.
+  Original entry: PARTLY
   DONE 2026-09-05 as `verify.Limitations`, advisory — and the half that is missing is the
   half this entry actually asked for.
   **The `Limitations:` header cannot be added from here, and it was measured rather than
@@ -1081,7 +1098,22 @@ open that `skillsaw` had already closed. **A backlog that mirrors another
 repository's work goes stale in the direction that flatters.** One home, and a
 pointer from everywhere else.
 
-- [ ] **A known-answer soundness test per rule.** **BLOCKED on skillet, established
+- [x] **A known-answer soundness test per rule.** DONE 2026-09-06 as `verify.Soundness`,
+  which maps `ruleset.Sound`'s findings onto blocking diagnostics. `skillet v0.30.0` added
+  `Rule.Checks` and the `⊨` marker, closing the block this entry recorded.
+  **Blocking, unlike the other two advisory checks, and the difference is decidability.**
+  `Specificity` and `Conflicts` report things a deterministic check cannot settle. This one
+  is settled: the checks ran against the rule's own examples and either discriminated or did
+  not, so there is no judgement left for a reader to supply -- the line `Executable` and
+  `Provenance` already sit on.
+  **A rule with no checks is not reported**, because `Sound` declines to and canonizer must
+  not add a "rules should carry checks" opinion on top. That is a separate policy, and no
+  ruleset in this corpus carries a check yet, so it would fire on every rule.
+  The rejected proxy this entry recorded is now moot and worth keeping anyway: the converse
+  of `Executable`'s one-directional test would have flagged `✗ conn.Close()` /
+  `✓ defer conn.Close()`, which is the shape a real fix takes. That case is now a **test**
+  -- "a check passing on both examples is unsound" -- rather than a warning in prose.
+  Original entry: **BLOCKED on skillet, established
   2026-09-05.** gnosis does this over a *pattern table*, where a regex either matches its
   positive example or it does not. canonizer's rules are prose statements for a model:
   `ruleset.Rule` carries `Statement`, `Bad`, `Good` and **no executable predicate**, so there

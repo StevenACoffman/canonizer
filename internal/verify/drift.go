@@ -44,7 +44,7 @@ type SourceState int
 // one signal anchor-absent remains the honest answer.
 //
 // Ensures: one diagnostic at most per enforced rule; it is pure.
-func Drift(rs ruleset.Ruleset, source string, state SourceState) []finding.Diagnostic {
+func Drift(rs *ruleset.Ruleset, source string, state SourceState) []finding.Diagnostic {
 	if state == SourceUnknown {
 		return Provenance(rs, source)
 	}

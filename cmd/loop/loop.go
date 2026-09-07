@@ -154,11 +154,11 @@ func (cfg *Config) roundFindings() ([]finding.Diagnostic, error) {
 			slog.String("path", cfg.Source),
 		)
 	}
-	diags, err := vfy.Executable(rs)
+	diags, err := vfy.Executable(&rs)
 	if err != nil {
 		return nil, errors.Wrap(err) // vfy already prefixes "verify:"
 	}
-	diags = append(diags, vfy.Provenance(rs, string(source))...)
+	diags = append(diags, vfy.Provenance(&rs, string(source))...)
 	critic, err := cfg.criticFindings()
 	if err != nil {
 		return nil, err

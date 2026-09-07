@@ -38,7 +38,7 @@ func TestExecutableFlagsMissingAndNonDiscriminating(t *testing.T) {
 		rule("1.3", ruleset.SHOULD, "a := h(); b := k()", "a := h()", ""), // ✓ ⊆ ✗ → flag
 		rule("1.4", ruleset.CONSIDER, "", "", ""),                         // advisory → exempt
 	}}
-	diags, err := verify.Executable(rs)
+	diags, err := verify.Executable(&rs)
 	if err != nil {
 		t.Fatalf("Executable: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestProvenanceFlagsMissingAndAbsentAnchors(t *testing.T) {
 		rule("1.3", ruleset.SHOULD, "b", "g", ""),                          // no anchor → flag
 		rule("1.4", ruleset.CONSIDER, "b", "g", "irrelevant"),              // advisory → exempt
 	}}
-	diags := verify.Provenance(rs, source)
+	diags := verify.Provenance(&rs, source)
 	if len(diags) != 2 {
 		t.Fatalf("got %d findings, want 2 (§1.2 absent, §1.3 no-anchor)", len(diags))
 	}
@@ -70,7 +70,7 @@ func TestProvenanceMatchesAcrossRewrappedWhitespace(t *testing.T) {
 	rs := ruleset.Ruleset{Rules: []ruleset.Rule{
 		rule("1.1", ruleset.MUST, "b", "g", "close the connection"),
 	}}
-	if diags := verify.Provenance(rs, source); len(diags) != 0 {
+	if diags := verify.Provenance(&rs, source); len(diags) != 0 {
 		t.Errorf("whitespace-normalized anchor should match; got %+v", diags)
 	}
 }
@@ -107,7 +107,7 @@ func TestSpecificityFlagsGeneralAdvice(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got := verify.Specificity(ruleset.Ruleset{
+			got := verify.Specificity(&ruleset.Ruleset{
 				Rules: []ruleset.Rule{stated("1", ruleset.MUST, tc.statement)},
 			})
 			if !tc.wantFlag {
@@ -136,7 +136,7 @@ func TestSpecificityIsNeverBlocking(t *testing.T) {
 		stated("2", ruleset.SHOULD, "Be careful with dangerous operations."),
 		stated("3", ruleset.MUST, "Use it as appropriate."),
 	}}
-	got := verify.Specificity(rs)
+	got := verify.Specificity(&rs)
 	if len(got) == 0 {
 		t.Fatal("expected these three to be flagged; the test proves nothing otherwise")
 	}
@@ -154,7 +154,7 @@ func TestSpecificityIgnoresUnenforcedRules(t *testing.T) {
 	t.Parallel()
 	// An advisory note on a rule nobody enforces is noise, and the other two checks
 	// skip CONSIDER for the same reason.
-	got := verify.Specificity(ruleset.Ruleset{
+	got := verify.Specificity(&ruleset.Ruleset{
 		Rules: []ruleset.Rule{stated("1", ruleset.CONSIDER, "Be careful out there.")},
 	})
 	if len(got) != 0 {
@@ -166,7 +166,7 @@ func TestSpecificityReportsOneFindingPerRule(t *testing.T) {
 	t.Parallel()
 	// A statement that both hedges and names nothing gets one note, not two: the
 	// reader's action is the same either way, and doubling it inflates rework budget.
-	got := verify.Specificity(ruleset.Ruleset{
+	got := verify.Specificity(&ruleset.Ruleset{
 		Rules: []ruleset.Rule{stated("1", ruleset.MUST, "Handle it as appropriate.")},
 	})
 	if len(got) != 1 {
@@ -249,7 +249,7 @@ func TestRulesCountsWhatTheGatesExamine(t *testing.T) {
 			for i, sev := range tc.severities {
 				rs.Rules = append(rs.Rules, rule(string(rune('a'+i)), sev, "b", "g", "a"))
 			}
-			got := verify.Rules(rs)
+			got := verify.Rules(&rs)
 			if got.Enforced != tc.wantEnforced || got.Total != tc.wantTotal {
 				t.Errorf("Rules = %+v, want {Enforced:%d Total:%d}",
 					got, tc.wantEnforced, tc.wantTotal)
@@ -294,7 +294,7 @@ func TestCanonical(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse: %v", err)
 			}
-			assertCanonical(t, verify.Canonical(tc.raw, rs), tc.wantDiag)
+			assertCanonical(t, verify.Canonical(tc.raw, &rs), tc.wantDiag)
 		})
 	}
 }

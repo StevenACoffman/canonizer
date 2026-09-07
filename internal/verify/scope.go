@@ -40,7 +40,7 @@ func (s Scope) Advisory() bool { return s.Total > 0 && s.Enforced == 0 }
 //
 // Requires: nothing; rs may hold no rules.
 // Ensures:  Enforced <= Total; Total == len(rs.Rules); it is pure and reads no I/O.
-func Rules(rs ruleset.Ruleset) Scope {
+func Rules(rs *ruleset.Ruleset) Scope {
 	s := Scope{Total: len(rs.Rules)}
 	for i := range rs.Rules {
 		if enforced(rs.Rules[i].Severity) {

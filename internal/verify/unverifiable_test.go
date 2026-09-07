@@ -47,7 +47,7 @@ func TestUnverifiable(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			assertUnverifiable(t, verify.Unverifiable(ruleset.Ruleset{Rules: tc.rules}),
+			assertUnverifiable(t, verify.Unverifiable(&ruleset.Ruleset{Rules: tc.rules}),
 				tc.wantDiag, tc.wantIn)
 		})
 	}
@@ -60,8 +60,8 @@ func TestUnverifiableIsNotAnchorAbsent(t *testing.T) {
 	t.Parallel()
 	rs := ruleset.Ruleset{Rules: []ruleset.Rule{rule("1.1", ruleset.MUST, "b", "g", "ANCHOR")}}
 
-	unverifiable := verify.Unverifiable(rs)
-	absent := verify.Provenance(rs, "a source that does not contain it")
+	unverifiable := verify.Unverifiable(&rs)
+	absent := verify.Provenance(&rs, "a source that does not contain it")
 	if len(unverifiable) != 1 || len(absent) != 1 {
 		t.Fatalf("want one of each; got %+v and %+v", unverifiable, absent)
 	}

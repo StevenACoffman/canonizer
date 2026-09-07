@@ -68,6 +68,8 @@ const (
 	// CategoryAnchorUnverifiable is an anchor nothing searched for, because no source was
 	// supplied. Distinct from anchor-absent, which means a search ran and found nothing.
 	CategoryAnchorUnverifiable = "anchor-unverifiable"
+	// CategoryUnsound is a rule whose checks do not discriminate between its own ✗ and ✓.
+	CategoryUnsound = "unsound"
 )
 
 // Executable returns a diagnostic for every enforced rule that lacks a discriminating
@@ -75,7 +77,7 @@ const (
 // inside its ✗ counter-example (so the pair demonstrates no change). It scores the
 // pair with skillet/judge; whether the pair semantically flips a verdict is the
 // critic's judgment, not this gate's.
-func Executable(rs ruleset.Ruleset) ([]finding.Diagnostic, error) {
+func Executable(rs *ruleset.Ruleset) ([]finding.Diagnostic, error) {
 	diags := make([]finding.Diagnostic, 0)
 	for i := range rs.Rules {
 		r := &rs.Rules[i]
@@ -105,7 +107,7 @@ func Executable(rs ruleset.Ruleset) ([]finding.Diagnostic, error) {
 // or whose anchor is absent from the source (E). The search is whitespace-normalized
 // so a quote the model re-wrapped still matches. Whether a present anchor *supports*
 // the claim is the critic's `unsupported` judgment.
-func Provenance(rs ruleset.Ruleset, source string) []finding.Diagnostic {
+func Provenance(rs *ruleset.Ruleset, source string) []finding.Diagnostic {
 	diags := make([]finding.Diagnostic, 0)
 	for i := range rs.Rules {
 		r := &rs.Rules[i]
@@ -149,7 +151,7 @@ func Provenance(rs ruleset.Ruleset, source string) []finding.Diagnostic {
 // canonizer the third independent implementation of a rubric that was just unified.
 //
 // Ensures: every returned diagnostic has finding.SeverityWarning; it is pure.
-func Specificity(rs ruleset.Ruleset) []finding.Diagnostic {
+func Specificity(rs *ruleset.Ruleset) []finding.Diagnostic {
 	diags := make([]finding.Diagnostic, 0)
 	for i := range rs.Rules {
 		r := &rs.Rules[i]
@@ -261,7 +263,7 @@ func diag(r *ruleset.Rule, category, message string) finding.Diagnostic {
 // The detection itself is skillet's ruleset/conflict, which returns diagnostics with no
 // severity precisely so this decision is made here. Action is guided: a tool can propose
 // which of two divergent rules to keep, but only a person can say which is right.
-func Conflicts(rs ruleset.Ruleset) []finding.Diagnostic {
+func Conflicts(rs *ruleset.Ruleset) []finding.Diagnostic {
 	found := conflict.Find(rs)
 	out := make([]finding.Diagnostic, 0, len(found))
 	for i := range found {

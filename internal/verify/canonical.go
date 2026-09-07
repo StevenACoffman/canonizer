@@ -35,7 +35,7 @@ import (
 //
 // Requires: rs is the result of ruleset.Parse(raw).
 // Ensures:  at most one diagnostic, and none when raw round-trips; it is pure.
-func Canonical(raw string, rs ruleset.Ruleset) []finding.Diagnostic {
+func Canonical(raw string, rs *ruleset.Ruleset) []finding.Diagnostic {
 	if ruleset.Render(rs) == raw {
 		return nil
 	}

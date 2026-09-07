@@ -82,16 +82,17 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 	if err != nil {
 		return errors.WrapWithMessage(err, "verify: parse ruleset")
 	}
-	diags, err := vfy.Executable(rs)
+	diags, err := vfy.Executable(&rs)
 	if err != nil {
 		return errors.Wrap(err) // vfy already prefixes "verify:"
 	}
 	// Both are advisory and independent of --source, so they run before the provenance
 	// block rather than inside it: a run without a source must still report them.
-	diags = append(diags, vfy.Specificity(rs)...)
-	diags = append(diags, vfy.Conflicts(rs)...)
-	diags = append(diags, vfy.Canonical(string(raw), rs)...)
-	diags = append(diags, vfy.Limitations(rs)...)
+	diags = append(diags, vfy.Specificity(&rs)...)
+	diags = append(diags, vfy.Conflicts(&rs)...)
+	diags = append(diags, vfy.Canonical(string(raw), &rs)...)
+	diags = append(diags, vfy.Limitations(&rs)...)
+	diags = append(diags, vfy.Soundness(&rs)...)
 	if cfg.Source != "" {
 		source, readErr := os.ReadFile(cfg.Source)
 		if readErr != nil {
@@ -105,15 +106,15 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 		if stateErr != nil {
 			return stateErr
 		}
-		diags = append(diags, vfy.Drift(rs, string(source), state)...)
+		diags = append(diags, vfy.Drift(&rs, string(source), state)...)
 	} else {
 		// No source is not "no provenance problem": it is the third state, where an
 		// anchor is neither present nor absent because nothing searched for it. Reported
 		// here rather than left silent, because silence is what a later reader -- or the
 		// summary line below -- turns into a pass.
-		diags = append(diags, vfy.Unverifiable(rs)...)
+		diags = append(diags, vfy.Unverifiable(&rs)...)
 	}
-	diags = append(diags, cfg.reportScope(rs)...)
+	diags = append(diags, cfg.reportScope(&rs)...)
 	finding.Sort(diags)
 	if err := cfg.emit(finding.Result{Diagnostics: diags}); err != nil {
 		return err
@@ -137,7 +138,7 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 // a fact that lives only in a terminal is a fact somebody did not read. Advisory, never
 // blocking: a ruleset of entirely CONSIDER rules is legitimate, and the defect being fixed
 // here was the silence, not the ruleset.
-func (cfg *Config) reportScope(rs ruleset.Ruleset) []finding.Diagnostic {
+func (cfg *Config) reportScope(rs *ruleset.Ruleset) []finding.Diagnostic {
 	scope := vfy.Rules(rs)
 	_, _ = fmt.Fprintf(cfg.Stderr, "verify: examined %d of %d rule(s); %d exempt as advisory\n",
 		scope.Enforced, scope.Total, scope.Total-scope.Enforced)

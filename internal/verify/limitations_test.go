@@ -10,45 +10,68 @@ import (
 func TestLimitations(t *testing.T) {
 	t.Parallel()
 	cases := map[string]struct {
-		scope    string
+		rs       ruleset.Ruleset
 		wantDiag bool
 	}{
-		"no scope at all":              {scope: "", wantDiag: true},
-		"whitespace scope is no scope": {scope: "   ", wantDiag: true},
-		"scope stating only coverage": {
-			scope: "Go service code", wantDiag: true,
+		"states its limits": {
+			rs:       ruleset.Ruleset{Scope: "Go", Limitations: "nothing about concurrency"},
+			wantDiag: false,
 		},
-		"scope stating an exclusion": {
-			scope: "Go service code, not concurrency primitives", wantDiag: false,
+		"states none": {
+			rs:       ruleset.Ruleset{Scope: "Go"},
+			wantDiag: true,
 		},
-		"only is an exclusion": {
-			scope: "Go HTTP handlers only", wantDiag: false,
+		"whitespace is not a statement": {
+			rs:       ruleset.Ruleset{Scope: "Go", Limitations: "   "},
+			wantDiag: true,
 		},
-		"excludes is an exclusion": {
-			scope: "Go service code; excludes generated files", wantDiag: false,
+		// The old check read Scope for a negation word. A scope that happens to contain one
+		// must no longer excuse an absent Limitations: -- the guess overriding the fact is
+		// exactly what deleting the word list was for.
+		"a scope mentioning an exclusion does not substitute": {
+			rs:       ruleset.Ruleset{Scope: "Go service code, not concurrency primitives"},
+			wantDiag: true,
 		},
-		// A substring match would read "not" out of "notation" and pass a scope that
-		// states no exclusion at all.
-		"a word merely containing a marker is not an exclusion": {
-			scope: "mathematical notation and nothingness", wantDiag: true,
-		},
-		"case and punctuation do not hide an exclusion": {
-			scope: "Go code -- NOT tests.", wantDiag: false,
+		// Equally, a scope with no negation word must not condemn a ruleset that does state
+		// its limits: the scope is no longer consulted at all.
+		"a scope with no exclusion is irrelevant when limits are stated": {
+			rs:       ruleset.Ruleset{Scope: "Go service code", Limitations: "not concurrency"},
+			wantDiag: false,
 		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got := verify.Limitations(ruleset.Ruleset{Scope: tc.scope})
+			got := verify.Limitations(&tc.rs)
 			if tc.wantDiag && len(got) != 1 {
-				t.Fatalf("Limitations(%q) = %+v, want one advisory", tc.scope, got)
+				t.Fatalf("Limitations = %+v, want one advisory", got)
 			}
 			if !tc.wantDiag && len(got) != 0 {
-				t.Fatalf("Limitations(%q) = %+v, want none", tc.scope, got)
+				t.Fatalf("Limitations = %+v, want none", got)
 			}
 			if tc.wantDiag && got[0].Severity.Blocking() {
-				t.Errorf("severity = %q; this check must never block", got[0].Severity)
+				t.Errorf("severity = %q; this check must not block an unmigrated corpus",
+					got[0].Severity)
 			}
 		})
+	}
+}
+
+// TestLimitationsRoundTripsFromADocument is the end of the change: the header the check now
+// reads is one a real ruleset can carry, which was the whole reason the guess existed.
+func TestLimitationsRoundTripsFromADocument(t *testing.T) {
+	t.Parallel()
+	doc := "---\nformat: 3\n---\nSource: s\nScope:  Go\n" +
+		"Limitations: nothing about concurrency\n\n" +
+		"§1.1  [MUST][CODE]  Close it.\n      because reasons\n"
+	rs, err := ruleset.Parse(doc)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if rs.Limitations != "nothing about concurrency" {
+		t.Fatalf("Limitations = %q, want the header read", rs.Limitations)
+	}
+	if got := verify.Limitations(&rs); len(got) != 0 {
+		t.Errorf("a ruleset stating its limits was still flagged: %+v", got)
 	}
 }

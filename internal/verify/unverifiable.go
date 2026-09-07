@@ -37,7 +37,7 @@ import (
 //
 //	when no enforced rule cites an anchor, since nothing then went unverified;
 //	it is pure.
-func Unverifiable(rs ruleset.Ruleset) []finding.Diagnostic {
+func Unverifiable(rs *ruleset.Ruleset) []finding.Diagnostic {
 	anchored := 0
 	for i := range rs.Rules {
 		r := &rs.Rules[i]

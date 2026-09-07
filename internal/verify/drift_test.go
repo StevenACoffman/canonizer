@@ -46,7 +46,7 @@ func TestDriftCrossesTheTwoSignals(t *testing.T) {
 			rs := ruleset.Ruleset{Rules: []ruleset.Rule{
 				rule("1.1", ruleset.MUST, "bad", "good", anchor),
 			}}
-			assertDrift(t, verify.Drift(rs, tc.source, tc.state), tc.wantCategory, tc.wantBlocking)
+			assertDrift(t, verify.Drift(&rs, tc.source, tc.state), tc.wantCategory, tc.wantBlocking)
 		})
 	}
 }
@@ -81,8 +81,8 @@ func TestDriftWithoutASecondSignalIsProvenance(t *testing.T) {
 	}}
 	const source = "nothing relevant here\n"
 
-	got := verify.Drift(rs, source, verify.SourceUnknown)
-	want := verify.Provenance(rs, source)
+	got := verify.Drift(&rs, source, verify.SourceUnknown)
+	want := verify.Provenance(&rs, source)
 	if len(got) != len(want) || len(got) != 1 {
 		t.Fatalf("Drift = %+v, Provenance = %+v; want the same single diagnostic", got, want)
 	}
@@ -102,7 +102,7 @@ func TestDriftReportsAMissingAnchorRegardlessOfSource(t *testing.T) {
 		rule("1.1", ruleset.MUST, "bad", "good", ""),
 	}}
 	for _, state := range []verify.SourceState{verify.SourceUnchanged, verify.SourceChanged} {
-		got := verify.Drift(rs, "anything", state)
+		got := verify.Drift(&rs, "anything", state)
 		if len(got) != 1 || got[0].Category != verify.CategoryNoAnchor {
 			t.Errorf("Drift = %+v, want no-anchor regardless of source state", got)
 		}

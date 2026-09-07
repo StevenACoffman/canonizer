@@ -9,10 +9,10 @@ import (
 )
 
 // adjudicated returns an enforced rule with no anchor and the given warrant.
-func adjudicated(w ruleset.Warrant) ruleset.Ruleset {
+func adjudicated(w ruleset.Warrant) *ruleset.Ruleset {
 	r := rule("1.1", ruleset.MUST, "bad", "good", "")
 	r.Warrant = w
-	return ruleset.Ruleset{Rules: []ruleset.Rule{r}}
+	return &ruleset.Ruleset{Rules: []ruleset.Rule{r}}
 }
 
 func TestProvenanceGatesOnTheWarrantWhereTheAnchorIsAbsent(t *testing.T) {
