@@ -620,7 +620,9 @@ from). Checked against the code in both repositories.
   net for rulesets. So the gap is only the *second opinion*, not the invariant tier.
   Already absorbed and worth not re-deriving: `gate.SelfTest`'s planted-defect negative
   control is that repo's `impl_buggy.py` idea, and mirrors adh's `oracle selftest`.
-- [ ] **OKF states our thesis as two data fields.**
+- [x] **OKF states our thesis as two data fields.** DONE 2026-09-08 — the record arrives
+      from skillet, the slot is the ruleset frontmatter at format 4, and `verify --sign-off`
+      writes it. Details below.
   **Skillet decided 2026-09-07: the verification *record* is promoted, the *fold* is not**
   — `Verification{By, At}`, list-valued, with each consumer keeping its own tier derivation.
   The trigger fired on two repos having independently hand-written that same type
