@@ -2146,3 +2146,54 @@ against the corrected prompt, so it is the test of those corrections rather than
       quotation-free would still read as a section name. Zero instances, so no length bound
       is guessed — the reasoning that refused a threshold stands, and the measurement now
       supports it rather than merely asserting it.
+
+______________________________________________________________________
+
+## What Batch 2 Still Holds Without Another Run (2026-09-08)
+
+Asked whether further measurement rounds are called for, and analysed the batch already in
+hand before answering. Batch 2's 157 anchors:
+
+| class                          |      n |
+| ------------------------------ | -----: |
+| present                        |    103 |
+| ellipsis, every fragment found |     20 |
+| **absent: near-miss ≥0.85**    | **18** |
+| ellipsis, some fragment absent |      8 |
+| absent: loose 0.6–0.85         |      6 |
+| absent: unrelated <0.6         |      2 |
+
+Diffing the 18 near-misses against their closest source window, the commonest single
+substitution is **a backtick in the anchor where the source has none, 12 times**.
+
+- [ ] **Checklist item 8 corrupts item 9, and that is a fourth prompt contradiction of the
+      same family.** Item 8 says *"Backtick every identifier"*; item 9 says a `↦` quotation
+      must be *"the source's own words, character for character"*. An agent backticking an
+      identifier **inside** a quoted span makes the quotation non-verbatim, so the anchor
+      cannot be found — and the two instructions cannot both be obeyed on the same span.
+      **Measured: folding backticks before comparison takes batch 2 from 34 absent anchors to
+      26, +8** — larger than the backtick-span fix (+3) and comparable to emphasis (+10).
+      Stripping code-comment markers (`//`) adds 2 more, from anchors quoting a comment's
+      text without its marker.
+      **Two fixes and they are not alternatives.** The prompt should say *do not add
+      backticks inside a `↦` quotation; quote the source's punctuation too* — item 8's scope
+      is the rule statement, not the anchor. And `unemphasize`'s fold should extend to
+      backticks, on the same ground it folds `__bold__`: it is markdown markup that differs
+      between what a reader sees and what is stored. The prompt stops new cases; the fold
+      rescues the ones already written.
+      **Not bundled with anything, so the +8 stays attributable** — the discipline that kept
+      elision, backtick-spans and emphasis separable.
+- [ ] **The single-underscore residual is now priced.** Folding single `_..._` would add 2
+      more anchors, and it was refused because it matches across `snake_case` — measured
+      then at **three anchors worse** overall. Both numbers are small and the refusal still
+      holds; recorded so the trade is a number rather than a memory.
+- [ ] **The marker-order and spacing statements are untested, and one round would test
+      them.** Checklist item 7 gained three exact conventions *after* batch 2 ran, so nothing
+      has measured them. The prediction is falsifiable and worth stating before the run:
+      **8 of 8 canonical**, since the two failures in batch 2 were exactly 2 swapped `✗`/`✓`
+      pairs and 14 three-space headers.
+- [ ] **`Unquantified` rests on one corpus and should be re-measured, not re-designed.** It
+      is 5 of 137 on batch 2, and the 12 of 147 recorded on batch 1 did not reproduce. A
+      third batch says whether 5 is typical or whether this check's rate swings as widely as
+      the symbol rate does (10.1 points mean absolute change). No design change should be
+      made before that number exists.
