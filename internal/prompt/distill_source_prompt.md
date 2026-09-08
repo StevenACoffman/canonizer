@@ -269,6 +269,11 @@ Before submitting, confirm each rule satisfies all of the following:
    source hedges, the rule hedges or assigns lower severity.
 7. **Format purity:** The document contains only the `Source:`/`Scope:`/`Limitations:`
    lines and `§` rule blocks — no headings, tables, or lines outside a rule block.
+   Three spacing conventions are exact, because the stored form is compared byte for byte
+   against a canonical rendering: **two spaces** after the `[LEVEL]` tag (not three), **six
+   spaces** of indent on every rationale, `✗`, `✓`, `⊨` and `↦` line, and each rationale on
+   **one line however long** — do not wrap it. Emit `✗` **before** `✓`, always; a rule that
+   shows the good example first says the same thing and still reads as non-canonical.
 8. **Backtick every identifier:** Wrap each package, type, function, method,
    field, file name and flag in backticks — `database/sql`, `*sql.DB`,
    `Open()`, `ctx context.Context`. A rule naming a real symbol in plain prose

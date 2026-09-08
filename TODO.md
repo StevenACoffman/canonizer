@@ -1349,7 +1349,7 @@ when a statement holds no code span.** An earlier reading of the first file alon
       definite target. **Naming an identifier is not the same as being actionable**, and no
       widening of these patterns closes that. It is why the check is advisory and must stay
       so.
-- [ ] **The convention it depends on is unstated, so the score is non-deterministic.** Same
+- [x] **The convention it depends on is unstated, so the score is non-deterministic.** Same
       command, same source tree, one run: one distillation backticked throughout, another
       backticked nothing. Nothing in `distill_source_prompt.md` asked for it and its own
       worked examples do not use it, so the same source distilled twice can score 0% or
@@ -1398,10 +1398,42 @@ which needs the agent pipeline and was not run here. Until then the honest state
 **The measurement this entry wanted now ships (2026-09-08).** `verify` reports `N of M
 enforced rule(s) name a symbol a checker can see` on every run, and across the eight
 rulesets that reads 11% to 76% — the spread this entry describes, visible without a script.
-**It does not close the item.** A spread across eight *different* sources is not the same
-evidence as one source distilled twice, which is what would show the score varying while the
-input does not. But the number is now in front of anyone who runs `verify`, so the next
-batch will produce the comparison as a side effect rather than needing an experiment.
+
+**MEASURED 2026-09-08 on a second full run of the same eight sources.** The comparison this
+entry asked for exists, and the answer is yes:
+
+| source                           | run 1 | run 2 | delta |
+| -------------------------------- | ----: | ----: | ----: |
+| `real_world_sql_part_one`        |   76% |   60% |   −16 |
+| `failure_is_your_domain`         |   73% |   84% |   +11 |
+| `crud`                           |   63% |   45% |   −18 |
+| `standard_package_layout`        |   57% |   45% |   −12 |
+| `structuring_applications_in_go` |   57% |   60% |    +3 |
+| `structuring_tests_in_go`        |   50% |   65% |   +15 |
+| `packages_as_layers`             |   31% |   26% |    −5 |
+| `wtf_dial`                       |   11% |   12% |    +1 |
+
+**Mean absolute change per source: 10.1 points, with individual sources moving up to 18.**
+The input did not change. So the score does vary with the run, which is what this entry
+claimed and could not previously demonstrate.
+
+**But it is confirmed in kind and overstated in degree, and both halves matter.** The entry
+said *"one distillation backticked throughout, another backticked nothing"* — 0% against
+100%. The measured run-to-run variance is about ten points, and **Spearman rank correlation
+between the two runs is 0.57**, so roughly half the ordering survives. The rate is therefore
+*partly a property of the source*: `wtf_dial` is lowest in both runs (11%, 12%) and
+`packages_as_layers` second-lowest in both (31%, 26%), because a source with little code in
+it has few symbols to name. The middle of the range is where the volatility lives.
+
+**Caveat, stated because it bounds the claim**: the prompt changed between the runs — item 9
+on anchors, and the worked examples' formatting. Item 8, *"Backtick every identifier"*, was
+**identical** in both, so for the symbol rate specifically this is near-controlled rather
+than uncontrolled. A stricter comparison would use the label argument on one prompt.
+
+**CLOSED on that basis.** The item asked for one source distilled twice; eight sources
+distilled twice is stronger, and the finding is now a number rather than an anecdote: the
+score moves about ten points on re-distillation, and a specificity reading is comparable
+across sources only to within that.
 
 - [x] **When the convention is followed the check looks sound, and that is the argument for
       keeping it.** The 4 it flagged in the well-formatted ruleset are the softest rules
@@ -1932,8 +1964,17 @@ ______________________________________________________________________
       retains **all four** rules the retired entry defended as genuinely soft, and adds three
       plausible catches (*"at the layers a developer considers significant"*, *"when
       assertion verbosity hurts readability"*).
-      **The second reason is that the check it would replace is now idle.** `Softening` fires
-      **zero times** across all eight rulesets. `skilllens.SofteningTerms` is a short list of
+      **The second reason is that the check it would replace is barely used.** `Softening`
+      fired **zero times** on the first batch and **twice** on the second — both on *"it
+      depends"*, in `packages_as_layers` §3.3 and `standard_package_layout` §2.4. So the
+      "scores 0" framing is corrected to "scores 2", and the comparison is 12 against 2
+      rather than 12 against nothing. The argument is weaker than first written and still
+      holds: two findings across 137 enforced rules is a check that fires on 1.5% of what it
+      reads.
+      **And the second batch supplies the second corpus this option owed.** The 12 were
+      measured on batch one; scoring them against batch two is now possible without another
+      distillation run, which removes the last stated obstacle.
+      Original second reason as filed: `Softening` fires **zero times**. `skilllens.SofteningTerms` is a short list of
       **discretion** phrases — *"as appropriate"*, *"it depends"*, *"at your discretion"* —
       and no ruleset in the corpus uses one. So the choice is no longer "a noisy signal
       versus a quieter one" but **12 findings versus none at all**, and a check that reports
@@ -2018,3 +2059,44 @@ are fixed here; two changes need a decision first and are not made.
       alternative is to run twice into the same directory and archive between runs, which
       keeps the prompt identical at the cost of a half-moved tree if a run dies partway.
       Not taken, and available if the destination line is ever suspected of mattering.
+
+______________________________________________________________________
+
+## The Second Batch, Measured (2026-09-08)
+
+Eight rulesets, **137 enforced rules of 153**, all eight parsing. The first batch to run
+against the corrected prompt, so it is the test of those corrections rather than a repeat.
+
+- [x] **The prompt taught a non-canonical form, and fixing it worked.** DONE — measured
+      **6 of 8 canonical, from 3 of 8**. `non-canonical` fell from five rulesets to two, and
+      each remaining case has exactly one isolated cause: `crud` has 2 swapped `✗`/`✓` pairs
+      and nothing else, `failure_is_your_domain` has 14 three-space headers and nothing else.
+      `canonizer fmt` clears both.
+- [x] **Two more conventions were unstated, and this run found them by having them
+      violated.** DONE 2026-09-08 — checklist item 7 now states them exactly.
+      **`Render` emits `✗` before `✓`, and the prompt never said so.** Its examples all show
+      that order, and one agent wrote the good example first in two rules — semantically
+      identical, byte-wise non-canonical. Same class of defect as the unstated backtick
+      convention: a convention the format enforces and the prompt leaves to be inferred.
+      **Nor did it state the tag spacing.** All four worked examples now use two spaces, and
+      one agent still produced three in 14 headers, so this is model habit rather than a
+      copied example — which is exactly why the rule has to be written down instead of
+      demonstrated.
+      Item 7 now names all three: two spaces after the tag, six-space indent, one unwrapped
+      line per rationale, and `✗` before `✓`.
+- [ ] **`sectionOnly` fired for the first time, and it fired on a paraphrase rather than a
+      bare section reference.** The anchor is
+      `` ↦ §3 `NewTestDB` opening a real Bolt database, contrasted with §4 `TestYoClient` ``.
+      It carries no colon, so `sectionOnly`'s colon rule reads everything after `§` as one
+      long section name and reports it advisory.
+      **That is a hole in the colon rule, and it matters because of what the rule was chosen
+      to protect.** The colon test was picked over "does it carry a quotation" precisely so
+      that **paraphrase** anchors would keep failing as defects instead of becoming
+      advisories — the entry that shipped it says keying on quote marks *"would have turned
+      all eight paraphrase anchors into advisories and buried a real finding"*. A paraphrase
+      written without a colon now gets exactly that treatment.
+      **So the check is no longer idle, and its first real instance is a false advisory.**
+      One anchor of 137, so this is not urgent. The candidate fix is a length or word-count
+      bound on what counts as a section name — a real section heading is short — but that is
+      a threshold, and this repository has refused thresholds without a corpus before. Wait
+      for a second instance before choosing one.
