@@ -670,9 +670,47 @@ from). Checked against the code in both repositories.
   place to read from. Reasoning and the measured costs live in `skillet/TODO.md` under "No
   artifact carries verification events" — **one authoritative location**, referenced rather
   than restated, because this is a kernel decision that canonizer consumes.
-  **Still blocked here, and on exactly one thing: a released skillet carrying the field.**
-  No canonizer code should be written before then — that was this entry's own finding, and
-  a slot existing does not by itself give canonizer an actor to attribute an event to.
+  **DONE 2026-09-08 against skillet v0.33.0: `verify --sign-off`.** `internal/signoff` holds
+  the policy; `cmd/verify` is the shell that loads the actor, asks, and writes.
+  **The actor is config-derived, and two cheaper sources were rejected on the policy's own
+  grounds.** An environment variable is per-invocation and caller-supplied — a flag with
+  worse discoverability — so it fails for the reason the rule exists. Git's `user.email`
+  carries no *class*, so it would have to be guessed into one, and guessing `human` is
+  exactly the guess adh names as letting an automated runner mint a person's sign-off; it
+  would also add the version-control dependency `proof.Create` avoids by taking the SHA from
+  its caller. What ships is `identity.actor` in a YAML file, validated `<class>:<name>` with
+  no defaulting, read from `--config` (default `.canonizer.yaml`).
+  **`--config` is a flag after all, and the repository's own lint rule decided it.** The plan
+  rejected one on §4 — a caller does not know a better default — and reached for an injected
+  `getenv` like adh's. `forbidigo` forbids `t.Setenv` here (*"pass environment via a getenv
+  parameter instead"*) and `cmd.Run` has no getenv seam, so an env var would have been
+  untestable through the dispatcher a user actually uses. A flag names the *file*, not the
+  actor, so the trust argument is untouched.
+  **Three refusals, and the third was not in the plan.** Blocking findings refuse, because a
+  sign-off would *"attest to a state this run disproved"* — adh's words, and only the
+  definition of condemned differs (a blocking diagnostic here, drift there). An unconfigured
+  actor refuses rather than recording an anonymous event. And **`--sign-off` requires
+  `--source`**: measured, withholding it drops the blocking count on the stored corpus from
+  17 to 5, 15 to 3 and 8 to 2, because the anchor checks are replaced by advisory
+  `Unverifiable` — so a caller could get *closer* to a signable run by supplying less
+  evidence. That incentive ran backwards and is now closed, which is the same fail-closed
+  rule this family keeps arriving at: not checked must not read as clean.
+  **A fourth refusal was planned and turned out to be unnecessary.** "Refuse a non-canonical
+  ruleset" was there because writing means `Parse` → append → `Render`, which rebuilds the
+  document and would silently reformat a non-canonical body — five of eight stored rulesets
+  are non-canonical. But `Canonical` already emits `non-canonical` at `severity=error`, so
+  the blocking refusal covers it. What was a rule became an **invariant with a test**:
+  `Render` only ever runs on a document that already round-trips, so a sign-off cannot
+  reformat anything.
+  **Measured on the corpus: all eight refuse and none was written.** Every stored ruleset
+  carries 3–17 blocking findings. So this ships a write path with no subject today, and the
+  entry says so rather than leaving a reader to conclude it is broken.
+  **Atomic, unlike this command's other three writes.** Those create new files, where a
+  partial write costs a re-run; this one replaces a document a human owns and cannot
+  regenerate, so it uses `atomicfile.WriteFile`.
+  **Still attributable rather than authenticated**, and stated in `--help` and the README
+  rather than implied: it says which actor the checkout was configured as, not who was at
+  the keyboard.
   **What `Event` buys when a slot exists**, recorded so the next reader need not re-derive
   it: `anchor-drift` and `anchor-stale` both say *the source changed* and neither can say
   whether anyone re-confirmed the anchors since. That is §5.2's independence of `verified`
@@ -1629,3 +1667,37 @@ Anchor failure classes across the eight rulesets, 162 anchors, before this sessi
       permission from the prompt and make the check blocking.** The second is coherent —
       every anchor already quotes, so nothing would break — and it would replace an advisory
       nobody hits with a rule the corpus already follows. Needs a decision, not more code.
+
+______________________________________________________________________
+
+## Two Gaps the Sign-off Refusals Expose (2026-09-08)
+
+- [ ] **A non-canonical ruleset cannot be signed and canonizer offers no way to fix it.**
+      `--sign-off` refuses a ruleset whose stored form differs from its rendering, because
+      writing the event re-renders the document and would otherwise reformat the body as a
+      side effect. Five of the eight stored rulesets are in that state, so the refusal is
+      the common case rather than the corner.
+      **`Render` already produces the answer and nothing exposes it.** That is a
+      `canonizer fmt --ruleset PATH`, and it is the natural companion to the refusal:
+      today a user is told the document is non-canonical and left without the one-line
+      command that would make it canonical. exegesis has `normalize` for skills and this is
+      the same shape for rulesets.
+      **Not bundled with the sign-off deliberately.** A formatter writes to the same file
+      the sign-off writes to, and shipping both at once would make it impossible to say
+      which one caused a corpus-wide reformat. It also wants its own `--check` mode, on
+      exegesis's precedent, and that is a design conversation rather than a subroutine.
+- [ ] **skillet could export a frontmatter writer, which would remove the refusal entirely.**
+      The reason `--sign-off` must re-render the whole document is that skillet's
+      frontmatter emitter is unexported, so the alternative — splice a new block into the
+      raw bytes and leave the body untouched — would need a second emitter in canonizer.
+      That is the same knowledge in two modules, and this family has spent three entries
+      avoiding exactly that third copy.
+      **An exported writer would be strictly better than the refusal**, because it is what
+      adh already does: `RecordVerification` decodes to `json.RawMessage` and re-encodes so
+      unmodelled content survives untouched. A ruleset's body is that unmodelled content.
+      Signing would then work on a non-canonical ruleset without touching its body, and the
+      canonical question would go back to being `Canonical`'s alone.
+      **The cost is a kernel API and a release**, and the shape needs thought: a writer that
+      takes a raw document and a `[]verification.Event` and returns the document with its
+      block replaced is not the same function as `Render`, and it would be the first
+      skillet API that edits a document rather than producing one.

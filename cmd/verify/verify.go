@@ -12,11 +12,14 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/peterbourgon/ff/v4"
 
 	"github.com/StevenACoffman/canonizer/cmd/root"
+	"github.com/StevenACoffman/canonizer/internal/signoff"
 	vfy "github.com/StevenACoffman/canonizer/internal/verify"
+	"github.com/StevenACoffman/skillet/atomicfile"
 	"github.com/StevenACoffman/skillet/finding"
 	"github.com/StevenACoffman/skillet/identity"
 	"github.com/StevenACoffman/skillet/proof"
@@ -33,8 +36,16 @@ type Config struct {
 	Proof   string
 	Against string
 	Out     string
+	SignOff bool
 	Flags   *ff.FlagSet
 	Command *ff.Command
+
+	// ConfigPath is the file the attributed actor is read from, bound to --config.
+	ConfigPath string
+
+	// Now is the clock a recorded event is stamped from. Injected because a test cannot
+	// otherwise assert a timestamp, and canonizer had no clock convention before this.
+	Now func() time.Time
 }
 
 // New creates and registers the verify command under parent.
@@ -52,6 +63,11 @@ func New(parent *root.Config) *Config {
 		"a proof packet from distill time; splits an absent anchor into fabricated, stale or drift")
 	cfg.Flags.StringVar(&cfg.Out, 0, "out", "",
 		"findings JSON destination (empty writes to stdout)")
+	cfg.Flags.BoolVar(&cfg.SignOff, 0, "sign-off",
+		"record a verification event on the ruleset, attributed to the configured actor")
+	cfg.Flags.StringVar(&cfg.ConfigPath, 0, "config", signoff.ConfigName,
+		"file holding identity.actor, the attribution a --sign-off is recorded under")
+	cfg.Now = time.Now
 	cfg.Command = &ff.Command{
 		Name:      "verify",
 		Usage:     "canonizer verify --ruleset PATH [--source PATH] [--proof PATH] [--out FILE]",
@@ -60,7 +76,22 @@ func New(parent *root.Config) *Config {
 executability (every enforced rule carries a discriminating ✗/✓ pair) and — with
 --source — provenance (every enforced rule cites a source anchor present in the
 source). The result is a skillet/finding JSON document; pipe it to "gate" to block
-on it. With --proof, also write a proof packet binding the ruleset to the source.`,
+on it. With --proof, also write a proof packet binding the ruleset to the source.
+
+With --sign-off, append a verification event to the ruleset's frontmatter recording
+who confirmed it. The attribution comes from identity.actor in --config, never from
+a flag, because a caller-supplied actor would let anyone mint a human's sign-off. It
+is attributable rather than authenticated: it says which actor this checkout was
+configured as, not who was at the keyboard.
+
+A sign-off is refused three ways, and each refusal is the point rather than an
+obstacle: when the run found blocking findings, because it would attest to a state
+the same run disproved; when --source was not given, because nothing then searched
+for the anchors and the event would vouch for provenance nobody examined; and when
+no actor is configured, because an event with no actor records nothing.
+
+  identity:
+    actor: "human:steve"    # <class>:<name>; the class is never inferred`,
 		Flags: cfg.Flags,
 		Exec:  cfg.exec,
 	}
@@ -120,9 +151,66 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 		return err
 	}
 	cfg.renderAct()
+	// After emit, so the findings a refusal refers to have already been reported: a caller
+	// told "there are blocking findings" can see which ones without re-running.
+	if err := cfg.signOff(&rs, &finding.Result{Diagnostics: diags}); err != nil {
+		return err
+	}
 	if cfg.Proof != "" {
 		return cfg.writeProof()
 	}
+	return nil
+}
+
+// signOff appends a verification event to the ruleset when this run permits one.
+//
+// The policy is signoff.Decide's; this is the shell around it -- load the actor, ask, and
+// on a yes write the ruleset back.
+//
+// **Writing is atomic, unlike the other three writes in this command.** Those create new
+// files, where a partial write costs a re-run. This one replaces a document a human owns
+// and cannot regenerate, so a crash mid-write must not be able to truncate it.
+//
+// **It appends to rs.Verified**, so the ruleset it is given is modified rather than copied.
+// Called last and with exec's own local, which is why that is safe here rather than merely
+// convenient -- but it is a modified parameter and so worth saying.
+//
+// **Re-rendering cannot reformat the body, and that follows from the refusal rather than
+// from care.** Canonical runs on every verify and reports a non-canonical ruleset as a
+// blocking finding, so Decide has already refused every document whose stored form differs
+// from its rendering. What Render emits here is therefore the original bytes plus the
+// frontmatter block.
+func (cfg *Config) signOff(rs *ruleset.Ruleset, result *finding.Result) error {
+	if !cfg.SignOff {
+		return nil
+	}
+	if cfg.Source == "" {
+		// Measured, and the incentive ran backwards without this: withholding --source
+		// drops the blocking count on the stored corpus from 17 to 5, 15 to 3 and 8 to 2,
+		// because the anchor checks are replaced by Unverifiable, which is advisory. A
+		// caller could therefore get closer to a signable run by supplying less evidence.
+		// Refusing is the same fail-closed rule this family keeps arriving at: not checked
+		// must not read as clean.
+		return errors.New(
+			"verify: --sign-off needs --source; without it the anchors are never " +
+				"searched for, so the event would attest to provenance nothing examined")
+	}
+	actor, err := signoff.LoadActor(cfg.ConfigPath)
+	if err != nil {
+		return errors.Wrap(err) // signoff already prefixes "signoff:"
+	}
+	event, err := signoff.Decide(result, actor, cfg.Now())
+	if err != nil {
+		return errors.Wrap(err)
+	}
+	rs.Verified = append(rs.Verified, event)
+	if writeErr := atomicfile.WriteFile(
+		cfg.Ruleset, []byte(ruleset.Render(rs)), 0o600,
+	); writeErr != nil {
+		return errors.WrapWithMessage(writeErr, "verify: write ruleset",
+			slog.String("path", cfg.Ruleset))
+	}
+	_, _ = fmt.Fprintf(cfg.Stderr, "verify: recorded %s at %s\n", event.By, event.At)
 	return nil
 }
 

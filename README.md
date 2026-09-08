@@ -125,12 +125,22 @@ canonizer gate --findings findings.json
   tree.
 - **`synthesize --rulesets DIR [--out FILE]`** — Assemble one synthesis prompt from
   distilled rulesets.
-- **`verify --ruleset PATH [--source PATH] [--proof PATH] [--out FILE]`** — Check
+- **`verify --ruleset PATH [--source PATH] [--proof PATH] [--out FILE] [--sign-off]`** — Check
   executability and provenance, then emit findings JSON. `--proof` writes a packet binding
   the ruleset (and source) to their exact bytes. It also reports rule *specificity* — a
   rule that is softening-only or names no domain object, tool or API — as a **warning that
   never blocks**: a general rule is sometimes correct and a deterministic check cannot tell
   which, so this reports and does not decide.
+  `--sign-off` appends a verification event to the ruleset's frontmatter (`format: 4`),
+  recording who confirmed it. The actor comes from `identity.actor` in `--config`
+  (default `.canonizer.yaml`) and **never from a flag** — a caller-supplied actor would let
+  anyone mint a human's sign-off. It is **attributable rather than authenticated**: it says
+  which actor this checkout was configured as, not who was at the keyboard.
+  A sign-off is refused when the run found blocking findings (it would attest to a state
+  the same run disproved), when `--source` was omitted (nothing searched for the anchors,
+  so the event would vouch for unexamined provenance), and when no actor is configured (an
+  event with no actor records nothing). **Every ruleset in the current corpus is refused**,
+  each carrying 3–17 blocking findings; that is the gate working, not a defect.
 - **`critic --source PATH --ruleset PATH [--out FILE]`** — Emit a cold-critic prompt for a
   fresh grader.
 - **`gate [--findings FILE] [--selftest]`** — Block (exit 1) while any finding is blocking.
