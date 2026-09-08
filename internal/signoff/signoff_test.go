@@ -88,7 +88,7 @@ func TestDecideAcceptsAdvisoryFindings(t *testing.T) {
 	// ruleset carrying only advisories is signable. If this ever fails, "blocking" and
 	// "any finding at all" have been confused.
 	advisory := &finding.Result{Diagnostics: []finding.Diagnostic{{
-		Severity: finding.SeverityWarning, Category: "unspecific", Path: "§1.1",
+		Severity: finding.SeverityWarning, Category: "softening", Path: "§1.1",
 		Message: "names nothing",
 	}}}
 

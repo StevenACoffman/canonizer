@@ -75,68 +75,68 @@ func TestProvenanceMatchesAcrossRewrappedWhitespace(t *testing.T) {
 	}
 }
 
-// stated builds a rule carrying a specific Statement, which is what Specificity reads.
+// stated builds a rule carrying a specific Statement, which is what Softening reads.
 func stated(section string, sev ruleset.Severity, statement string) ruleset.Rule {
 	r := rule(section, sev, "bad", "good", "anchor")
 	r.Statement = statement
 	return r
 }
 
-func TestSpecificityFlagsGeneralAdvice(t *testing.T) {
+func TestSofteningFlagsHedgingOnly(t *testing.T) {
 	t.Parallel()
 	cases := map[string]struct {
 		statement string
 		wantFlag  bool
-		wantCat   string
 	}{
 		"names a symbol in backticks": {
 			statement: "Call `ctx.Done()` before returning from the handler.", wantFlag: false,
 		},
 		"hedged even though it names a tool": {
-			statement: "Use `errgroup` as appropriate for concurrent fetches.",
-			wantFlag:  true, wantCat: "softening",
+			statement: "Use `errgroup` as appropriate for concurrent fetches.", wantFlag: true,
 		},
-		"pure prose names nothing actionable": {
-			statement: "Decompose the work into smaller steps.",
-			wantFlag:  true, wantCat: "unspecific",
+		// Was flagged `unspecific` until 2026-09-08 and is silent now: naming no symbol is
+		// a property of the document, counted in Scope.Symbolic, and the per-rule question
+		// belongs to the cold critic. This case is kept precisely to pin the silence.
+		"prose naming no symbol is not this check's business": {
+			statement: "Decompose the work into smaller steps.", wantFlag: false,
 		},
-		"a link counts as concrete": {
+		"a link is not a hedge either": {
 			statement: "Follow [the retry policy](docs/retry.md) on every write.", wantFlag: false,
 		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got := verify.Specificity(&ruleset.Ruleset{
+			got := verify.Softening(&ruleset.Ruleset{
 				Rules: []ruleset.Rule{stated("1", ruleset.MUST, tc.statement)},
 			})
 			if !tc.wantFlag {
 				if len(got) != 0 {
-					t.Errorf("flagged a specific rule: %+v", got)
+					t.Errorf("flagged a statement that does not hedge: %+v", got)
 				}
 				return
 			}
 			if len(got) != 1 {
 				t.Fatalf("want one finding, got %+v", got)
 			}
-			if got[0].Category != tc.wantCat {
-				t.Errorf("category = %q, want %q", got[0].Category, tc.wantCat)
+			if got[0].Category != "softening" {
+				t.Errorf("category = %q, want softening", got[0].Category)
 			}
 		})
 	}
 }
 
-func TestSpecificityIsNeverBlocking(t *testing.T) {
+func TestSofteningIsNeverBlocking(t *testing.T) {
 	t.Parallel()
 	// The constraint lives in the code, not in a convention about how to call it:
 	// Executable and Provenance are the only checks that stop a ship, and this must not
 	// be able to join them however it is invoked.
 	rs := ruleset.Ruleset{Rules: []ruleset.Rule{
-		stated("1", ruleset.MUST, "Handle errors carefully."),
-		stated("2", ruleset.SHOULD, "Be careful with dangerous operations."),
+		stated("1", ruleset.MUST, "Handle errors as appropriate."),
+		stated("2", ruleset.SHOULD, "Retry it at your discretion."),
 		stated("3", ruleset.MUST, "Use it as appropriate."),
 	}}
-	got := verify.Specificity(&rs)
+	got := verify.Softening(&rs)
 	if len(got) == 0 {
 		t.Fatal("expected these three to be flagged; the test proves nothing otherwise")
 	}
@@ -150,24 +150,25 @@ func TestSpecificityIsNeverBlocking(t *testing.T) {
 	}
 }
 
-func TestSpecificityIgnoresUnenforcedRules(t *testing.T) {
+func TestSofteningIgnoresUnenforcedRules(t *testing.T) {
 	t.Parallel()
 	// An advisory note on a rule nobody enforces is noise, and the other two checks
 	// skip CONSIDER for the same reason.
-	got := verify.Specificity(&ruleset.Ruleset{
-		Rules: []ruleset.Rule{stated("1", ruleset.CONSIDER, "Be careful out there.")},
+	got := verify.Softening(&ruleset.Ruleset{
+		Rules: []ruleset.Rule{stated("1", ruleset.CONSIDER, "Handle it as appropriate.")},
 	})
 	if len(got) != 0 {
 		t.Errorf("flagged an unenforced rule: %+v", got)
 	}
 }
 
-func TestSpecificityReportsOneFindingPerRule(t *testing.T) {
+func TestSofteningReportsOneFindingPerRule(t *testing.T) {
 	t.Parallel()
-	// A statement that both hedges and names nothing gets one note, not two: the
-	// reader's action is the same either way, and doubling it inflates rework budget.
-	got := verify.Specificity(&ruleset.Ruleset{
-		Rules: []ruleset.Rule{stated("1", ruleset.MUST, "Handle it as appropriate.")},
+	// One note per rule however many hedges it carries: the reader's action is the same
+	// either way, and doubling it inflates rework budget.
+	got := verify.Softening(&ruleset.Ruleset{
+		Rules: []ruleset.Rule{stated("1", ruleset.MUST,
+			"Handle it as appropriate, at your discretion.")},
 	})
 	if len(got) != 1 {
 		t.Errorf("want a single finding for one rule, got %+v", got)
@@ -189,7 +190,6 @@ func TestCategoryValuesAreTheWireContract(t *testing.T) {
 		"non-discriminating":  {verify.CategoryNonDiscriminating, "non-discriminating"},
 		"no-anchor":           {verify.CategoryNoAnchor, "no-anchor"},
 		"anchor-absent":       {verify.CategoryAnchorAbsent, "anchor-absent"},
-		"unspecific":          {verify.CategoryUnspecific, "unspecific"},
 		"nothing-examined":    {verify.CategoryNothingExamined, "nothing-examined"},
 		"non-canonical":       {verify.CategoryNonCanonical, "non-canonical"},
 		"anchor-drift":        {verify.CategoryAnchorDrift, "anchor-drift"},

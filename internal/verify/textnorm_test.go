@@ -67,7 +67,7 @@ func TestAdvisoryChecksNeverBlock(t *testing.T) {
 			Bad: "x", Good: "y",
 		},
 	}}
-	diags := append(verify.Specificity(&rs), verify.Conflicts(&rs)...)
+	diags := append(verify.Softening(&rs), verify.Conflicts(&rs)...)
 	if len(diags) == 0 {
 		t.Fatal("fixture tripped neither check; it cannot prove they are non-blocking")
 	}

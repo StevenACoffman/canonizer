@@ -279,13 +279,19 @@ Before submitting, confirm each rule satisfies all of the following:
    reads to a checker as a rule naming nothing, so the same rule scores as
    vague or concrete depending on typography alone. Backtick the identifier,
    not the sentence around it.
-9. **Quote anchors verbatim:** A `↦` line's quotation must be the source's own words,
-   character for character, not a paraphrase or a summary of the passage. The anchor exists
-   so a reader can find the sentence the rule came from; a paraphrase cannot be found, and a
-   checker cannot tell a paraphrase from an invention. Where a faithful quotation needs to
-   skip words, mark the gap with `...` **followed by a space** — `"the first part ... the
-   last part"` — and make each side of the gap verbatim on its own. Never use `...` to stand
-   in for words you did not check.
+9. **Quote anchors verbatim, or name a section instead:** A `↦` line's quotation must be
+   the source's own words, character for character — not a paraphrase or a summary of the
+   passage. The anchor exists so a reader can find the sentence the rule came from; a
+   paraphrase cannot be found, and a checker cannot tell a paraphrase from an invention.
+   Where a faithful quotation needs to skip words, mark the gap with `...` **followed by a
+   space** — `"the first part ... the last part"` — and make each side of the gap verbatim
+   on its own. Never use `...` to stand in for words you did not check.
+   **When a rule comes from a whole passage rather than one sentence, name the section and
+   quote nothing** — `↦  §Transactional boundaries`. That is the honest answer and it is
+   permitted: a rule derived from an argument spread over paragraphs has no sentence to
+   quote, and picking one anyway produces something that *looks* verbatim while being worse
+   provenance than naming where it came from. Such an anchor is reported as provenance not
+   searched, which is accurate — it is not counted against the ruleset.
 
 Revise or drop any rule that fails. Do not pad the ruleset to appear
 comprehensive.

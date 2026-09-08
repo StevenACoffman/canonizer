@@ -99,3 +99,71 @@ func TestVerifyEmitsNoScopeAdvisoryWhenRulesWereExamined(t *testing.T) {
 		}
 	}
 }
+
+// TestScopeLineReportsSymbolAdherence is the measurement the unstated-convention item
+// wanted and could not see: the same prompt over eight sources produced rates from 9% to
+// 78%, so a specificity reading is only as comparable as the run's typography.
+func TestScopeLineReportsSymbolAdherence(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	rules := filepath.Join(dir, "r_rules.md")
+	source := filepath.Join(dir, "s.md")
+	writeFile(t, source, "# S\n\nAlways close what you opened.\n")
+	writeFile(t, rules, "Source: s\nScope:  x\n\n"+
+		"§1.1  [MUST][CODE]  Call `ctx.Done()` before returning.\n"+
+		"      because reasons\n      ✗  b\n      ✓  g\n"+
+		"      ↦  §S: \"Always close what you opened\"\n\n"+
+		"§1.2  [MUST][CODE]  Decompose the work into smaller steps.\n"+
+		"      because reasons\n      ✗  b\n      ✓  g\n"+
+		"      ↦  §S: \"Always close what you opened\"\n")
+
+	_, stderr, err := runIO(t, "verify", "--ruleset", rules, "--source", source)
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if !strings.Contains(stderr, "1 of 2 enforced rule(s) name a symbol a checker can see") {
+		t.Errorf("stderr does not report the symbol rate:\n%s", stderr)
+	}
+	// The rate prints even at 100%, for the reason the examined line does: a reader who
+	// only ever meets a number at its ceiling never learns what it means.
+	if !strings.Contains(stderr, "name a symbol") {
+		t.Error("the symbol line is conditional; it must print on every run")
+	}
+}
+
+// TestScopeLineReportsUnsearchableAnchorsOnlyWhenPresent pins the asymmetry: the symbol
+// rate always prints, this one only when non-zero, because zero is the case in all 162
+// anchors of the corpus and a line reporting none of them every run costs attention.
+func TestScopeLineReportsUnsearchableAnchorsOnlyWhenPresent(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	source := filepath.Join(dir, "s.md")
+	writeFile(t, source, "# S\n\nAlways close what you opened.\n")
+
+	quoted := filepath.Join(dir, "q_rules.md")
+	writeFile(t, quoted, "Source: s\nScope:  x\n\n"+
+		"§1.1  [MUST][CODE]  Call `ctx.Done()` first.\n"+
+		"      because reasons\n      ✗  b\n      ✓  g\n"+
+		"      ↦  §S: \"Always close what you opened\"\n")
+	_, stderr, err := runIO(t, "verify", "--ruleset", quoted, "--source", source)
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if strings.Contains(stderr, "name a section only") {
+		t.Errorf("the line printed with nothing to report:\n%s", stderr)
+	}
+
+	bare := filepath.Join(dir, "b_rules.md")
+	writeFile(t, bare, "Source: s\nScope:  x\n\n"+
+		"§1.1  [MUST][CODE]  Call `ctx.Done()` first.\n"+
+		"      because reasons\n      ✗  b\n      ✓  g\n"+
+		"      ↦  §Transactional boundaries\n")
+	_, stderr, err = runIO(t, "verify", "--ruleset", bare, "--source", source)
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if !strings.Contains(stderr,
+		"1 of 1 anchor(s) name a section only; their provenance was not searched") {
+		t.Errorf("stderr does not report the unsearched anchor:\n%s", stderr)
+	}
+}

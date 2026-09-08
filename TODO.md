@@ -1395,13 +1395,15 @@ and it stays open. What would close it is a repeat distillation of *one* source 
 which needs the agent pipeline and was not run here. Until then the honest statement is that
 `unspecific` still varies with which distillation produced the ruleset.
 
-**Unblocked 2026-09-08 by the decision on the entry below**: `unspecific` becomes a
-document-level statistic reported in the scope line, which is precisely the per-ruleset rate
-this entry needs and cannot currently see. It does not close this item — that still wants one
-source distilled twice — but it makes the spread visible on every run instead of only when
-somebody writes a script.
+**The measurement this entry wanted now ships (2026-09-08).** `verify` reports `N of M
+enforced rule(s) name a symbol a checker can see` on every run, and across the eight
+rulesets that reads 11% to 76% — the spread this entry describes, visible without a script.
+**It does not close the item.** A spread across eight *different* sources is not the same
+evidence as one source distilled twice, which is what would show the score varying while the
+input does not. But the number is now in front of anyone who runs `verify`, so the next
+batch will produce the comparison as a side effect rather than needing an experiment.
 
-- [ ] **When the convention is followed the check looks sound, and that is the argument for
+- [x] **When the convention is followed the check looks sound, and that is the argument for
       keeping it.** The 4 it flagged in the well-formatted ruleset are the softest rules
       there — *"a real dependency boundary"*, *"closely related"*, *"by importance"*,
       *"roughly 10,000 SLOC"*. Judgement-laden, naming nothing an agent can match on:
@@ -1474,6 +1476,28 @@ somebody writes a script.
       **Honesty about the argument for deleting**: that the critic covers these 63 is an
       argument from its rubric, not from evidence. Nobody has run `critic` against them. The
       cheap check before deleting is one critic run on one ruleset.
+      **DONE 2026-09-08.** `Specificity` is now `Softening` — removing the concreteness
+      branch left a function reporting hedging and nothing else, so the name stopped
+      describing it. `CategoryUnspecific` is gone. `concrete` and `identifierPatterns` are
+      **kept**, because they are the computation the decision preserved; they now feed
+      `Scope.Symbolic`, reported once per document.
+      **Measured: 63 `unspecific` findings removed and every other category byte-identical
+      on all eight rulesets.** The scope line now carries `N of M enforced rule(s) name a
+      symbol a checker can see`, printed on every run including at its ceiling, for the
+      reason the examined line is: a reader who only ever meets a number at 100% never
+      learns what it means.
+      **And the spread reproduces through the shipped code**: 11% to 76% across the eight,
+      `wtf_dial` lowest and `real_world_sql_part_one` highest. The script measured 9%–78%
+      over all 162 rules; this counts the 147 **enforced** ones, which is the right
+      denominator because only those are examined.
+      **A consequence worth stating rather than discovering later: `Softening` now fires
+      zero times on the corpus.** No ruleset carries a `softening` finding, because
+      `skilllens.SofteningTerms` is discretion phrases (*"as appropriate"*, *"at your
+      discretion"*) and none of the eight uses one. So this check is entirely idle, exactly
+      as `sectionOnly` is. That is not a reason to delete it — a hedged rule is a real defect
+      and the vocabulary is shared with skillsaw and adh — but it does mean the
+      comparative-hedge option on file is the one that would make this check earn its place,
+      and it now has a second reason to be tried: it scores 12 where this scores 0.
 
 ______________________________________________________________________
 
@@ -1761,7 +1785,7 @@ elision, which are the rulesets' own defects rather than the check's.
       underscores are content, and stripping them would invent a symbol that does not
       exist. Unmeasured in this corpus; named because the fix is a regex and this is the
       case a regex gets wrong.
-- [ ] **`sectionOnly` fires zero times on the corpus.** The three-way anchor split shipped
+- [x] **`sectionOnly` fires zero times on the corpus.** The three-way anchor split shipped
       in `b469f8b` has **no instance** in the eight rulesets: every anchor carries a
       quotation, so none is a bare section reference. Its own entry said the population was
       unmeasured; this measures it at 0.
@@ -1804,6 +1828,24 @@ elision, which are the rulesets' own defects rather than the check's.
       document-level statistic in the same scope line; section-only anchors belong in that
       same account of how much of a ruleset is machine-checkable. One coherent change to what
       `verify` reports, not two.
+      **DONE 2026-09-08**, and one framing above is corrected in the doing.
+      **"A section-only anchor passes silently" was wrong.** `Provenance` emits
+      `anchor-section-only` as an advisory, so it *is* reported. What was actually wrong is
+      narrower: the scope line's *"examined 9 of 11"* counted such a rule as examined when
+      its provenance was never searched. The defect was in the **accounting**, not the
+      diagnostic — so the fix is `Scope.SectionOnly` and nothing else. Recorded because the
+      looser phrasing would have led to adding a second diagnostic nobody needs.
+      **Shipped**: `Scope.SectionOnly`, counted only for enforced rules, and a scope line
+      reading `N of M anchor(s) name a section only; their provenance was not searched`.
+      **That line prints only when non-zero, and the asymmetry has a reason.** Zero is the
+      case in all 162 anchors of the corpus, so a line reporting none of them on every run
+      costs attention and teaches nothing. The symbol rate beside it is a proportion
+      informative anywhere in its range; this one is an exception report.
+      **The prompt now says the permission plainly.** Checklist item 9 became *"Quote anchors
+      verbatim, or name a section instead"*, stating that a rule drawn from a whole passage
+      should name the section and quote nothing, that this is the honest answer, and that it
+      is reported as provenance not searched rather than counted against the ruleset. The
+      contradiction with the format spec is gone.
 
 ______________________________________________________________________
 

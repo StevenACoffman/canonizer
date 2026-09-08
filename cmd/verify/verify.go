@@ -119,7 +119,7 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 	}
 	// Both are advisory and independent of --source, so they run before the provenance
 	// block rather than inside it: a run without a source must still report them.
-	diags = append(diags, vfy.Specificity(&rs)...)
+	diags = append(diags, vfy.Softening(&rs)...)
 	diags = append(diags, vfy.Conflicts(&rs)...)
 	diags = append(diags, vfy.Canonical(string(raw), &rs)...)
 	diags = append(diags, vfy.Limitations(&rs)...)
@@ -230,6 +230,22 @@ func (cfg *Config) reportScope(rs *ruleset.Ruleset) []finding.Diagnostic {
 	scope := vfy.Rules(rs)
 	_, _ = fmt.Fprintf(cfg.Stderr, "verify: examined %d of %d rule(s); %d exempt as advisory\n",
 		scope.Enforced, scope.Total, scope.Total-scope.Enforced)
+	// Printed on every run including at 100%, for the reason the line above is: it is a
+	// number nobody could see before, and a reader who only ever meets it at 100% never
+	// learns what it means. The same prompt over eight sources produced rates from 9% to
+	// 78%, so a specificity reading is only as comparable as the run's typography.
+	_, _ = fmt.Fprintf(cfg.Stderr,
+		"verify: %d of %d enforced rule(s) name a symbol a checker can see\n",
+		scope.Symbolic, scope.Enforced)
+	// Printed only when non-zero, and the asymmetry is deliberate: zero is the case in all
+	// 162 anchors of the corpus, so a line reporting none of them every run costs attention
+	// and teaches nothing. The line above is a proportion informative anywhere in its range;
+	// this one is an exception report.
+	if scope.SectionOnly > 0 {
+		_, _ = fmt.Fprintf(cfg.Stderr,
+			"verify: %d of %d anchor(s) name a section only; their provenance was not searched\n",
+			scope.SectionOnly, scope.Enforced)
+	}
 	if !scope.Advisory() {
 		return nil
 	}

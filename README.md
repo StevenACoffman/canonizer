@@ -127,10 +127,18 @@ canonizer gate --findings findings.json
   distilled rulesets.
 - **`verify --ruleset PATH [--source PATH] [--proof PATH] [--out FILE] [--sign-off]`** — Check
   executability and provenance, then emit findings JSON. `--proof` writes a packet binding
-  the ruleset (and source) to their exact bytes. It also reports rule *specificity* — a
-  rule that is softening-only or names no domain object, tool or API — as a **warning that
-  never blocks**: a general rule is sometimes correct and a deterministic check cannot tell
-  which, so this reports and does not decide.
+  the ruleset (and source) to their exact bytes. It also reports *hedging* — a rule using a
+  discretion phrase, so a reader cannot tell when it applies — as a **warning that never
+  blocks**: a hedged rule is sometimes correct and a deterministic check cannot tell which,
+  so this reports and does not decide.
+  It reports two proportions per run rather than per rule: how many enforced rules **name a
+  symbol a checker can see**, and how many anchors **name a section only**, whose provenance
+  therefore went unsearched. Both were per-rule findings once. The first claimed a rule
+  "names no object, tool or API" and fired on 63 of 147 rules where the claim was false —
+  what it actually measured is backtick-convention adherence, which is true of a document
+  and false of a rule, and which varies 11% to 76% across distillations from one prompt. The
+  per-rule version of that question belongs to `critic`, whose `vague` test asks it in the
+  same words and blocks on it.
   `--sign-off` appends a verification event to the ruleset's frontmatter (`format: 4`),
   recording who confirmed it. The actor comes from `identity.actor` in `--config`
   (default `.canonizer.yaml`) and **never from a flag** — a caller-supplied actor would let

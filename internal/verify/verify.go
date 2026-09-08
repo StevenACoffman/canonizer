@@ -44,8 +44,6 @@ const (
 	CategoryNoAnchor = "no-anchor"
 	// CategoryAnchorAbsent is an anchor that does not appear in the source.
 	CategoryAnchorAbsent = "anchor-absent"
-	// CategoryUnspecific is a statement naming no object a reader could act on.
-	CategoryUnspecific = "unspecific"
 	// CategoryNothingExamined is a ruleset in which no rule is enforced, so the gates
 	// examined nothing. It reports on the run rather than on any rule, which is why its
 	// Path is the ruleset and not a section.
@@ -163,43 +161,38 @@ func Provenance(rs *ruleset.Ruleset, source string) []finding.Diagnostic {
 	return diags
 }
 
-// Specificity returns an advisory diagnostic for every enforced rule whose statement
-// reads as general advice rather than something a reader could act on: one that hedges
-// with softening language, or that names no concrete object at all.
+// Softening returns an advisory diagnostic for every enforced rule whose statement hedges,
+// so that a reader cannot tell when it applies.
 //
 // It is **always advisory**. The severity is fixed here rather than taken as an argument
-// so no caller can make it blocking: a general rule is sometimes exactly right, and no
+// so no caller can make it blocking: a hedged rule is sometimes exactly right, and no
 // deterministic check can tell which, so this reports and does not decide. Executable and
 // Provenance remain the only checks that stop a ship.
 //
-// False positives are expected and are not a defect to fix. "Prefer composition over
-// inheritance" names nothing concrete and is a good rule; it will be flagged, and a reader
-// will dismiss it in a second. Making the check quieter by blocking on it instead would
-// trade a cheap false alarm for an expensive false stop.
+// The vocabulary is skilllens's -- the same one skillsaw and adh score -- rather than a word
+// list here, which would make canonizer a third independent implementation of a rubric that
+// was just unified.
 //
-// Both signals come from skillet rather than being detected here. The softening
-// vocabulary is skilllens's -- the same one skillsaw and adh score -- and the concreteness
-// signal is markdown's Links, which carries code-span contents as well as link targets, so
-// a rule naming a tool or symbol in backticks has one. A local heuristic would make
-// canonizer the third independent implementation of a rubric that was just unified.
+// **It was Specificity until 2026-09-08, and it reported a second thing that is now a
+// count.** That signal claimed a statement "names no object, tool or API a reader could act
+// on", and on the eight-ruleset corpus it fired on 63 of 147 enforced rules while the claim
+// was false on essentially all of them: one flagged rule names GoMock, another names a
+// filter struct parameter. What separated the few genuinely soft rules was hedging on a
+// threshold -- which is this function, and the reason it kept the half that was true.
+// The per-rule question belongs to the cold critic, whose `vague` test asks it in the same
+// words at blocking severity; what survives here is the proportion, in Scope.Symbolic.
 //
 // Ensures: every returned diagnostic has finding.SeverityWarning; it is pure.
-func Specificity(rs *ruleset.Ruleset) []finding.Diagnostic {
+func Softening(rs *ruleset.Ruleset) []finding.Diagnostic {
 	diags := make([]finding.Diagnostic, 0)
 	for i := range rs.Rules {
 		r := &rs.Rules[i]
 		if !enforced(r.Severity) {
 			continue
 		}
-		doc := markdown.Parse(r.Statement)
-		if hedges := skilllens.SofteningPhrases(doc); len(hedges) > 0 {
+		if hedges := skilllens.SofteningPhrases(markdown.Parse(r.Statement)); len(hedges) > 0 {
 			diags = append(diags, advisory(r, skilllens.CategorySoftening,
 				"statement hedges ("+hedges[0].Text+"); a reader cannot tell when it applies"))
-			continue
-		}
-		if !concrete(r.Statement, doc) {
-			diags = append(diags, advisory(r, CategoryUnspecific,
-				"statement names no object, tool or API a reader could act on"))
 		}
 	}
 	return diags

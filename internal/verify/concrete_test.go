@@ -16,16 +16,16 @@ func enforcedRule(stmt string) ruleset.Ruleset {
 	}}}
 }
 
-// unspecific reports whether Specificity flagged the statement as naming nothing.
-func unspecific(t *testing.T, stmt string) bool {
+// namesNoSymbol reports whether the scope count read the statement as naming no symbol a
+// checker can see.
+//
+// This asked Specificity for an `unspecific` diagnostic until 2026-09-08. The signal is the
+// same and its verdict is now a proportion rather than an accusation, so the cases below
+// still pin what concrete recognises -- they just read it where it now lives.
+func namesNoSymbol(t *testing.T, stmt string) bool {
 	t.Helper()
 	rs := enforcedRule(stmt)
-	for _, d := range verify.Specificity(&rs) {
-		if d.Category == verify.CategoryUnspecific {
-			return true
-		}
-	}
-	return false
+	return verify.Rules(&rs).Symbolic == 0
 }
 
 func TestConcreteness(t *testing.T) {
@@ -65,27 +65,25 @@ func TestConcreteness(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			if got := unspecific(t, tc.statement); got != tc.wantFlag {
-				t.Errorf("unspecific = %t, want %t for %q", got, tc.wantFlag, tc.statement)
+			if got := namesNoSymbol(t, tc.statement); got != tc.wantFlag {
+				t.Errorf("namesNoSymbol = %t, want %t for %q", got, tc.wantFlag, tc.statement)
 			}
 		})
 	}
 }
 
-// TestWideningDoesNotSilenceTheSofteningCheck keeps the two signals independent: a hedged
-// statement is caught by SofteningPhrases before concreteness is asked, and widening the
-// second must not have made the first unreachable.
-func TestWideningDoesNotSilenceTheSofteningCheck(t *testing.T) {
+// TestASymbolNamingStatementCanStillHedge keeps the two readings independent. A statement
+// may name a symbol -- so the count reads it as symbolic -- and still hedge, which is the
+// half that stayed a finding when the other became a proportion.
+func TestASymbolNamingStatementCanStillHedge(t *testing.T) {
 	t.Parallel()
-	// Names a real symbol *and* hedges: concrete by the widened test, still hedged.
 	rs := enforcedRule("Prefer sql.DB over a raw driver where appropriate.")
-	got := verify.Specificity(&rs)
-	if len(got) != 1 {
-		t.Fatalf("Specificity = %+v, want the hedge reported", got)
+	if got := verify.Rules(&rs).Symbolic; got != 1 {
+		t.Errorf("Symbolic = %d, want 1: the statement names sql.DB", got)
 	}
-	if got[0].Category == verify.CategoryUnspecific {
-		t.Errorf("category = %q; a hedged statement naming a symbol is softening, "+
-			"not unspecific", got[0].Category)
+	got := verify.Softening(&rs)
+	if len(got) != 1 {
+		t.Fatalf("Softening = %+v, want the hedge reported", got)
 	}
 }
 
