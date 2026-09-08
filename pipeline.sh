@@ -20,6 +20,19 @@
 # **The agent runs from the prompt's own directory**, because every link inside a prompt is
 # relative to it. A Markdown link carries no anchor, so an agent started anywhere else
 # resolves the "../" from the wrong place and reads the wrong source.
+#
+# **That directory is also the sandbox, which is why --add-dir is not optional.** Claude
+# Code confines a session to its working directory, so running from the prompt's directory
+# makes the links resolve and then denies the reads they resolve to. The source subtree and
+# the rules directory are granted explicitly -- those two and nothing wider, so a prompt
+# cannot reach a sibling source it was not asked to distil.
+#
+# **--add-dir grants reads; writing needs acceptEdits as well.** Measured: with only
+# --add-dir the agent read the source and produced a correct 23-rule ruleset, then reported
+# that saving it "require[s] a permission grant, and this session is non-interactive so the
+# prompt can't be answered". The ruleset went to stdout and no file was written. acceptEdits
+# answers that prompt in advance, and is scoped by the two --add-dir grants above rather
+# than opening the machine.
 set -euo pipefail
 
 # has_cmd NAME — true if NAME is an executable file on $PATH.
@@ -78,7 +91,10 @@ for p in "${prompts[@]}"; do
     # Run from the prompt's directory so its relative links resolve, and read the prompt
     # by name from there. Output is shown, not captured: the ruleset is the file the agent
     # writes, and this is the running commentary.
-    if ! ( cd "$(dirname "$p")" && claude -p < "$(basename "$p")" ); then
+    if ! ( cd "$(dirname "$p")" \
+        && claude -p --permission-mode acceptEdits \
+            --add-dir "${SRC_DIR}/${D}" --add-dir "$RULES_DIR" \
+            < "$(basename "$p")" ); then
         printf '%s: claude failed on %s\n' "$(basename "$0")" "$p" >&2
         exit 1
     fi

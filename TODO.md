@@ -1310,6 +1310,10 @@ when a statement holds no code span.** An earlier reading of the first file alon
       still moves the number, by half as much. The two fixes are independent and both are
       wanted: the prompt makes the input consistent, the widened check makes the score less
       hostage to it. Neither alone would have been enough.
+      **Re-measured 2026-09-07 on the full released corpus — 162 rules, eight rulesets — and
+      the convention now holds: 94% of the 99 rules that pass carry a code span.** Checklist
+      item 8 worked. But the same number read the other way is the finding below: passing
+      and being backticked have become nearly the same event.
 - [ ] **When the convention is followed the check looks sound, and that is the argument for
       keeping it.** The 4 it flagged in the well-formatted ruleset are the softest rules
       there — *"a real dependency boundary"*, *"closely related"*, *"by importance"*,
@@ -1330,3 +1334,159 @@ when a statement holds no code span.** An earlier reading of the first file alon
       output carries `unspecific` and no `softening` at all. The two signals detect different
       things and both are load-bearing. Recorded because the hypothesis was plausible enough
       to act on and wrong.
+      **The second corpus this entry asked for now exists, and it does not confirm the
+      entry.** 162 rules across eight rulesets, each joined to its diagnostics by `path`.
+      Of the 63 flagged, **not one carries a code span**; of the 99 that pass, **94% do**.
+      Hedging — the axis proposed above — separates them 9% against 3%, which is **not a
+      signal**, and refutes the hypothesis rather than leaving it open.
+      The widening rescues 5 of the 68 unbackticked rules, **7%**, so `concrete` remains at
+      corpus scale very close to a backtick detector; the four identifier shapes fire far
+      less often on real prose than the 48-statement sample implied.
+      **What the flagged rules read like matters more than the percentage**, because many
+      are plainly actionable — *"Accept search criteria as one filter struct parameter,
+      never as a list of individual filtering arguments"*, *"Never surface an undefined
+      error's own text to an end user; show the generic support message instead."* Neither
+      names a symbol; both tell a reader exactly what to do.
+      **So the residual is confirmed rather than closed, and this entry's optimistic reading
+      was drawn from too little data — the error it exists to record, repeated.** The four
+      soft rules are still correctly flagged; the claim that being flagged *means* soft does
+      not survive 63 of them. What to do is a separate question: accept the check as a
+      typography lint and rename it for what it measures, or find a signal for actionability
+      that is not lexical. Do not relax it on this evidence alone.
+
+______________________________________________________________________
+
+## `Provenance` Never Matched a Correctly-Written Anchor (2026-09-07)
+
+Found by running the gates on the first ruleset the pipeline produced end to end —
+`crud_rules.md`, 26 rules distilled from Ben Johnson's *Common CRUD Design in Go* with the
+source actually read rather than recalled. `Provenance` reported **26 of 26 anchors absent**,
+and the ruleset was largely right.
+
+- [x] **The check searched for the whole anchor, and a correct anchor is not all quotation.**
+      DONE 2026-09-07. `distill_source_prompt.md` asks for a `↦` line of the form
+      `§Section: "the quote"` — its own worked example is
+      `↦  §Errors: "never ignore the value returned by a function"` — so a well-formed anchor
+      carries a section prefix that is *about* the source rather than *from* it.
+      `anchorPresent` did `strings.Contains(source, anchor)` on the whole string, which the
+      prefix guarantees will fail.
+      **Isolated on one file with one folding, so the number is the change and not the
+      corpus: 25 anchors, whole-anchor match 0, quoted-span match 14.** `anchorText` now
+      takes the first quoted span and falls back to the anchor as written, so a bare
+      quotation — which most of the corpus writes — still matches. A prefix cannot launder a
+      fabricated quotation: that case is a test.
+      **The first before/after taken for this was confounded and is not the one above.** The
+      agent revised the ruleset two minutes after writing it, so an earlier 26 → 11
+      comparison spanned two different files. Re-measured against a single file.
+- [x] **An anchor may legitimately carry no quotation, and there is no verdict for that.**
+      DONE 2026-09-07 as `verify.sectionOnly` + `CategoryAnchorSectionOnly`, advisory and
+      `ActionHuman`, asked by both `Provenance` and `Drift.driftOne` through the one
+      predicate — presence is asked *after* it, because "is it in the source" is meaningless
+      when there is nothing to look for.
+      **The predicate is "does it say anything beyond the section name", not "does it carry
+      a quotation", and the second was written first and was wrong twice over.** A bare
+      quotation with no quote marks would have been reclassified unsearchable, undoing the
+      fallback `anchorText` preserves; and `§Errors: every method takes ctx first` carries no
+      quotation while being a **paraphrase**, so keying on quote marks would have turned all
+      eight paraphrase anchors below into advisories and buried a real finding. Cutting on
+      the colon separates them, and does not reject a multi-word `§Transactional boundaries`.
+      **Advisory rather than blocking because the prompt permits a section reference**;
+      blocking one would fail a ruleset for doing what it was asked. Making anchors
+      verbatim-only is a *prompt* change and is the entry two below.
+      **The population is unmeasured and the entry should not pretend otherwise.** The "one
+      anchor" count came from a ruleset revised two minutes after it was measured and deleted
+      two hours later; the conflation is wrong regardless of frequency, but the fix is
+      fixture-tested rather than corpus-measured, which is weaker than the prefix fix beside
+      it. Original entry:
+      The prompt permits *"a short quote **or section reference**"*. A section reference
+      cannot be verbatim-matched by anything, so it reports `anchor-absent` — the same
+      category as a fabricated quotation, which is the conflation the `Drift` work exists to
+      undo, in a new place.
+      It wants the `quotecheck.Status` shape already used for the unverifiable third state:
+      *checked and missing* and *not checkable* are different answers. One anchor in the
+      measured ruleset is of this kind, so the cost today is one false blocking finding —
+      small, and the argument is the confusion rather than the count.
+- [ ] **An elided quotation cannot match, and eliding is what a careful quoter does.** Six of
+      26 anchors quote with `...` — *"I rarely expose internal details like transactions to
+      the rest of my application ... it's rarely necessary"* — which is a faithful quotation
+      of two spans and matches neither.
+      Splitting on the ellipsis and requiring each fragment present would accept these
+      without accepting a fabrication, since both halves still have to be in the source.
+      **Not done with the prefix fix, deliberately:** that fix corrected a check that could
+      never pass, and this one widens what passes. They deserve separate measurement, and
+      bundling them would make the 0 → 14 number above unattributable.
+- [ ] **Eight anchors are paraphrase rather than quotation, and that is the ruleset's
+      defect.** *"every method in the `DialService` interface takes `ctx context.Context`
+      first"* describes the source instead of quoting it. No substring check can validate a
+      paraphrase, and it should not try to: this is the `anchor-fabricated` case the gate
+      exists for, and the honest fix is upstream — the prompt says the anchor makes
+      provenance auditable without saying it must be verbatim.
+
+______________________________________________________________________
+
+## The Backtick Convention Walked the Corpus into a Parser Bug (2026-09-07)
+
+The first full batch: eight rulesets, **162 rules**, every one opening cleanly at `Source:`.
+The three invocation fixes hold and the pipeline produces artifacts. Six verify; two do not.
+
+- [x] **Two of eight rulesets are unparseable, and this repository's own prompt change is
+      half the cause.** DONE 2026-09-07 — skillet v0.32.0, pinned here. `ruleset.Parse` refuses a rationale line beginning with a backtick —
+      `applyBody` rejects any leading Unicode **symbol**, and a backtick is `Sk` while every
+      prose opener its doc names as safe (`—`, `“`, `(`) is punctuation. Filed in
+      `skillet/TODO.md` with the category table; the guard needs narrowing to the `So`/`Sm`
+      categories the markers actually occupy.
+      **The interaction is the part that belongs here.** *"Backtick every identifier"* was
+      added to `distill_source_prompt.md` yesterday to stop `Specificity` measuring
+      typography. It worked — and it raised the rate of rationales opening with a code span,
+      which is what walked the corpus into a latent parser bug. **Two correct changes, one
+      bug between them**, and neither is worth reverting.
+      Cheap to hit and expensive to suffer: **3 of 299 body lines**, but one line fails a
+      whole document, so three lines cost two rulesets.
+      **Fixed in skillet 2026-09-07** and measured against this exact corpus with a
+      temporary `replace`: both rulesets parse (19 of 20 and 25 of 28 rules examined) and the
+      six that already parsed produce byte-identical diagnostic counts. The guard now tests
+      `So`/`Sm` — the categories the markers occupy — instead of every Unicode symbol.
+      **Closed by skillet v0.32.0**, pinned here and re-measured against the released kernel
+      rather than a `replace`: all **eight** rulesets parse, **162 rules**, no `PARSE-FAIL`.
+      No code changed in this repository — the bump was the whole fix.
+      Recorded because the next person to widen a prompt convention should know it can move
+      the corpus into a part of the grammar nothing had exercised.
+- [x] **Six rulesets now verify, and the gates report a spread rather than a verdict.**
+      DONE 2026-09-07 — superseded by the eight-ruleset recalibration below, which is the
+      same measurement with the two parser casualties restored.
+
+Recalibrated 2026-09-07 against skillet v0.32.0, with all eight parsing:
+
+| ruleset                          | anchor-absent | unspecific | unexecutable | non-canonical |
+| -------------------------------- | ------------- | ---------- | ------------ | ------------- |
+| `crud`                           | 8             | 8          | 2            | 1             |
+| `failure_is_your_domain`         | 8             | 5          | 8            | 1             |
+| `packages_as_layers`             | 6             | 11         | 1            | 1             |
+| `real_world_sql_part_one`        | 12            | 6          | 2            | 1             |
+| `standard_package_layout`        | 14            | 8          | 4            | 1             |
+| `structuring_applications_in_go` | 6             | 8          | 4            | —             |
+| `structuring_tests_in_go`        | 5             | 9          | 5            | 1             |
+| `wtf_dial`                       | —             | 8          | 3            | —             |
+
+**`anchor-absent` has stopped being 100%.** It was 26 of 26 before the prefix fix; it now
+ranges 0–14, and `wtf_dial` verifies every anchor it declares. That is the strongest
+evidence yet that the fix was to the check rather than to the corpus.
+
+**Two rulesets carry no `non-canonical` finding** — the first time `Canonical` has passed on
+content it did not come packaged with.
+
+- [ ] **`unbounded` fires on eight of eight, and the gate is not the thing that is wrong.**
+      No ruleset declares `Limitations:`, so the check reports a missing header on every
+      document it has ever seen. **A check that fires on 100% of inputs carries no
+      information** — the shape `Specificity` had at 29 of 29 before it was widened.
+      **The cause is that the prompt never asks.** `grep -i limitation` over
+      `distill_source_prompt.md` and all eight generated prompts returns nothing, so the
+      gate demands a section the generator was never told to write. Gate and prompt
+      disagree, and the prompt is the side that is missing something.
+      Two options, neither obviously right: **teach the prompt to emit `Limitations:`**,
+      which makes the check meaningful and costs a re-run of the corpus; or **drop it to
+      advisory** until some ruleset carries the header, on the ground that a blocking error
+      nobody can clear is a gate in name only. Prefer the first — the header is the one
+      place a ruleset says where it stops applying, and the argument for it does not weaken
+      because nothing has one yet.
+      Do not simply delete the check: the header is wanted and the finding is accurate.

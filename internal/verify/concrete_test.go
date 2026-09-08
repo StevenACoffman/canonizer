@@ -88,3 +88,51 @@ func TestWideningDoesNotSilenceTheSofteningCheck(t *testing.T) {
 			"not unspecific", got[0].Category)
 	}
 }
+
+// TestAnchorMatchesTheQuotedSpan pins the defect measured on the first real ruleset: the
+// distill prompt asks for `§Section: "quote"`, so searching the source for the whole anchor
+// failed on every anchor ever written -- 0 of 26 matched while 11 quoted the article
+// verbatim.
+func TestAnchorMatchesTheQuotedSpan(t *testing.T) {
+	t.Parallel()
+	const source = "In practice we define our services with an interface in the root package."
+	cases := map[string]struct {
+		anchor    string
+		wantFound bool
+	}{
+		// The documented form, and the one that used to fail.
+		"section prefix plus quotation": {
+			anchor:    `§The interface: "we define our services with an interface"`,
+			wantFound: true,
+		},
+		// The fallback: a bare quotation with no prefix still works.
+		"bare quotation with no prefix": {
+			anchor:    "we define our services with an interface",
+			wantFound: true,
+		},
+		// Soundness: a prefix must not launder a quotation the source does not contain.
+		"section prefix with a fabricated quotation": {
+			anchor:    `§The interface: "we forbid interfaces in the root package"`,
+			wantFound: false,
+		},
+		// A section reference carrying no quotation cannot be verbatim-matched, and the
+		// prompt permits one. It reads as absent today; see the TODO entry.
+		"section reference with no quotation": {
+			anchor:    "§The interface",
+			wantFound: false,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			rs := ruleset.Ruleset{Rules: []ruleset.Rule{{
+				Section: "1.1", Severity: ruleset.MUST, Level: ruleset.CODE,
+				Statement: "do the thing", Bad: "b", Good: "g", SourceAnchor: tc.anchor,
+			}}}
+			found := len(verify.Provenance(&rs, source)) == 0
+			if found != tc.wantFound {
+				t.Errorf("anchor found = %t, want %t for %q", found, tc.wantFound, tc.anchor)
+			}
+		})
+	}
+}

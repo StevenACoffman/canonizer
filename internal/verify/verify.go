@@ -70,6 +70,9 @@ const (
 	CategoryAnchorUnverifiable = "anchor-unverifiable"
 	// CategoryUnsound is a rule whose checks do not discriminate between its own ✗ and ✓.
 	CategoryUnsound = "unsound"
+	// CategoryAnchorSectionOnly is an anchor that names a section and says nothing else,
+	// so there is no text to search the source for.
+	CategoryAnchorSectionOnly = "anchor-section-only"
 )
 
 // Executable returns a diagnostic for every enforced rule that lacks a discriminating
@@ -118,6 +121,12 @@ func Provenance(rs *ruleset.Ruleset, source string) []finding.Diagnostic {
 			if d, ok := unanchored(r); ok {
 				diags = append(diags, d)
 			}
+			continue
+		}
+		if sectionOnly(r.SourceAnchor) {
+			diags = append(diags, advisory(r, CategoryAnchorSectionOnly,
+				"anchor names a section and quotes nothing, so provenance cannot be "+
+					"confirmed or refuted from the source text"))
 			continue
 		}
 		if !anchorPresent(source, r.SourceAnchor) {
@@ -226,8 +235,83 @@ func unanchored(r *ruleset.Rule) (finding.Diagnostic, bool) {
 // one function rather than a repeated strings.Contains because Provenance and Drift must
 // agree on what "present" means -- two spellings of the anchor test is how one check starts
 // blocking what the other passes.
+//
+// **It matches the quoted span, not the whole anchor, and matching the whole anchor was a
+// defect.** The form the distill prompt asks for -- and its own worked example writes -- is
+// `§Section: "the quote"`, so a correct anchor carries a section prefix that is *about* the
+// source rather than *from* it. Searching for the whole string therefore failed on every
+// anchor ever written: measured on the first real ruleset, 0 of 26 whole anchors were
+// present while 11 of the same 26 quoted the article verbatim. The check was reporting a
+// fabrication rate of 100% against a ruleset whose anchors were largely sound.
 func anchorPresent(source, anchor string) bool {
-	return strings.Contains(textnorm.Fold(source), textnorm.Fold(anchor))
+	return strings.Contains(textnorm.Fold(source), textnorm.Fold(anchorText(anchor)))
+}
+
+// sectionOnly reports whether an anchor names a section and says nothing else.
+//
+// The distill prompt permits *"a short quote or section reference"*, and a bare section
+// reference -- `§Transactional boundaries` -- cannot be found in the source by any substring
+// search. Reporting it as anchor-absent gives it the verdict a fabricated quotation gets,
+// which is the conflation Drift exists to undo appearing one layer down: *searched and not
+// found* and *nothing to search for* are different answers and only one is a defect.
+//
+// **The question is deliberately "does it say anything beyond the section name", not "does
+// it carry a quotation".** The second was written first and is wrong twice over. A bare
+// quotation with no quote marks would be classified as unsearchable and stop being checked,
+// silently undoing the fallback anchorText preserves. And `§Errors: every method takes ctx
+// first` carries no quotation while being a *paraphrase* rather than a section reference --
+// eight of the measured ruleset's anchors are that shape, and they are the ruleset's own
+// defect. Keying on quote marks would turn every one of them into an advisory.
+//
+// So a section-only anchor is one whose section token is all there is: `§Errors`, `§4.2`.
+// Anything after it -- quoted or not -- is content the gate can and should search for.
+//
+// Ensures: false for any anchor carrying a quotation or trailing prose; false for an empty
+//
+//	anchor, which Provenance reports as no-anchor before reaching here; it is pure.
+func sectionOnly(anchor string) bool {
+	rest, found := strings.CutPrefix(strings.TrimSpace(anchor), "§")
+	if !found {
+		return false
+	}
+	// The colon is the separator the form uses -- `§Errors: "quote"` -- so content after it
+	// is what the gate should search, and its absence is what makes an anchor a bare
+	// section reference. Splitting on whitespace instead would reject `§Transactional
+	// boundaries`, since a section name may be several words.
+	name, content, hasColon := strings.Cut(rest, ":")
+	if strings.TrimSpace(name) == "" {
+		return false
+	}
+	return !hasColon || strings.TrimSpace(content) == ""
+}
+
+// anchorText returns the part of an anchor that should be found in the source: the quoted
+// span when there is one, and otherwise the anchor as written.
+//
+// The fallback keeps a bare quotation working -- an anchor that is just the quote, with no
+// section prefix, is still what most of the corpus writes -- so this widens what matches
+// without narrowing it.
+//
+// Only the first quoted span is taken. The convention places the quotation last and uses
+// the prefix for the section, so a second pair of quotes inside one anchor is a shape
+// nothing in the corpus writes; taking the first keeps the rule stateable in one sentence
+// rather than guessing which of several spans was meant.
+//
+// Ensures: the result is non-empty whenever anchor is; it is pure.
+func anchorText(anchor string) string {
+	start := strings.Index(anchor, `"`)
+	if start < 0 {
+		return anchor
+	}
+	rest := anchor[start+1:]
+	end := strings.Index(rest, `"`)
+	if end < 0 {
+		return anchor
+	}
+	if quoted := rest[:end]; strings.TrimSpace(quoted) != "" {
+		return quoted
+	}
+	return anchor
 }
 
 // enforced reports whether a rule's severity is gated. MUST/SHOULD are enforced;
