@@ -1368,6 +1368,33 @@ when a statement holds no code span.** An earlier reading of the first file alon
       the convention now holds: 94% of the 99 rules that pass carry a code span.** Checklist
       item 8 worked. But the same number read the other way is the finding below: passing
       and being backticked have become nearly the same event.
+      **CORRECTION 2026-09-08: that was the wrong measurement, and it was used to argue this
+      entry was nearly closeable.** "94% of passing rules carry a code span" is a fact about
+      the *check*, not the convention: `Specificity` fires when a code span is absent, so
+      passing implies backticked almost by construction. It cannot speak to whether the
+      convention is followed uniformly, which is what this entry is about.
+      **Measured directly, per ruleset, and the spread is the finding:**
+
+| ruleset                          | rules | with a code span | rate |
+| -------------------------------- | ----: | ---------------: | ---: |
+| `real_world_sql_part_one`        |    28 |               22 |  78% |
+| `failure_is_your_domain`         |    20 |               15 |  75% |
+| `standard_package_layout`        |    20 |               12 |  60% |
+| `structuring_applications_in_go` |    20 |               12 |  60% |
+| `crud`                           |    25 |               14 |  56% |
+| `structuring_tests_in_go`        |    20 |               11 |  55% |
+| `packages_as_layers`             |    18 |                7 |  38% |
+| `wtf_dial`                       |    11 |                1 |   9% |
+
+**9% to 78% across eight distillations from one prompt in one batch.** This entry's original
+observation — *"one distillation backticked throughout, another backticked nothing"* — is
+**reproduced, not resolved**: `wtf_dial` at 9% is that second case, in the new corpus, after
+checklist item 8. The instruction reduced the variance; it did not remove it.
+**So the measurement this entry always wanted is a per-ruleset spread, not a per-rule rate**,
+and it stays open. What would close it is a repeat distillation of *one* source scored twice,
+which needs the agent pipeline and was not run here. Until then the honest statement is that
+`unspecific` still varies with which distillation produced the ruleset.
+
 - [ ] **When the convention is followed the check looks sound, and that is the argument for
       keeping it.** The 4 it flagged in the well-formatted ruleset are the softest rules
       there — *"a real dependency boundary"*, *"closely related"*, *"by importance"*,
@@ -1615,16 +1642,32 @@ the same reason the elision work was itself held back from the prefix fix.
 
 Anchor failure classes across the eight rulesets, 162 anchors, before this session:
 
-| class                              |    n | fixed by            |
-| ---------------------------------- | ---: | ------------------- |
-| ellipsis, every fragment in source |   20 | done 2026-09-08     |
-| ellipsis, some fragment absent     |   10 | ruleset's own fault |
-| backtick-quoted span, present      |    3 | the entry below     |
-| backtick-quoted span, absent       |    1 | ruleset's own fault |
-| double-quoted span, absent         |   31 | ruleset's own fault |
-| no quotation at all (paraphrase)   |    0 | does not occur      |
+| class                              |    n | outcome                     |
+| ---------------------------------- | ---: | --------------------------- |
+| ellipsis, every fragment in source |   20 | fixed 2026-09-08            |
+| ellipsis, some fragment absent     |   10 | ruleset's own fault         |
+| backtick-quoted span, present      |    3 | fixed 2026-09-08            |
+| backtick-quoted span, absent       |    1 | ruleset's own fault         |
+| double-quoted span, absent         |   31 | 10 were emphasis, now fixed |
+| no quotation at all (paraphrase)   |    0 | does not occur              |
 
-- [ ] **`anchorText` reads `"` and not `` ` ``, so a code quotation is unsearchable.** An
+**All three fixes have now landed, and `anchor-absent` across the corpus is 26**, from 59
+before any of them: elision took 59 → 39, the backtick span 39 → 36, and emphasis folding
+36 → 26. What remains is the residual those entries name — misquotation and partial
+elision, which are the rulesets' own defects rather than the check's.
+
+- [x] **`anchorText` reads `"` and not `` ` ``, so a code quotation is unsearchable.**
+      DONE 2026-09-08. `anchorText` now tries a double-quoted span, then a backtick span,
+      then the whole anchor. **Measured: `anchor-absent` 39 → 36 on enforced rules, −3**,
+      matching the predicted "4 in the class, 3 of them present".
+      **Double quotes win, and the nesting is why**: `` §Helper methods: "`defer
+      rows.Close()`" `` puts the backticks *inside* the quotation, so the outer delimiter is
+      the one bounding the passage.
+      **The scan was extracted rather than copied.** A second hand-rolled search for a
+      delimited span beside the first is the Repetition red flag, and the existing body was
+      already that function with `"` hardcoded. `firstDelimited(s, delim)` now holds the
+      knowledge of *how* to find a span; `anchorText` keeps the knowledge of *which*
+      delimiter wins, which is the part that is a decision. Original entry: An
       anchor may quote an identifier rather than prose — `` §Remove dependencies by
       abstracting services: `FindDialByID(ctx context.Context, id int) (*Dial, error)` `` —
       and `anchorText` looks only for a double-quoted span, so it falls back to the whole
@@ -1637,7 +1680,29 @@ Anchor failure classes across the eight rulesets, 162 anchors, before this sessi
       `` §Helper methods: "`defer rows.Close()`" `` nests one inside the other. Taking the
       outermost — double quotes when present, backticks otherwise — matches what the prompt
       writes and keeps the rule stateable in a sentence.
-- [ ] **`textnorm.Fold` does not fold markdown emphasis, so faithful quotations of the
+- [x] **`textnorm.Fold` does not fold markdown emphasis, so faithful quotations of the
+      rendered text miss.** DONE 2026-09-08 as `verify.unemphasize`, applied to source and
+      anchor alike so an anchor that quoted the markers verbatim also matches.
+      **Measured: `anchor-absent` 36 → 26 on enforced rules, −10**, the largest of the three
+      anchor fixes. Across all 162 anchors the corpus goes from 45 absent to 31.
+      **Only paired double markers are folded, and the narrow rule won on measurement rather
+      than on caution.** A rule folding every marker run scores **three anchors worse**,
+      because single-marker italic matches across `snake_case`: in `id IN (SELECT dial_id
+      FROM dial_memberships`, the span `_memberships FROM dial_` is a legal `_..._` pair.
+      Doubling the marker removes that whole class of false pair, and a test pins it.
+      **RE2 has no backreference, so it is one pattern per delimiter.** A single
+      `(\*\*|__)(.+?)(\*\*|__)` cannot require the closing marker to match the opening
+      one and would fold `**text__`, which is not emphasis. Two patterns state what the
+      regexp language cannot.
+      **No code-span guard, because the corpus says none is needed.** Of 238 code spans in
+      the sources, 8 hold a marker *character* — `[]*Dial`, `COUNT(*) OVER()`, `"name_asc"`,
+      `*myapp.Error` — and **not one is a paired run**, so a double-marker pattern cannot
+      reach them. Building the guard would be machinery for a case that does not occur,
+      which is the ground `snake_case` was dropped on at zero matches. The residual is stated
+      in the doc instead: a code span holding a genuine `__dunder__` would lose its markers,
+      and none exists here.
+      **Local to canonizer, on the `markdown.Links` precedent**, with the kernel question
+      left filed rather than decided. Original entry: the
       rendered text miss.** The sources are markdown and use `__bold__`; an anchor quotes
       what a reader sees, so `only` in the anchor meets `__only__` in the source. Diffing
       near-miss anchors against their best source window shows this as the single largest
@@ -1674,7 +1739,25 @@ ______________________________________________________________________
 
 ## Two Gaps the Sign-off Refusals Expose (2026-09-08)
 
-- [ ] **A non-canonical ruleset cannot be signed and canonizer offers no way to fix it.**
+- [x] **A non-canonical ruleset cannot be signed and canonizer offers no way to fix it.**
+      DONE 2026-09-08 as `canonizer fmt --ruleset PATH [--check]`. Default rewrites,
+      `--check` reports and exits 1 without writing — exegesis `normalize`'s split verbatim,
+      so a reader who knows one knows the other.
+      **Measured on the corpus: `--check` names the 5 non-canonical rulesets, and after a
+      rewrite 0 of 8 remain.** An already-canonical file is not rewritten at all, so running
+      this across a corpus does not touch mtimes for nothing; a test asserts that.
+      **What it changes is wrapping, not text, and that is measured rather than hoped.**
+      Reducing each of the eight to its word sequence, stored and rendered are identical on
+      every one. A rule header written with three spaces after its level tag becomes two, and
+      a rationale a human wrapped across three lines becomes one long line. Stored rulesets
+      already carry 265–379 character lines, so that is the format's existing shape — but a
+      hand-wrapped document will not come back wrapped, and `--help` says so before anyone
+      runs it.
+      **One file, not a tree.** exegesis takes a TREE because skills *are* a tree; every
+      canonizer command names its ruleset explicitly, so consistency inside this repository
+      won. A directory mode is possible and unbuilt.
+      **Atomic write**, for `--sign-off`'s reason: it replaces a document a human owns and
+      cannot regenerate. Original entry:
       `--sign-off` refuses a ruleset whose stored form differs from its rendering, because
       writing the event re-renders the document and would otherwise reformat the body as a
       side effect. Five of the eight stored rulesets are in that state, so the refusal is
@@ -1688,7 +1771,26 @@ ______________________________________________________________________
       the sign-off writes to, and shipping both at once would make it impossible to say
       which one caused a corpus-wide reformat. It also wants its own `--check` mode, on
       exegesis's precedent, and that is a design conversation rather than a subroutine.
-- [ ] **skillet could export a frontmatter writer, which would remove the refusal entirely.**
+- [x] **skillet could export a frontmatter writer, which would remove the refusal entirely.**
+      DECLINED 2026-09-08. Kept rather than deleted, because a rejected option with its
+      reasoning is worth more than a silent absence.
+      **The premise does not survive measurement: `Render` is text-preserving.** Reducing
+      each of the eight stored rulesets to its word sequence, stored and rendered are
+      *identical* on every one. Only wrapping and inter-token spacing differ — rule headers
+      written with three spaces after the level tag where `Render` emits two, and wrapped
+      rationales joined onto one line. So "leave the body untouched" protects **whitespace,
+      not content**, and the stored files already carry 265–379 character lines, so
+      re-flowing does not cost readability that was there.
+      **Against that, the cost is a first-of-its-kind kernel API.** Every skillet function
+      today *produces* a document; this one would *edit* one, and it would need a release, to
+      spare a caller a single `canonizer fmt` before signing.
+      **And the refusal is doing work the writer would remove.** `Canonical` blocks because
+      canonical form is wanted. A writer that appends signatures to a non-canonical ruleset
+      lets a corpus accumulate attestations while never converging on the form the check
+      exists to require — so the two-step workflow is the feature, not the friction.
+      **What would reopen this**: a ruleset carrying content `Parse` does not model, so that
+      re-rendering would genuinely lose something. Nothing in the corpus does today, and the
+      round-trip check above is what would notice. Original entry:
       The reason `--sign-off` must re-render the whole document is that skillet's
       frontmatter emitter is unexported, so the alternative — splice a new block into the
       raw bytes and leave the body untouched — would need a second emitter in canonizer.

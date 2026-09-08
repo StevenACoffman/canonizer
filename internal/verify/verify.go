@@ -7,6 +7,7 @@
 package verify
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/StevenACoffman/skillet/finding"
@@ -286,9 +287,10 @@ func unanchored(r *ruleset.Rule) (finding.Diagnostic, bool) {
 //	cannot pass on an empty conjunction -- and neither can an empty quotation, which the
 //	single strings.Contains this replaced would have reported as present; it is pure.
 func anchorPresent(source, anchor string) bool {
-	folded := textnorm.Fold(source)
+	folded := unemphasize(textnorm.Fold(source))
 	found := 0
-	for _, fragment := range strings.Split(textnorm.Fold(anchorText(anchor)), elision) {
+	quoted := unemphasize(textnorm.Fold(anchorText(anchor)))
+	for _, fragment := range strings.Split(quoted, elision) {
 		trimmed := strings.TrimSpace(fragment)
 		if trimmed == "" {
 			// An elision at either end, or two in a row, yields an empty fragment.
@@ -354,21 +356,102 @@ func sectionOnly(anchor string) bool {
 // nothing in the corpus writes; taking the first keeps the rule stateable in one sentence
 // rather than guessing which of several spans was meant.
 //
+// **A backtick span counts as a quotation too, and double quotes win when both are
+// present.** An anchor may quote an identifier rather than prose -- the prompt writes that
+// form, as in “§Remove dependencies: `FindDialByID(ctx context.Context) (*Dial, error)``` -- and
+// reading only double quotes fell back to the whole anchor and searched the section
+// prefix along with it, which is the defect the prefix fix corrected surviving in the
+// delimiter it did not consider. Measured: four anchors of that shape, three of them
+// present in the source and reported absent.
+//
+// Double quotes win because “§Helper methods: "`defer rows.Close()`"“ nests the
+// backticks *inside* the quotation, so the outer delimiter is the one bounding the passage.
+//
 // Ensures: the result is non-empty whenever anchor is; it is pure.
 func anchorText(anchor string) string {
-	start := strings.Index(anchor, `"`)
-	if start < 0 {
-		return anchor
+	if quoted := firstDelimited(anchor, '"'); quoted != "" {
+		return quoted
 	}
-	rest := anchor[start+1:]
-	end := strings.Index(rest, `"`)
-	if end < 0 {
-		return anchor
-	}
-	if quoted := rest[:end]; strings.TrimSpace(quoted) != "" {
+	if quoted := firstDelimited(anchor, '`'); quoted != "" {
 		return quoted
 	}
 	return anchor
+}
+
+// firstDelimited returns the first non-blank span of s bounded by a pair of delim, or "" if
+// there is no such pair.
+//
+// Extracted rather than written twice: anchorText needs the same scan for two delimiters,
+// and two copies of "find the first delimited span" is how the two spellings start
+// disagreeing about what a span is. What stays in anchorText is the knowledge of *which*
+// delimiter wins, which is the part that is actually a decision.
+//
+// Ensures: the result is either empty or a non-blank substring of s; it is pure.
+func firstDelimited(s string, delim byte) string {
+	start := strings.IndexByte(s, delim)
+	if start < 0 {
+		return ""
+	}
+	rest := s[start+1:]
+	end := strings.IndexByte(rest, delim)
+	if end < 0 {
+		return ""
+	}
+	if span := rest[:end]; strings.TrimSpace(span) != "" {
+		return span
+	}
+	return ""
+}
+
+// unemphasize removes paired markdown emphasis markers, keeping the text between them.
+//
+// The sources are markdown and use __bold__; an anchor quotes what a reader sees, so `only`
+// in the anchor met `__only__` in the source and missed. Diffing near-miss anchors against
+// their closest source window showed this as the largest single systematic cause.
+// Measured: 11 anchors, taking the corpus from 42 absent to 31.
+//
+// Applied to the anchor as well as the source, so an anchor that did quote the markers
+// verbatim still matches. Folding one side only would trade one mismatch for another.
+//
+// **Only paired double markers are folded, and the narrow rule beats the wide one on
+// measurement rather than on caution.** A rule folding every marker run scores *three
+// anchors worse*, because single-marker italic matches across snake_case: in
+// `id IN (SELECT dial_id FROM dial_memberships`, the span `_memberships FROM dial_` is a
+// legal `_..._` run. Doubling the marker removes that entire class of false pair.
+//
+// **Nothing protects a code span, because nothing needs to.** Of 238 code spans in the
+// sources, 8 hold a marker character -- `[]*Dial`, `COUNT(*) OVER()`, `"name_asc"`,
+// `*myapp.Error` -- and not one is a paired run, so this cannot reach them. A guard would be
+// machinery for a case the corpus does not contain, which is the ground a `snake_case`
+// pattern was dropped on at zero matches. The residual, stated rather than guarded: a code
+// span holding a genuine `__dunder__` would lose its markers, and none exists here.
+//
+// Local to canonizer rather than widening textnorm.Fold, on the markdown.Links precedent:
+// Fold's doc does describe this class of disagreement, but four consumers read it, and what
+// wants widening is this repository's question rather than the kernel's datum.
+//
+// Ensures: the result is never longer than s; it is pure.
+func unemphasize(s string) string {
+	for _, pattern := range emphasisPatterns() {
+		s = pattern.ReplaceAllString(s, "$1")
+	}
+	return s
+}
+
+// emphasisPatterns matches a __bold__ run and a **bold** run, each capturing what it wraps.
+//
+// **One pattern per delimiter, because RE2 has no backreference.** A single
+// `(\*\*|__)(.+?)(\*\*|__)` cannot require the closing marker to match the opening one, so
+// it would fold `**text__` -- a mismatched pair that is not emphasis at all. Two patterns
+// state the constraint the regexp language cannot.
+//
+// Built per call rather than kept in a package variable, which is the shape
+// identifierPatterns uses in this package and what gochecknoglobals requires.
+func emphasisPatterns() []*regexp.Regexp {
+	return []*regexp.Regexp{
+		regexp.MustCompile(`\*\*(.+?)\*\*`),
+		regexp.MustCompile(`__(.+?)__`),
+	}
 }
 
 // enforced reports whether a rule's severity is gated. MUST/SHOULD are enforced;

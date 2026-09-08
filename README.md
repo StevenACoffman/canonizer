@@ -141,6 +141,12 @@ canonizer gate --findings findings.json
   so the event would vouch for unexamined provenance), and when no actor is configured (an
   event with no actor records nothing). **Every ruleset in the current corpus is refused**,
   each carrying 3–17 blocking findings; that is the gate working, not a defect.
+- **`fmt --ruleset PATH [--check]`** — Rewrite a ruleset into the exact form
+  `ruleset.Render` emits, which is what `verify`'s `non-canonical` finding measures against.
+  `--check` reports without writing and exits 1, the same split exegesis `normalize` uses; an
+  already-canonical file is left untouched. No text is lost — the word sequence is identical
+  before and after — but wrapping moves: a rationale hand-wrapped across three lines becomes
+  one long line. This is the command that clears `--sign-off`'s non-canonical refusal.
 - **`critic --source PATH --ruleset PATH [--out FILE]`** — Emit a cold-critic prompt for a
   fresh grader.
 - **`gate [--findings FILE] [--selftest]`** — Block (exit 1) while any finding is blocking.
