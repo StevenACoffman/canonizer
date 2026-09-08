@@ -1406,7 +1406,35 @@ and the ruleset was largely right.
       *checked and missing* and *not checkable* are different answers. One anchor in the
       measured ruleset is of this kind, so the cost today is one false blocking finding —
       small, and the argument is the confusion rather than the count.
-- [ ] **An elided quotation cannot match, and eliding is what a careful quoter does.** Six of
+- [x] **An elided quotation cannot match, and eliding is what a careful quoter does.**
+      DONE 2026-09-08 in `anchorPresent`, which now reads a quotation as a conjunction of
+      fragments. **Measured: `anchor-absent` falls 59 → 39 across the eight rulesets, −20,
+      and every other category is byte-identical on all eight.** The predicted class size
+      was 20, so the fix lands exactly where the measurement said it would.
+      **The separator is `"... "`, not `"..."`, and the corpus is why.** Of 31 ellipses in
+      its anchors, the 30 marking an elision are followed by whitespace and the one that is
+      not is Go variadic syntax inside a code span — `` `tx.QueryContext(ctx, ...)` ``.
+      A bare separator cuts that into `` `tx.QueryContext(ctx,` `` and `` `)` ``, and a lone
+      `)` is in every source, so a code anchor could pass on a fragment carrying no
+      evidence. Both spellings score 117 of 162 today, so this bought no anchors and closed
+      a failure channel; two tests fail under the bare separator, which is what keeps it.
+      Safe as a plain string because `textnorm.Fold` collapses whitespace and rewrites
+      U+2026 first, so `…` and a line-wrapped ellipsis arrive in one spelling.
+      **The conjunction is weaker than a whole-span match and the weakness is recorded, not
+      hidden.** Fragments may come from anywhere and **order is not checked** — `"B ... A"`
+      passes a source reading `"A ... B"`. An offset per fragment would close it; no anchor
+      in the corpus exhibits it, so the gap is priced and left open.
+      **A trailing elision is refused, and that is pinned by a test rather than implied.**
+      `Fold` trims, so `"text ... "` loses the space that makes the mark a separator. The
+      corpus has **zero** leading and **zero** trailing elisions and the prompt's convention
+      is a gap *between* two spans, so refusing an unbounded remainder is the reading — and
+      it is pinned so widening it later has to be deliberate.
+      **A latent vacuous pass died with the branch.** Reviewing against §4 showed the
+      elided/unelided guard was unnecessary: an unelided quotation splits to one fragment
+      and behaves identically, so the two paths merged into one loop. The old single
+      `strings.Contains` reported an **empty** quotation as present; the conjunction reports
+      it absent, which is the fail-closed default this family keeps rediscovering.
+      Original entry: Six of
       26 anchors quote with `...` — *"I rarely expose internal details like transactions to
       the rest of my application ... it's rarely necessary"* — which is a faithful quotation
       of two spans and matches neither.
@@ -1415,8 +1443,24 @@ and the ruleset was largely right.
       **Not done with the prefix fix, deliberately:** that fix corrected a check that could
       never pass, and this one widens what passes. They deserve separate measurement, and
       bundling them would make the 0 → 14 number above unattributable.
-- [ ] **Eight anchors are paraphrase rather than quotation, and that is the ruleset's
-      defect.** *"every method in the `DialService` interface takes `ctx context.Context`
+- [x] **Eight anchors are paraphrase rather than quotation, and that is the ruleset's
+      defect.** DONE 2026-09-08 as checklist item 9 in `distill_source_prompt.md`, which
+      says quote verbatim, mark a gap with `...` and a space, and make each side verbatim
+      on its own.
+      **The premise does not reproduce, and the conclusion survives it anyway.** On the
+      eight-ruleset corpus **zero** anchors are paraphrase — every one carries a quoted
+      span, in double quotes or in backticks. The eight came from `crud_rules.md` as it
+      stood at 19:52 on 2026-09-06, a file revised two minutes later and deleted two hours
+      after that; it is the third finding in this backlog traced to that vanished file.
+      **What is actually there is misquotation: 31 anchors quote a span that is not in the
+      source.** Sampled against the nearest source window, 18 of 31 sit at 0.85–0.95
+      similarity — near-misses, not inventions. So the prompt still needs to say *verbatim*,
+      for a different reason than this entry gave: the anchors are quoting, and quoting
+      inexactly. Fix the reason, keep the fix.
+      **The prompt's effect is unmeasured on purpose.** Checklist items only bind the next
+      distillation, so nothing here can be verified until `pipeline.sh` is re-run. The
+      31 misquotations stay open as the residual below.
+      Original entry: *"every method in the `DialService` interface takes `ctx context.Context`
       first"* describes the source instead of quoting it. No substring check can validate a
       paraphrase, and it should not try to: this is the `anchor-fabricated` case the gate
       exists for, and the honest fix is upstream — the prompt says the anchor makes
@@ -1475,7 +1519,23 @@ evidence yet that the fix was to the check rather than to the corpus.
 **Two rulesets carry no `non-canonical` finding** — the first time `Canonical` has passed on
 content it did not come packaged with.
 
-- [ ] **`unbounded` fires on eight of eight, and the gate is not the thing that is wrong.**
+- [x] **`unbounded` fires on eight of eight, and the gate is not the thing that is wrong.**
+      DONE 2026-09-08 — the prompt now asks. `Limitations:` joins the metadata block with a
+      bracketed instruction, joins the allowed-line list that governs the parse, and joins
+      checklist item 7; and the instruction says not to write `none`, because
+      `verify.Limitations` accepts any non-empty string and its own doc rules out detecting
+      an empty answer with a word list.
+      **The allowed-line list had to change first, and that ordering is the point.** Line 29
+      tells the model any line outside a fixed set *"will corrupt the parse"*. Adding a
+      header to the metadata block without adding it there would have told the model to emit
+      a line the same document forbids. Verified against the kernel before writing either:
+      `ruleset.Parse` has a `Limitations:` case, `Render` emits it, and a round trip through
+      both is byte-identical — so this is format 3 and the parse claim is true today.
+      **No Go change, and the check stays advisory.** `verify.Limitations` already reads the
+      field, and its doc already names the expiry condition — advisory *"because no ruleset
+      in the corpus carries the header yet, so blocking would fail every one of them"*.
+      Whether to make it blocking is a decision for after a corpus carries it, and the
+      corpus will not until `pipeline.sh` is re-run. Original entry:
       No ruleset declares `Limitations:`, so the check reports a missing header on every
       document it has ever seen. **A check that fires on 100% of inputs carries no
       information** — the shape `Specificity` had at 29 of 29 before it was widened.
@@ -1490,3 +1550,68 @@ content it did not come packaged with.
       place a ruleset says where it stops applying, and the argument for it does not weaken
       because nothing has one yet.
       Do not simply delete the check: the header is wanted and the finding is accurate.
+
+______________________________________________________________________
+
+## Two More Anchor Classes, Measured and Deliberately Not Bundled (2026-09-08)
+
+Found while measuring the elision fix. Both are in the function that fix edited, both are
+cheap, and both were left out so the elision result stayed attributable at exactly −20 —
+the same reason the elision work was itself held back from the prefix fix.
+
+Anchor failure classes across the eight rulesets, 162 anchors, before this session:
+
+| class                              |    n | fixed by            |
+| ---------------------------------- | ---: | ------------------- |
+| ellipsis, every fragment in source |   20 | done 2026-09-08     |
+| ellipsis, some fragment absent     |   10 | ruleset's own fault |
+| backtick-quoted span, present      |    3 | the entry below     |
+| backtick-quoted span, absent       |    1 | ruleset's own fault |
+| double-quoted span, absent         |   31 | ruleset's own fault |
+| no quotation at all (paraphrase)   |    0 | does not occur      |
+
+- [ ] **`anchorText` reads `"` and not `` ` ``, so a code quotation is unsearchable.** An
+      anchor may quote an identifier rather than prose — `` §Remove dependencies by
+      abstracting services: `FindDialByID(ctx context.Context, id int) (*Dial, error)` `` —
+      and `anchorText` looks only for a double-quoted span, so it falls back to the whole
+      anchor and searches the section prefix along with it. That is the same defect the
+      prefix fix corrected, surviving in the delimiter it did not consider.
+      **Measured: 4 anchors, 3 of which are present in the source and wrongly reported
+      absent.** Small, and the smallness is the argument for doing it rather than against:
+      it is one more delimiter in a function that already takes the first quoted span.
+      **The design question is which delimiter wins when an anchor carries both**, since
+      `` §Helper methods: "`defer rows.Close()`" `` nests one inside the other. Taking the
+      outermost — double quotes when present, backticks otherwise — matches what the prompt
+      writes and keeps the rule stateable in a sentence.
+- [ ] **`textnorm.Fold` does not fold markdown emphasis, so faithful quotations of the
+      rendered text miss.** The sources are markdown and use `__bold__`; an anchor quotes
+      what a reader sees, so `only` in the anchor meets `__only__` in the source. Diffing
+      near-miss anchors against their best source window shows this as the single largest
+      systematic cause.
+      **Measured: 10 anchors, 65 → 55 absent on its own, and it composes — with the
+      elision fix and backtick spans it takes the corpus from 65 absent to 31.**
+      **The siting is the real question and it is not obviously canonizer's.** `Fold`'s doc
+      says it folds *"the characters a book and its plain-text extraction are most likely to
+      disagree about"*, and markdown emphasis is squarely that, which argues for skillet.
+      Against: four consumers read `Fold`, and widening a kernel datum to answer one
+      consumer's question is what the `markdown.Links` decision refused — there the
+      consumer's *question* was widened locally instead. Follow that precedent: fold
+      emphasis in canonizer where the anchor question lives, and file the kernel question
+      separately rather than deciding it from here.
+      **Do not fold emphasis inside a code span.** `` `__init__` `` is an identifier whose
+      underscores are content, and stripping them would invent a symbol that does not
+      exist. Unmeasured in this corpus; named because the fix is a regex and this is the
+      case a regex gets wrong.
+- [ ] **`sectionOnly` fires zero times on the corpus.** The three-way anchor split shipped
+      in `b469f8b` has **no instance** in the eight rulesets: every anchor carries a
+      quotation, so none is a bare section reference. Its own entry said the population was
+      unmeasured; this measures it at 0.
+      **Not a reason to remove it.** The conflation it undoes — *searched and not found*
+      versus *nothing to search for* — is wrong at any frequency, and the prompt still
+      permits a section reference, so a ruleset may produce one tomorrow. But it is a reason
+      to stop citing it as load-bearing, and to expect the next distillation to be the first
+      test of whether the permission is ever used.
+      **The honest options are to keep it as a fixture-tested guard, or to remove the
+      permission from the prompt and make the check blocking.** The second is coherent —
+      every anchor already quotes, so nothing would break — and it would replace an advisory
+      nobody hits with a rule the corpus already follows. Needs a decision, not more code.

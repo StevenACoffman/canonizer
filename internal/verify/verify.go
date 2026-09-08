@@ -75,6 +75,29 @@ const (
 	CategoryAnchorSectionOnly = "anchor-section-only"
 )
 
+// elision is the mark a quoter puts where words were skipped, and the trailing space is
+// load-bearing.
+//
+// The prompt asks for "... " and the corpus obeys: of 31 ellipses in its anchors, the 30
+// that mark an elision are followed by whitespace and the one that is not is Go variadic
+// syntax inside a code span -- `tx.QueryContext(ctx, ...)`. Splitting on a bare "..." would
+// cut that into `tx.QueryContext(ctx,` and `)`, and a lone `)` is in every source, so a code
+// anchor could pass on a fragment carrying no evidence at all.
+//
+// Requiring the space costs nothing measured -- both spellings score 117 of 162 on today's
+// corpus -- so this closes a failure channel rather than buying anchors. It is spelled out
+// because a reader comparing the two would otherwise see a distinction with no measured
+// difference and simplify it away.
+//
+// Safe as a plain string because textnorm.Fold collapses whitespace runs to a single space
+// and rewrites U+2026 to three dots before any of this runs, so both "…" and an ellipsis
+// broken across a line arrive here in this one spelling.
+//
+// The space is written as an escape for the reason skillet writes its own space-like folds
+// that way: a literal trailing space in source is invisible, so a later reader could neither
+// tell it is part of the separator nor notice if it were silently edited away.
+const elision = "...\u0020"
+
 // Executable returns a diagnostic for every enforced rule that lacks a discriminating
 // ✗/✓ pair (B): one with no ✗ or no ✓, or one whose ✓ preferred form appears verbatim
 // inside its ✗ counter-example (so the pair demonstrates no change). It scores the
@@ -243,8 +266,42 @@ func unanchored(r *ruleset.Rule) (finding.Diagnostic, bool) {
 // anchor ever written: measured on the first real ruleset, 0 of 26 whole anchors were
 // present while 11 of the same 26 quoted the article verbatim. The check was reporting a
 // fabrication rate of 100% against a ruleset whose anchors were largely sound.
+//
+// **A quotation may be elided, and until this split it the eliding was punished.** A quoter
+// who joins two spans of one passage with "... " is being careful, yet the joined string
+// matched nothing, so a faithful quotation drew the verdict an invention gets. Measured on
+// the corpus: 20 of 65 absent anchors are exactly this shape, the largest single class and
+// every one of them sound.
+//
+// The conjunction is what makes that safe to accept. Each span must be in the source on its
+// own, so a fabricator still has to fabricate text the source contains -- twice. It is a
+// weaker claim than one long span found whole, and the weakness is named rather than left
+// for a reader to notice: fragments may come from anywhere in the source, and their **order
+// is not checked**, so "B ... A" passes against a source reading "A ... B". Carrying an
+// offset between fragments would close that, and no anchor in the corpus exhibits it; the
+// gap is priced and left open.
+//
+// Ensures: false when no non-empty fragment survives, so an anchor of nothing but elisions
+//
+//	cannot pass on an empty conjunction -- and neither can an empty quotation, which the
+//	single strings.Contains this replaced would have reported as present; it is pure.
 func anchorPresent(source, anchor string) bool {
-	return strings.Contains(textnorm.Fold(source), textnorm.Fold(anchorText(anchor)))
+	folded := textnorm.Fold(source)
+	found := 0
+	for _, fragment := range strings.Split(textnorm.Fold(anchorText(anchor)), elision) {
+		trimmed := strings.TrimSpace(fragment)
+		if trimmed == "" {
+			// An elision at either end, or two in a row, yields an empty fragment.
+			// Skipping rather than failing keeps the conjunction to the spans actually
+			// quoted; the counter is what stops every fragment being skipped.
+			continue
+		}
+		if !strings.Contains(folded, trimmed) {
+			return false
+		}
+		found++
+	}
+	return found > 0
 }
 
 // sectionOnly reports whether an anchor names a section and says nothing else.

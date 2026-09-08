@@ -26,9 +26,9 @@ ______________________________________________________________________
 ## Output Format
 
 The output is parsed mechanically. It must contain **only** a two-line metadata block
-followed by rule blocks — nothing else. Any line that is not `Source:`, `Scope:`, a
-`§` rule header, a rationale line, a `✗` line, a `✓` line, or a `↦` source-anchor line
-will corrupt the parse. Do not emit Markdown headings, tables, prose, blank rules, or
+followed by rule blocks — nothing else. Any line that is not `Source:`, `Scope:`,
+`Limitations:`, a `§` rule header, a rationale line, a `✗` line, a `✓` line, or a `↦`
+source-anchor line will corrupt the parse. Do not emit Markdown headings, tables, prose, blank rules, or
 commentary.
 
 Every `[MUST]` and `[SHOULD]` rule must end with a `↦` line: a short quote or section
@@ -39,7 +39,15 @@ Begin with the metadata block:
 ```text
 Source: [title and author, or "unknown" if not stated]
 Scope:  [language(s), paradigm(s), domain(s), and architectural context — derived from the source, not assumed]
+Limitations: [what these rules do not cover — subjects the source omits, contexts where its advice does not hold, and decisions it leaves open]
 ```
+
+`Limitations:` is the counterpart to `Scope:` and is required. A ruleset distilled from one
+source and presented without that source's bounds reads as rules for the whole subject.
+State what a reader would wrongly assume is covered: adjacent concerns the source never
+addresses, the scale or domain its advice assumes, and any question it raises and leaves
+unanswered. Do not write `none` — a source with no limits does not exist, and an empty
+answer passes the format while telling a reader nothing.
 
 Then a flat sequence of rule blocks. Grouping is carried by the section number in each
 `§N.M` header, not by headings: rules that share a concern share the leading `N`
@@ -263,14 +271,21 @@ Before submitting, confirm each rule satisfies all of the following:
    not a description of what good developers do.
 6. **Source fidelity:** No rule asserts more than the source supports. Where the
    source hedges, the rule hedges or assigns lower severity.
-7. **Format purity:** The document contains only the `Source:`/`Scope:` lines and
-   `§` rule blocks — no headings, tables, or lines outside a rule block.
+7. **Format purity:** The document contains only the `Source:`/`Scope:`/`Limitations:`
+   lines and `§` rule blocks — no headings, tables, or lines outside a rule block.
 8. **Backtick every identifier:** Wrap each package, type, function, method,
    field, file name and flag in backticks — `database/sql`, `*sql.DB`,
    `Open()`, `ctx context.Context`. A rule naming a real symbol in plain prose
    reads to a checker as a rule naming nothing, so the same rule scores as
    vague or concrete depending on typography alone. Backtick the identifier,
    not the sentence around it.
+9. **Quote anchors verbatim:** A `↦` line's quotation must be the source's own words,
+   character for character, not a paraphrase or a summary of the passage. The anchor exists
+   so a reader can find the sentence the rule came from; a paraphrase cannot be found, and a
+   checker cannot tell a paraphrase from an invention. Where a faithful quotation needs to
+   skip words, mark the gap with `...` **followed by a space** — `"the first part ... the
+   last part"` — and make each side of the gap verbatim on its own. Never use `...` to stand
+   in for words you did not check.
 
 Revise or drop any rule that fails. Do not pad the ruleset to appear
 comprehensive.
