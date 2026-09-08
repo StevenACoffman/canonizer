@@ -2197,3 +2197,49 @@ substitution is **a backtick in the anchor where the source has none, 12 times**
       third batch says whether 5 is typical or whether this check's rate swings as widely as
       the symbol rate does (10.1 points mean absolute change). No design change should be
       made before that number exists.
+
+______________________________________________________________________
+
+## Batch 3, and a Prediction That Failed (2026-09-08)
+
+The corpus is committed at last (`rulesets` `861a072`, 131 files), so batch 2 is preserved in
+git while batch 3 sits in the working tree — the first properly paired before-and-after this
+family has had. 133 enforced rules, 150 anchors.
+
+- [x] **The prediction was 8 of 8 canonical. The result was 0 of 8, and the reason was mine
+      to have foreseen.** Recorded as a failed prediction rather than quietly corrected.
+      **What I got right**: checklist item 7's three conventions worked exactly. **Zero**
+      three-space headers and **zero** swapped `✗`/`✓` pairs across all eight, against 14 and
+      2 in batch 2. Stating a convention does what demonstrating it did not.
+      **What I missed**: the `Limitations:` instruction had never actually been exercised.
+      Every batch-2 ruleset carried `unbounded`, meaning none declared the header, so batch 3
+      is the **first** to carry it — and a document declaring `Limitations:` is a version-3
+      document, which `Render` writes with a `---`/`format: 3`/`---` block. The prompt asked
+      for the header and never asked for the block, so all eight declare a version they do
+      not match.
+      **One defect, not eight**: prepending the block makes **all eight canonical** with no
+      other change. Verified by probe before the fix was written.
+      **Fixed as the fifth contradiction of the same family** — the prompt teaching a form
+      `Canonical` rejects. The metadata section now shows the block, the allowed-line list
+      admits it, and checklist item 7 requires it.
+- [x] **`unbounded` is gone: 8 of 8 rulesets now declare `Limitations:`.** The check that
+      fired on every document it had ever seen now fires on none, and it took a prompt change
+      rather than a code change — which is what that entry argued.
+- [x] **`anchor-absent` is zero.** 59 in batch 1 before any fix, 32 in batch 2, **0** in
+      batch 3 across 150 anchors. The three checker fixes — elision, backtick spans, emphasis
+      folding — and the verbatim-quotation instruction together closed the whole class.
+      **The backtick-in-quotation contradiction filed above may now be moot**, since nothing
+      is absent to rescue. Do not implement the fold on that filing's +8: it was measured on
+      batch 2 and batch 3 has no absent anchors at all. Re-measure before building.
+- [ ] **Agents now use the section-reference permission: 9 colonless anchors, 8 reported
+      `anchor-section-only`.** The permission was added because forcing a quotation invites
+      fabrication; it is being taken up, and `sectionOnly` has gone from idle to the third
+      most common finding in one batch.
+      **That makes the residual worth re-examining rather than assuming.** Of the 9, one
+      carries a quotation and is searched; the other 8 are advisory. Whether they are honest
+      section references or paraphrases-without-colons is unmeasured, and the difference
+      decides whether this is the permission working or the colon hole widening.
+      **Also unmeasured: whether `unbounded` going quiet cost anything.** A `Limitations:`
+      line that says little satisfies the check by construction, which `verify.Limitations`
+      already warns of — *"`Limitations: none` satisfies the field and states nothing"*. Read
+      the eight before trusting the zero.

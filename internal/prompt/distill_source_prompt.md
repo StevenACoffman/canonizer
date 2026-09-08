@@ -26,21 +26,29 @@ ______________________________________________________________________
 ## Output Format
 
 The output is parsed mechanically. It must contain **only** a two-line metadata block
-followed by rule blocks — nothing else. Any line that is not `Source:`, `Scope:`,
-`Limitations:`, a `§` rule header, a rationale line, a `✗` line, a `✓` line, or a `↦`
-source-anchor line will corrupt the parse. Do not emit Markdown headings, tables, prose, blank rules, or
+followed by rule blocks — nothing else. Any line that is not one of the three version-block
+lines, `Source:`, `Scope:`, `Limitations:`, a `§` rule header, a rationale line, a `✗` line,
+a `✓` line, or a `↦` source-anchor line will corrupt the parse. Do not emit Markdown headings, tables, prose, blank rules, or
 commentary.
 
 Every `[MUST]` and `[SHOULD]` rule must end with a `↦` line: a short quote or section
 reference from the source that this rule derives from, so its provenance is auditable.
 
-Begin with the metadata block:
+Begin with the version block and then the metadata block, exactly like this:
 
 ```text
+---
+format: 3
+---
 Source: [title and author, or "unknown" if not stated]
 Scope:  [language(s), paradigm(s), domain(s), and architectural context — derived from the source, not assumed]
 Limitations: [what these rules do not cover — subjects the source omits, contexts where its advice does not hold, and decisions it leaves open]
 ```
+
+The `format: 3` block is required and is not decoration: a document declaring
+`Limitations:` **is** a version-3 document, and one written without the block declares a
+version it does not match. Emit it verbatim — three dashes, the line `format: 3`, three
+dashes — as the first three lines of the file, before `Source:`.
 
 `Limitations:` is the counterpart to `Scope:` and is required. A ruleset distilled from one
 source and presented without that source's bounds reads as rules for the whole subject.
@@ -267,8 +275,8 @@ Before submitting, confirm each rule satisfies all of the following:
    not a description of what good developers do.
 6. **Source fidelity:** No rule asserts more than the source supports. Where the
    source hedges, the rule hedges or assigns lower severity.
-7. **Format purity:** The document contains only the `Source:`/`Scope:`/`Limitations:`
-   lines and `§` rule blocks — no headings, tables, or lines outside a rule block.
+7. **Format purity:** The document begins with the three-line `format: 3` block, and then
+   contains only the `Source:`/`Scope:`/`Limitations:` lines and `§` rule blocks — no headings, tables, or lines outside a rule block.
    Three spacing conventions are exact, because the stored form is compared byte for byte
    against a canonical rendering: **two spaces** after the `[LEVEL]` tag (not three), **six
    spaces** of indent on every rationale, `✗`, `✓`, `⊨` and `↦` line, and each rationale on
