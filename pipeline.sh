@@ -2,11 +2,16 @@
 #
 # pipeline.sh — distill one source subdirectory into canonical rulesets.
 #
-# Usage: ./pipeline.sh SUBDIR
+# Usage: ./pipeline.sh SUBDIR [LABEL]
 #
 # SUBDIR names a directory under $SRC_DIR. Prompts are written under
 # rulesets/prompts/SUBDIR, and each prompt is told to write its ruleset into
 # rulesets/distilled/SUBDIR via canonizer distill --rulesout.
+#
+# LABEL suffixes both directories -- prompts/SUBDIR-LABEL and distilled/SUBDIR-LABEL -- so
+# one source tree can be distilled twice and both results kept. Two runs of the same sources
+# are what tells a property of the source apart from nondeterminism in the run, which no
+# number taken across different sources can do.
 #
 # This is step 1 of canonizer's pipeline (see README, "A worked run"): distill emits one
 # prompt per source and an agent runs each prompt.
@@ -47,16 +52,44 @@ has_cmd() {
     fi
 }
 
-if [ "$#" -ne 1 ]; then
-    printf 'usage: %s SUBDIR\n' "$(basename "$0")" >&2
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+    printf 'usage: %s SUBDIR [LABEL]\n' "$(basename "$0")" >&2
     exit 2
 fi
 D="$1"
+LABEL="${2-}"
+
+# A label suffixes both output directories, so the same sources can be distilled more than
+# once without the second run overwriting the first. That is the only way to see whether a
+# score varies while the input does not: the corpus's backtick rate ranged 11% to 78% across
+# eight *different* sources, which cannot distinguish a property of the source from
+# nondeterminism in the run.
+#
+# **The prompts directory is suffixed too, and that is not tidiness.** Each prompt names the
+# file its agent should write, so a prompt generated for one label points at that label's
+# rules directory. Sharing one prompts directory would send both runs' output to the same
+# place and measure nothing.
+#
+# Validated as a single path segment: a label reaching this from a shell history could
+# otherwise walk out of the output tree, and these two variables are used unquoted nowhere
+# but they are used to build paths that get created.
+if [ -n "$LABEL" ]; then
+    case "$LABEL" in
+        *[!A-Za-z0-9._-]* | -* | .* )
+            printf '%s: LABEL must be letters, digits, dot, underscore or dash, and may not begin with a dot or dash: %s\n' \
+                "$(basename "$0")" "$LABEL" >&2
+            exit 2
+            ;;
+    esac
+    SUFFIX="-${LABEL}"
+else
+    SUFFIX=""
+fi
 
 SRC_DIR="${HOME}/Documents/agent-orange/go-advice/Sources"
 OUT_ROOT="${HOME}/Documents/git/rulesets"
-PROMPT_DIR="${OUT_ROOT}/prompts/${D}"
-RULES_DIR="${OUT_ROOT}/distilled/${D}"
+PROMPT_DIR="${OUT_ROOT}/prompts/${D}${SUFFIX}"
+RULES_DIR="${OUT_ROOT}/distilled/${D}${SUFFIX}"
 
 for cmd in canonizer claude; do
     if ! has_cmd "$cmd"; then

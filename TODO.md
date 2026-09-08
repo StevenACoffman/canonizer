@@ -1975,21 +1975,46 @@ are fixed here; two changes need a decision first and are not made.
       the format the prompt teaches was the format `Canonical` rejects. Fixing the example is
       better than running `fmt` over the output afterwards, because a formatter would hide
       that the prompt and the checker disagreed.
-- [ ] **A re-run silently overwrites the untracked corpus, and that is the largest risk
+- [x] **A re-run silently overwrites the untracked corpus, and that is the largest risk
       before the next batch.** `RULES_DIR` is `distilled/${D}`, so `./pipeline.sh
       benbjohnson` writes over the eight rulesets already there. Those files have **zero
       commits** — the `rulesets` repository has no commit at all — and every measurement in
       this backlog references them.
       **The fix is to commit the corpus, which is the item above, not to patch the script
       around an uncommitted repository.** A guard here would be protecting evidence that
-      should not have been unprotected. Recorded as a dependency: do not re-run until that
-      item is done.
-- [ ] **Distilling one source twice needs a run label, and nothing supports it.** The
-      unstated-convention item can only close by scoring one source distilled twice, and a
-      second run currently overwrites the first — the exact opposite of what the measurement
-      needs. A second positional argument writing to `distilled/${D}-${LABEL}` would do it,
-      and the prompts directory needs the same treatment or the second run reuses the first
-      run's prompts and measures nothing.
-      **Not built, because the shape depends on how the comparison is wanted**: two runs of a
-      whole subdirectory, or two runs of one named source. The second is cheaper and enough
-      for the measurement, and it is a different flag.
+      should not have been unprotected.
+      **Resolved by deletion 2026-09-08, deliberately, and the consequence is worth writing
+      down.** The eight rulesets were removed to prepare a clean re-run, which was the prior
+      procedure. So the numbers this backlog cites — 63 of 147 flagged, 11%–78% symbol rates,
+      26 absent anchors, five of eight non-canonical — now survive as **records rather than
+      re-checkable measurements**. That is the third artifact in this family lost while
+      untracked, and the argument for committing the next batch does not depend on the first
+      one having been kept.
+      **Deleting was nonetheless the right call here**, because the prompt fix above changes
+      what a distillation produces: the five-of-eight non-canonical finding is precisely what
+      a fresh run tests, and stale output could not test it.
+- [x] **Distilling one source twice needs a run label, and nothing supports it.**
+      DONE 2026-09-08 as an optional second argument: `./pipeline.sh SUBDIR [LABEL]` writes
+      to `prompts/SUBDIR-LABEL` and `distilled/SUBDIR-LABEL`, so a second run keeps the
+      first. No label reproduces the old paths exactly.
+      **The reason first given for not building it was weak and is recorded as such.** It
+      said the shape depended on whether the comparison wanted a whole subdirectory or one
+      named source. A label is a string, so it serves both — and distilling the whole
+      subdirectory twice gives **eight paired comparisons instead of one**, which is strictly
+      better evidence for the same marginal cost of one extra run.
+      **The prompts directory is suffixed too, and that is load-bearing rather than tidy.**
+      Each prompt names the file its agent must write, so a prompt built for one label points
+      at that label's rules directory. One shared prompts directory would send both runs to
+      the same destination and measure nothing.
+      **The label is validated as a single path segment** — letters, digits, dot, underscore,
+      dash, and no leading dot or dash — because it is interpolated into two directories that
+      then get created, and a label out of a shell history could otherwise walk out of the
+      output tree.
+      **A residual confound, stated rather than left to be found.** The two runs' prompts are
+      not byte-identical: each names its own destination, so one line differs. For measuring
+      backtick adherence that is immaterial — the destination is a path at the end of the
+      prompt, not guidance about how to write rules — but it is a difference, and the
+      comparison is therefore *near*-controlled rather than controlled. The stricter
+      alternative is to run twice into the same directory and archive between runs, which
+      keeps the prompt identical at the cost of a half-moved tree if a run dies partway.
+      Not taken, and available if the destination line is ever suspected of mattering.
