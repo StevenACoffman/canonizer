@@ -101,4 +101,13 @@ for p in "${prompts[@]}"; do
 done
 
 printf '\nran %d prompt(s); rulesets should be in %s\n' "${#prompts[@]}" "$RULES_DIR" >&2
-printf 'verify them with: canonizer verify --ruleset %s/NAME_rules.md\n' "$RULES_DIR" >&2
+
+# --source is named here because omitting it is not a smaller check, it is a different one.
+# Without it the anchor gates are replaced by an advisory, and the blocking count on the
+# first real batch fell from 17 to 5, 15 to 3 and 8 to 2 -- so the shorter invocation reads
+# as a better result while having examined less. --sign-off refuses outright without it.
+printf 'verify them with:\n' >&2
+printf '  canonizer verify --ruleset %s/NAME_rules.md \\\n' "$RULES_DIR" >&2
+printf '    --source %s/NAME.md\n' "${SRC_DIR}/${D}" >&2
+printf 'a ruleset reported non-canonical is made canonical by:\n' >&2
+printf '  canonizer fmt --ruleset %s/NAME_rules.md\n' "$RULES_DIR" >&2

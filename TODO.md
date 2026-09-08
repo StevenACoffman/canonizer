@@ -1917,3 +1917,79 @@ ______________________________________________________________________
       takes a raw document and a `[]verification.Event` and returns the document with its
       block replaced is not the same function as `Render`, and it would be the first
       skillet API that edits a document rather than producing one.
+
+______________________________________________________________________
+
+## The Comparative-Hedge Signal Now Has Two Reasons (2026-09-08)
+
+- [ ] **Try the comparative-hedge vocabulary: it scores 12 where `Softening` scores 0.**
+      Filed as considered-and-not-taken when `unspecific` was retired, on the ground that a
+      lexical proxy for a semantic property is the wall five attempts have hit and must earn
+      a second corpus first. That reasoning stands. What changed is the comparison.
+      **The first reason was accuracy.** Swapping concreteness for a vocabulary of
+      comparative and threshold hedges — *"closely related"*, *"by decreasing importance"*,
+      *"roughly 10K SLOC"*, *"expensive enough"* — scores **63 → 12** on the eight rulesets,
+      retains **all four** rules the retired entry defended as genuinely soft, and adds three
+      plausible catches (*"at the layers a developer considers significant"*, *"when
+      assertion verbosity hurts readability"*).
+      **The second reason is that the check it would replace is now idle.** `Softening` fires
+      **zero times** across all eight rulesets. `skilllens.SofteningTerms` is a short list of
+      **discretion** phrases — *"as appropriate"*, *"it depends"*, *"at your discretion"* —
+      and no ruleset in the corpus uses one. So the choice is no longer "a noisy signal
+      versus a quieter one" but **12 findings versus none at all**, and a check that reports
+      nothing on every document it has ever seen is not obviously better than one that
+      reports twelve things worth reading.
+      **The axis is different from `SofteningTerms`, which is why this is not just widening
+      it.** Discretion phrases say *you may choose*; comparative hedges say *some unstated
+      amount*. A rule saying "split when a file gets large" commits to an action and refuses
+      to say when — which is the defect, and it contains no discretion phrase at all.
+      **Siting: canonizer-local, on the `markdown.Links` precedent.** `SofteningTerms` is
+      skillet's and skillsaw and adh score against it; widening a shared vocabulary to answer
+      one consumer's question is what that decision refused. What would be added is
+      canonizer's list, and if a second consumer ever wants it the question moves to skillet
+      then.
+      **What it must still earn before shipping**: a second corpus. The 12 are measured on
+      the same eight rulesets that produced the hypothesis, which is exactly the error the
+      retired entry exists to record. Run it against a different batch first.
+
+______________________________________________________________________
+
+## `pipeline.sh` Before the Next Batch (2026-09-08)
+
+Assessed 2026-09-08 against everything that shipped since the first batch ran. Two defects
+are fixed here; two changes need a decision first and are not made.
+
+- [x] **The closing hint taught the invocation that under-reports.** DONE 2026-09-08. It
+      printed `canonizer verify --ruleset PATH` with no `--source`, and omitting `--source`
+      is not a smaller check but a different one: the anchor gates are replaced by an
+      advisory, and on the first batch the blocking count fell **17 → 5, 15 → 3 and 8 → 2**.
+      The shorter invocation reads as a better result while having examined less, and
+      `--sign-off` refuses outright without it. The hint now names `--source` and, beside it,
+      the `canonizer fmt` line for a ruleset reported non-canonical.
+- [x] **The prompt's own worked examples were non-canonical, which is why 5 of 8 rulesets
+      were.** DONE 2026-09-08. Two of four examples put **three** spaces after the level tag
+      where `Render` emits two, and every example wrapped its rationale across lines where
+      `Render` joins them. Verified by round-tripping the example block through
+      `Parse`/`Render`: it did not match itself, and now does.
+      **This is the root cause, not `fmt`'s absence.** Agents copy the worked example, so
+      the format the prompt teaches was the format `Canonical` rejects. Fixing the example is
+      better than running `fmt` over the output afterwards, because a formatter would hide
+      that the prompt and the checker disagreed.
+- [ ] **A re-run silently overwrites the untracked corpus, and that is the largest risk
+      before the next batch.** `RULES_DIR` is `distilled/${D}`, so `./pipeline.sh
+      benbjohnson` writes over the eight rulesets already there. Those files have **zero
+      commits** — the `rulesets` repository has no commit at all — and every measurement in
+      this backlog references them.
+      **The fix is to commit the corpus, which is the item above, not to patch the script
+      around an uncommitted repository.** A guard here would be protecting evidence that
+      should not have been unprotected. Recorded as a dependency: do not re-run until that
+      item is done.
+- [ ] **Distilling one source twice needs a run label, and nothing supports it.** The
+      unstated-convention item can only close by scoring one source distilled twice, and a
+      second run currently overwrites the first — the exact opposite of what the measurement
+      needs. A second positional argument writing to `distilled/${D}-${LABEL}` would do it,
+      and the prompts directory needs the same treatment or the second run reuses the first
+      run's prompts and measures nothing.
+      **Not built, because the shape depends on how the comparison is wanted**: two runs of a
+      whole subdirectory, or two runs of one named source. The second is cheaper and enough
+      for the measurement, and it is a different flag.

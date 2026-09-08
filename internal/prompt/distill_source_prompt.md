@@ -59,23 +59,19 @@ applied belongs before the rules it constrains. Within a section, order `[MUST]`
 ### Rule Format
 
 ```text
-§2.3  [MUST][CODE]   Never discard an error return without an explicit decision.
-      Silently dropping errors removes the caller's only signal that an
-      operation failed; bugs become invisible until they corrupt state downstream.
+§2.3  [MUST][CODE]  Never discard an error return without an explicit decision.
+      Silently dropping errors removes the caller's only signal that an operation failed; bugs become invisible until they corrupt state downstream.
       ✗  result, _ = db.Exec(query)
       ✓  result, err = db.Exec(query); if err != nil { return fmt.Errorf(...) }
       ↦  §Errors: "never ignore the value returned by a function"
 
-§5.1  [MUST][ARCH]   Keep business logic out of the persistence layer.
-      Embedding domain rules in stored procedures or ORM hooks couples
-      correctness to a specific database technology; unit-testing the logic
-      or migrating the database then requires the full database stack.
+§5.1  [MUST][ARCH]  Keep business logic out of the persistence layer.
+      Embedding domain rules in stored procedures or ORM hooks couples correctness to a specific database technology; unit-testing the logic or migrating the database then requires the full database stack.
       ✗  Validation trigger in PostgreSQL enforces a domain invariant
       ✓  Domain service validates the invariant before calling the repository
 
 §7.2  [SHOULD][METHOD]  Deploy each change independently rather than batching releases.
-      Batched deployments make it impossible to attribute a production incident
-      to a specific change and force full rollback when only one change is defective.
+      Batched deployments make it impossible to attribute a production incident to a specific change and force full rollback when only one change is defective.
 ```
 
 Within each section, order rules `[MUST]` first, then `[SHOULD]`, then
