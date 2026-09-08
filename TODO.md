@@ -1395,6 +1395,12 @@ and it stays open. What would close it is a repeat distillation of *one* source 
 which needs the agent pipeline and was not run here. Until then the honest statement is that
 `unspecific` still varies with which distillation produced the ruleset.
 
+**Unblocked 2026-09-08 by the decision on the entry below**: `unspecific` becomes a
+document-level statistic reported in the scope line, which is precisely the per-ruleset rate
+this entry needs and cannot currently see. It does not close this item — that still wants one
+source distilled twice — but it makes the spread visible on every run instead of only when
+somebody writes a script.
+
 - [ ] **When the convention is followed the check looks sound, and that is the argument for
       keeping it.** The 4 it flagged in the well-formatted ruleset are the softest rules
       there — *"a real dependency boundary"*, *"closely related"*, *"by importance"*,
@@ -1434,6 +1440,40 @@ which needs the agent pipeline and was not run here. Until then the honest state
       not survive 63 of them. What to do is a separate question: accept the check as a
       typography lint and rename it for what it measures, or find a signal for actionability
       that is not lexical. Do not relax it on this evidence alone.
+      **DECIDED 2026-09-08 — keep the computation, drop the accusation.** Delete
+      `unspecific` as a per-rule finding, and report what it computes once per document
+      instead. Not yet implemented.
+      **The check's message is false on essentially every rule it flags.** It says the
+      statement *"names no object, tool or API a reader could act on"*, and reading all 63:
+      one is *"Hand-write these mocks rather than generating them with a mocking library such
+      as GoMock"* — which names a tool — and another is *"Accept search criteria as one
+      filter struct parameter"* — which names the object. They all name something. What
+      separates the four soft rules is **hedging on a threshold or criterion** (*"closely
+      related"*, *"by decreasing importance"*, *"roughly 10K SLOC"*), not naming.
+      **63 of 147 enforced rules, a 43% fire rate.** An advisory that fires on two rules in
+      five is noise a reader learns to scroll past, and renaming it would make the label
+      honest without making the signal useful.
+      **The per-rule question already has an owner, and it is not a regex.** The cold
+      critic's `vague` test 2 is word for word what this claims to measure — *"Could a reader
+      act on it without further interpretation? It should name the object, tool, API or step
+      involved"* — asked by something that can read, at **error** severity. Two spellings of
+      one question, and the deterministic one is the weaker.
+      **What the data does support is a document-level statistic.** Zero of the flagged
+      rules carry a code span against 94% of those that pass, so what this measures is
+      **backtick-convention adherence** — a true property of a document and a false claim
+      about a rule. It belongs in the scope line beside *"examined 9 of 11 rule(s)"*.
+      **That is the measurement the entry below has been asking for**, which is why this
+      decision is worth making for its sake as much as this entry's: the per-ruleset rate
+      runs 9% to 78%, and nothing currently reports it.
+      **One option is kept on file rather than taken.** Swapping concreteness for a
+      *comparative-hedge* vocabulary — distinct from `SofteningTerms`, which is discretion
+      phrases only — scores **63 → 12**, retains all four rules this entry defends, and adds
+      three plausible catches. It is still a lexical proxy for a semantic property, which is
+      the wall five attempts have hit, so it must earn a second corpus before being trusted.
+      That discipline is what this entry exists to enforce.
+      **Honesty about the argument for deleting**: that the critic covers these 63 is an
+      argument from its rubric, not from evidence. Nobody has run `critic` against them. The
+      cheap check before deleting is one critic run on one ruleset.
 
 ______________________________________________________________________
 
@@ -1733,7 +1773,37 @@ elision, which are the rulesets' own defects rather than the check's.
       **The honest options are to keep it as a fixture-tested guard, or to remove the
       permission from the prompt and make the check blocking.** The second is coherent —
       every anchor already quotes, so nothing would break — and it would replace an advisory
-      nobody hits with a rule the corpus already follows. Needs a decision, not more code.
+      nobody hits with a rule the corpus already follows.
+      **DECIDED 2026-09-08 — permit and advise, and count it as provenance not examined.**
+      Not yet implemented. Three parts: state the permission plainly in the prompt's
+      checklist, keep the diagnostic advisory, and make a section-only anchor count as *not
+      examined* in the scope line rather than passing silently.
+      **The prompt contradicts itself, and that reframes the decision.** The format spec
+      permits *"a short quote or section reference"*; checklist item 9, added 2026-09-08 in
+      the same session that shipped this check, requires a quotation to be *"the source's own
+      words, character for character"*. So the real question was never keep-or-block but
+      **which direction to resolve an inconsistency nobody had noticed**.
+      **Blocking was rejected because it removes the only honest answer.** A rule genuinely
+      derived from a whole passage has no single sentence to quote, and this corpus has
+      already shown what an agent does when it needs a quotation it does not have: **31
+      anchors quote text absent from the source, 18 of them near-misses**. Forcing a
+      quotation invites a cherry-picked sentence that *looks* verbatim while being worse
+      provenance than an honest section reference. Held as a risk rather than a certainty —
+      the fallback is available today and misquotation happens anyway — but a gate that turns
+      honest imprecision into confident-looking fabrication is the wrong trade.
+      **What is actually broken is that a section-only anchor passes silently**, which is
+      indistinguishable in the output from a verified one. That is the fail-open shape this
+      family keeps closing, and counting it as unexamined fixes it without failing a ruleset
+      for doing what the prompt asked.
+      **It reuses machinery that already exists and already says the right thing.**
+      `reportScope`'s own message is *"an empty result here means unchecked, not clean"*.
+      **Deleting the check was considered and refused**: a legitimate section reference would
+      then report `anchor-absent` — fabrication — which is exactly the conflation the split
+      was built to undo. Trading a correct distinction for 170 lines.
+      **Do both accountings at once.** The entry above decided that `unspecific` becomes a
+      document-level statistic in the same scope line; section-only anchors belong in that
+      same account of how much of a ruleset is machine-checkable. One coherent change to what
+      `verify` reports, not two.
 
 ______________________________________________________________________
 
