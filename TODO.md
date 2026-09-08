@@ -1954,7 +1954,7 @@ ______________________________________________________________________
 
 ## The Comparative-Hedge Signal Now Has Two Reasons (2026-09-08)
 
-- [ ] **Try the comparative-hedge vocabulary: it scores 12 where `Softening` scores 0.**
+- [x] **Try the comparative-hedge vocabulary: it scores 12 where `Softening` scores 0.**
       Filed as considered-and-not-taken when `unspecific` was retired, on the ground that a
       lexical proxy for a semantic property is the wall five attempts have hit and must earn
       a second corpus first. That reasoning stands. What changed is the comparison.
@@ -1992,6 +1992,33 @@ ______________________________________________________________________
       **What it must still earn before shipping**: a second corpus. The 12 are measured on
       the same eight rulesets that produced the hypothesis, which is exactly the error the
       retired entry exists to record. Run it against a different batch first.
+      **DONE 2026-09-08 as `verify.Unquantified`, and the second corpus did not reproduce
+      the 12.** Batch two gives **5 of 137 enforced rules**. Batch one was deleted before
+      this shipped, so the 12 is a record and not re-checkable: this is a fresh measurement,
+      not confirmation.
+      **Built on 5 anyway, and the criterion is precision rather than volume.** All five are
+      the class the retired entry defended, and its four named examples — *"closely
+      related"*, *"by importance"*, *"roughly 10K SLOC"*, *"expensive enough"* — are all
+      caught. For an advisory that is the right test: a reader pays for a wrong finding and
+      gains nothing from a check that reports little but is right. Against `Softening`'s two
+      it roughly triples a signal that read 1.5% of what it saw.
+      **The wider list was rejected on measurement, and the two statements that killed it are
+      now test cases.** *"Start from a **small** set of generic error codes — `ECONFLICT`…"*
+      and *"Cut assertion verbosity with a **small** set of helpers — `assert(tb …)`"* both
+      name concrete symbols and are actionable; "small set" is ordinary English rather than
+      an unstated threshold. So `large`, `small`, `simple`, `complex`, `appropriate`,
+      `reasonable`, `sufficient` and `adequate` are gone, and eight terms remain.
+      **A separate function, not a branch on `Softening`.** A function called `Softening`
+      reporting unquantified amounts would be the Vague Name flag two commits after that name
+      was cleaned; and every other check here is its own function.
+      **A canonizer-local category, because the vocabulary is canonizer's.**
+      `skilllens.CategorySoftening` is skillet's word for skillet's list, and emitting it for
+      words skillet does not define would have these findings claim a provenance they lack.
+      **Disjointness is measured, not assumed**: the two vocabularies overlap on **zero** of
+      137 rules, and a test pins both directions. So a rule could in principle draw both
+      findings, and no precedence is built — the old one-note-per-rule guarantee is gone with
+      the single function, and if overlap ever appears the question returns rather than
+      having been answered by a mechanism nobody checked.
 
 ______________________________________________________________________
 
@@ -2084,7 +2111,7 @@ against the corrected prompt, so it is the test of those corrections rather than
       demonstrated.
       Item 7 now names all three: two spaces after the tag, six-space indent, one unwrapped
       line per rationale, and `✗` before `✓`.
-- [ ] **`sectionOnly` fired for the first time, and it fired on a paraphrase rather than a
+- [x] **`sectionOnly` fired for the first time, and it fired on a paraphrase rather than a
       bare section reference.** The anchor is
       `` ↦ §3 `NewTestDB` opening a real Bolt database, contrasted with §4 `TestYoClient` ``.
       It carries no colon, so `sectionOnly`'s colon rule reads everything after `§` as one
@@ -2096,7 +2123,26 @@ against the corrected prompt, so it is the test of those corrections rather than
       all eight paraphrase anchors into advisories and buried a real finding"*. A paraphrase
       written without a colon now gets exactly that treatment.
       **So the check is no longer idle, and its first real instance is a false advisory.**
-      One anchor of 137, so this is not urgent. The candidate fix is a length or word-count
-      bound on what counts as a section name — a real section heading is short — but that is
-      a threshold, and this repository has refused thresholds without a corpus before. Wait
-      for a second instance before choosing one.
+      **DONE 2026-09-08, and no threshold was needed.** `sectionOnly` gained a conjunct: an
+      anchor holding a quotable span — double-quoted or backticked — has something to search
+      for whatever its punctuation, so it is not section-only regardless of the colon.
+      **A conjunct, not a replacement, and that distinction is why it is safe.** The
+      predicate rejected when this check shipped was *"section-only means it carries no
+      quotation"*, which would have made every colon-bearing paraphrase advisory. Asking both
+      questions is strictly narrower than today, so nothing reported as a defect became
+      advisory — a test pins `§Errors: every method takes ctx first` still failing as absent.
+      **It reuses `firstDelimited`**, extracted for the backtick-anchor fix, so the earlier
+      refactor paid for this one and there is no third spelling of "is there a span".
+      **Measured: the false advisory is gone and the anchor is now searched *and found*.**
+      `anchor-section-only` falls 1 → 0 while `anchor-absent` stays at 2, so the anchor
+      verifies rather than merely being reclassified. Every other category on all eight
+      rulesets is unchanged.
+      **The honest consequence: `sectionOnly` is idle again.** Of 157 anchors, 155 are
+      `§name: content`, one is the quoted case above, and **zero** are colonless and
+      quotation-free — so the corpus holds no bare section reference even though the prompt
+      now permits one. It is *correctly* idle rather than falsely firing, which was the whole
+      defect.
+      **The residual, named rather than closed:** a paraphrase both colonless and
+      quotation-free would still read as a section name. Zero instances, so no length bound
+      is guessed — the reasoning that refused a threshold stands, and the measurement now
+      supports it rather than merely asserting it.

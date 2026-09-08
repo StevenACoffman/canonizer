@@ -115,3 +115,55 @@ func TestSectionNamesMayContainSpaces(t *testing.T) {
 		}
 	}
 }
+
+// TestAnAnchorWithSomethingToSearchIsNotSectionOnly closes the hole the corpus found: a
+// paraphrase written without a colon read as one long section name and drew an advisory,
+// which is the treatment the colon rule was chosen to keep paraphrases *out* of.
+func TestAnAnchorWithSomethingToSearchIsNotSectionOnly(t *testing.T) {
+	t.Parallel()
+
+	const source = "We call `NewTestDB` to open a real Bolt database, and `TestYoClient` " +
+		"to mock the remote client. Transactions stay inside the service method."
+
+	cases := []struct {
+		name   string
+		anchor string
+		want   string
+	}{{
+		// The measured instance. Two code spans to search for, so the gate must search.
+		name: "a colonless paraphrase carrying code spans is searched, not excused",
+		anchor: "§3 `NewTestDB` opening a real Bolt database, contrasted with " +
+			"§4 `TestYoClient`",
+		want: "",
+	}, {
+		name:   "a colonless anchor carrying a quotation is searched",
+		anchor: `§3 the passage reading "Transactions stay inside the service method"`,
+		want:   "",
+	}, {
+		// Unchanged: nothing to search for, so nothing was searched.
+		name:   "a bare section reference is still advisory",
+		anchor: "§Transactional boundaries",
+		want:   verify.CategoryAnchorSectionOnly,
+	}, {
+		name:   "a numbered bare section is still advisory",
+		anchor: "§4.2",
+		want:   verify.CategoryAnchorSectionOnly,
+	}, {
+		// Unchanged, and the case the conjunct must not disturb: a colon-bearing paraphrase
+		// quotes nothing and stays a defect rather than becoming an advisory.
+		name:   "a colon-bearing paraphrase still fails as absent",
+		anchor: "§Errors: every method takes ctx first",
+		want:   verify.CategoryAnchorAbsent,
+	}}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			rs := anchored(c.anchor)
+			got, _ := categoryOf(t, verify.Provenance(&rs, source))
+			if got != c.want {
+				t.Errorf("category = %q, want %q\nanchor: %s", got, c.want, c.anchor)
+			}
+		})
+	}
+}

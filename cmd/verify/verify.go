@@ -120,6 +120,7 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 	// Both are advisory and independent of --source, so they run before the provenance
 	// block rather than inside it: a run without a source must still report them.
 	diags = append(diags, vfy.Softening(&rs)...)
+	diags = append(diags, vfy.Unquantified(&rs)...)
 	diags = append(diags, vfy.Conflicts(&rs)...)
 	diags = append(diags, vfy.Canonical(string(raw), &rs)...)
 	diags = append(diags, vfy.Limitations(&rs)...)

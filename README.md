@@ -127,9 +127,12 @@ canonizer gate --findings findings.json
   distilled rulesets.
 - **`verify --ruleset PATH [--source PATH] [--proof PATH] [--out FILE] [--sign-off]`** — Check
   executability and provenance, then emit findings JSON. `--proof` writes a packet binding
-  the ruleset (and source) to their exact bytes. It also reports *hedging* — a rule using a
-  discretion phrase, so a reader cannot tell when it applies — as a **warning that never
-  blocks**: a hedged rule is sometimes correct and a deterministic check cannot tell which,
+  the ruleset (and source) to their exact bytes. It also reports two kinds of vagueness as
+  **warnings that never block**: *hedging*, a rule using a discretion phrase
+  (`it depends`), and an *unquantified* amount, a rule that commits to an action while
+  leaving the threshold it turns on unstated (`too many files`, `roughly 10K SLOC`). The two
+  vocabularies are disjoint — one says *you may choose*, the other *some unstated
+  quantity*: such a rule is sometimes correct and a deterministic check cannot tell which,
   so this reports and does not decide.
   It reports two proportions per run rather than per rule: how many enforced rules **name a
   symbol a checker can see**, and how many anchors **name a section only**, whose provenance

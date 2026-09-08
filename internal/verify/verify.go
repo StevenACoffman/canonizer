@@ -69,6 +69,8 @@ const (
 	CategoryAnchorUnverifiable = "anchor-unverifiable"
 	// CategoryUnsound is a rule whose checks do not discriminate between its own ✗ and ✓.
 	CategoryUnsound = "unsound"
+	// CategoryUnquantified is a statement that turns on an amount it never states.
+	CategoryUnquantified = "unquantified"
 	// CategoryAnchorSectionOnly is an anchor that names a section and says nothing else,
 	// so there is no text to search the source for.
 	CategoryAnchorSectionOnly = "anchor-section-only"
@@ -318,12 +320,35 @@ func anchorPresent(source, anchor string) bool {
 // So a section-only anchor is one whose section token is all there is: `§Errors`, `§4.2`.
 // Anything after it -- quoted or not -- is content the gate can and should search for.
 //
+// **The residual, named rather than closed**: a paraphrase that is colonless *and* quotes
+// nothing would still read as a section name. The corpus holds **zero** such anchors -- of
+// 157, 155 are `§name: content` and one is the quoted case above -- so no length or
+// word-count bound is guessed here. A real section heading is short and a paraphrase is not,
+// but that is a threshold, and this package has refused thresholds without a corpus before.
+//
 // Ensures: false for any anchor carrying a quotation or trailing prose; false for an empty
 //
 //	anchor, which Provenance reports as no-anchor before reaching here; it is pure.
 func sectionOnly(anchor string) bool {
 	rest, found := strings.CutPrefix(strings.TrimSpace(anchor), "§")
 	if !found {
+		return false
+	}
+	// An anchor holding a quotable span has something to search for, whatever its
+	// punctuation, so it is not section-only regardless of the colon test below.
+	//
+	// This is a *conjunct*, and the distinction from the predicate rejected when this
+	// shipped is the whole reason it is safe. That one was "section-only means it carries no
+	// quotation", which would have made every colon-bearing paraphrase advisory. This asks
+	// both questions, so the rule is strictly narrower than before and nothing reported as a
+	// defect today becomes advisory.
+	//
+	// It exists because the colon test has a hole the corpus found: a paraphrase written
+	// without a colon reads as one long section name. The instance was
+	// "§3 `NewTestDB` opening a real Bolt database, contrasted with §4 `TestYoClient`",
+	// which describes the source rather than pointing at it and carries two code spans to
+	// search for.
+	if firstDelimited(anchor, '"') != "" || firstDelimited(anchor, '`') != "" {
 		return false
 	}
 	// The colon is the separator the form uses -- `§Errors: "quote"` -- so content after it
