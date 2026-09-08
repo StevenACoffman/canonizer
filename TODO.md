@@ -655,10 +655,24 @@ from). Checked against the code in both repositories.
   **Where the events go is settled by precedent, not open.** Both consumers store them in the
   artifact they are about, under a `verified` key — gnosis in document frontmatter, adh
   appended to the unit's own file. canonizer's artifact is the ruleset, so the slot is a
-  `Verified:` header at **format 4**, which is also the only candidate that satisfies this
+  slot on the ruleset at **format 4**, which is also the only candidate that satisfies this
   entry's own trigger, *"if rulesets ever carry provenance metadata"*. Filed in
   `skillet/TODO.md`; a `proof.Packet` field was the alternative until the precedent was
   checked.
+  **Narrowed 2026-09-08: the slot is the ruleset's YAML frontmatter block, not a `Verified:`
+  body header.** `Verified` is list-valued while every existing header is one string, so a
+  body header would need an invented delimiter grammar; the frontmatter block already exists
+  and holds a list natively. It is also what gnosis actually reads — frontmatter, not a body
+  header — and it keeps the record out of reach of the agent that authors the rule body.
+  **The trigger this entry set is now the thing being built**, so the next state for this
+  item is *adopt*, not *wait*: once skillet models `Verified` and canonizer pins that
+  release, `unanchored`'s record and the `anchor-drift`/`anchor-stale` gap below both have a
+  place to read from. Reasoning and the measured costs live in `skillet/TODO.md` under "No
+  artifact carries verification events" — **one authoritative location**, referenced rather
+  than restated, because this is a kernel decision that canonizer consumes.
+  **Still blocked here, and on exactly one thing: a released skillet carrying the field.**
+  No canonizer code should be written before then — that was this entry's own finding, and
+  a slot existing does not by itself give canonizer an actor to attribute an event to.
   **What `Event` buys when a slot exists**, recorded so the next reader need not re-derive
   it: `anchor-drift` and `anchor-stale` both say *the source changed* and neither can say
   whether anyone re-confirmed the anchors since. That is §5.2's independence of `verified`
