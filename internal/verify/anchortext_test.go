@@ -47,7 +47,7 @@ func TestAnAnchorMayQuoteWithBackticks(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			rs := anchored(c.anchor)
-			got, _ := categoryOf(t, verify.Provenance(&rs, source))
+			got, _ := categoryOf(t, verify.Provenance(&rs, []string{source}))
 			if got != c.want {
 				t.Errorf("category = %q, want %q\nanchor: %s", got, c.want, c.anchor)
 			}
@@ -98,7 +98,7 @@ func TestPairedEmphasisIsFoldedAndSingleMarkersAreNot(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			rs := anchored(c.anchor)
-			got, _ := categoryOf(t, verify.Provenance(&rs, c.source))
+			got, _ := categoryOf(t, verify.Provenance(&rs, []string{c.source}))
 			if got != c.want {
 				t.Errorf("category = %q, want %q\nanchor: %s", got, c.want, c.anchor)
 			}

@@ -61,7 +61,7 @@ func TestUnverifiableIsNotAnchorAbsent(t *testing.T) {
 	rs := ruleset.Ruleset{Rules: []ruleset.Rule{rule("1.1", ruleset.MUST, "b", "g", "ANCHOR")}}
 
 	unverifiable := verify.Unverifiable(&rs)
-	absent := verify.Provenance(&rs, "a source that does not contain it")
+	absent := verify.Provenance(&rs, []string{"a source that does not contain it"})
 	if len(unverifiable) != 1 || len(absent) != 1 {
 		t.Fatalf("want one of each; got %+v and %+v", unverifiable, absent)
 	}

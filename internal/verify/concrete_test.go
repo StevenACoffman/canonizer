@@ -127,7 +127,7 @@ func TestAnchorMatchesTheQuotedSpan(t *testing.T) {
 				Section: "1.1", Severity: ruleset.MUST, Level: ruleset.CODE,
 				Statement: "do the thing", Bad: "b", Good: "g", SourceAnchor: tc.anchor,
 			}}}
-			found := len(verify.Provenance(&rs, source)) == 0
+			found := len(verify.Provenance(&rs, []string{source})) == 0
 			if found != tc.wantFound {
 				t.Errorf("anchor found = %t, want %t for %q", found, tc.wantFound, tc.anchor)
 			}

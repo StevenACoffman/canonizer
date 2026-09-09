@@ -8,10 +8,25 @@
 # rulesets/prompts/SUBDIR, and each prompt is told to write its ruleset into
 # rulesets/distilled/SUBDIR via canonizer distill --rulesout.
 #
-# LABEL suffixes both directories -- prompts/SUBDIR-LABEL and distilled/SUBDIR-LABEL -- so
-# one source tree can be distilled twice and both results kept. Two runs of the same sources
-# are what tells a property of the source apart from nondeterminism in the run, which no
-# number taken across different sources can do.
+# LABEL suffixes every directory below, so one source tree can be run twice and both results
+# kept. Two runs of the same sources are what tells a property of the source apart from
+# nondeterminism in the run, which no number taken across different sources can do.
+#
+# The stages, and the directory each writes:
+#
+#   prompts/           distill prompts, one per source        (agent writes distilled/)
+#   distilled/         one ruleset per source
+#   synthesis_prompts/ the single merge prompt                (agent writes synthesis/)
+#   synthesis/         the candidate ruleset, one per attempt
+#   findings/          verify findings, one per attempt
+#   critique/          cold-critic prompts and their findings, one per attempt
+#
+# **Nothing is overwritten.** Every artifact after synthesis carries its attempt number, so a
+# refine loop leaves the whole history on disk rather than the last state of it.
+#
+# **The refine loop is the driver `canonizer loop` documents itself as needing**: canonizer
+# calls no model, so the critic and the rework are the agent's steps and the attempt counter
+# is held here.
 #
 # This is step 1 of canonizer's pipeline (see README, "A worked run"): distill emits one
 # prompt per source and an agent runs each prompt.
@@ -90,6 +105,15 @@ SRC_DIR="${HOME}/Documents/agent-orange/go-advice/Sources"
 OUT_ROOT="${HOME}/Documents/git/rulesets"
 PROMPT_DIR="${OUT_ROOT}/prompts/${D}${SUFFIX}"
 RULES_DIR="${OUT_ROOT}/distilled/${D}${SUFFIX}"
+SYNTH_PROMPT_DIR="${OUT_ROOT}/synthesis_prompts/${D}${SUFFIX}"
+SYNTH_DIR="${OUT_ROOT}/synthesis/${D}${SUFFIX}"
+FINDINGS_DIR="${OUT_ROOT}/findings/${D}${SUFFIX}"
+CRITIQUE_DIR="${OUT_ROOT}/critique/${D}${SUFFIX}"
+
+# MAX_ATTEMPTS bounds the refine loop. It is the --max canonizer budget reads, and the reason
+# a bound exists at all: a loop that reworks until it passes will eventually pass by attrition
+# rather than by the ruleset improving.
+MAX_ATTEMPTS="${MAX_ATTEMPTS:-3}"
 
 for cmd in canonizer claude; do
     if ! has_cmd "$cmd"; then
@@ -103,7 +127,28 @@ if [ ! -d "${SRC_DIR}/${D}" ]; then
     exit 1
 fi
 
-mkdir -p "$PROMPT_DIR" "$RULES_DIR"
+mkdir -p "$PROMPT_DIR" "$RULES_DIR" "$SYNTH_PROMPT_DIR" "$SYNTH_DIR" \
+    "$FINDINGS_DIR" "$CRITIQUE_DIR"
+
+# run_agent NAME PROMPT EXTRA_DIR... -- run one prompt from its own directory.
+#
+# Factored out because the distill stage and the two synthesis-stage agents need identical
+# treatment and had drifted apart when it was written twice: run from the prompt's directory
+# so its relative links resolve, grant the directories it must read and write, and show the
+# output rather than capturing it. The artifact is the file the agent writes; its reply is a
+# report about the work.
+run_agent() {
+    _label="$1"; _prompt="$2"; shift 2
+    _grants=()
+    for _d in "$@"; do _grants+=(--add-dir "$_d"); done
+    printf '\n=== %s\n' "$_label" >&2
+    if ! ( cd "$(dirname "$_prompt")" \
+        && claude -p --permission-mode acceptEdits "${_grants[@]}" \
+            < "$(basename "$_prompt")" ); then
+        printf '%s: claude failed on %s\n' "$(basename "$0")" "$_prompt" >&2
+        return 1
+    fi
+}
 
 canonizer distill --source "${SRC_DIR}/${D}" --out "$PROMPT_DIR" --rulesout "$RULES_DIR"
 
@@ -120,27 +165,183 @@ if [ "${#prompts[@]}" -eq 0 ]; then
 fi
 
 for p in "${prompts[@]}"; do
-    printf '\n=== %s\n' "$(basename "$p")" >&2
-    # Run from the prompt's directory so its relative links resolve, and read the prompt
-    # by name from there. Output is shown, not captured: the ruleset is the file the agent
-    # writes, and this is the running commentary.
-    if ! ( cd "$(dirname "$p")" \
-        && claude -p --permission-mode acceptEdits \
-            --add-dir "${SRC_DIR}/${D}" --add-dir "$RULES_DIR" \
-            < "$(basename "$p")" ); then
-        printf '%s: claude failed on %s\n' "$(basename "$0")" "$p" >&2
-        exit 1
-    fi
+    run_agent "$(basename "$p")" "$p" "${SRC_DIR}/${D}" "$RULES_DIR" || exit 1
 done
 
-printf '\nran %d prompt(s); rulesets should be in %s\n' "${#prompts[@]}" "$RULES_DIR" >&2
+shopt -s nullglob
+rulesets=("${RULES_DIR}"/*_rules.md)
+shopt -u nullglob
+if [ "${#rulesets[@]}" -eq 0 ]; then
+    printf '%s: no rulesets in %s; the distill agents wrote nothing\n' \
+        "$(basename "$0")" "$RULES_DIR" >&2
+    exit 1
+fi
+printf '\ndistilled %d ruleset(s)\n' "${#rulesets[@]}" >&2
 
-# --source is named here because omitting it is not a smaller check, it is a different one.
-# Without it the anchor gates are replaced by an advisory, and the blocking count on the
-# first real batch fell from 17 to 5, 15 to 3 and 8 to 2 -- so the shorter invocation reads
-# as a better result while having examined less. --sign-off refuses outright without it.
-printf 'verify them with:\n' >&2
-printf '  canonizer verify --ruleset %s/NAME_rules.md \\\n' "$RULES_DIR" >&2
-printf '    --source %s/NAME.md\n' "${SRC_DIR}/${D}" >&2
-printf 'a ruleset reported non-canonical is made canonical by:\n' >&2
-printf '  canonizer fmt --ruleset %s/NAME_rules.md\n' "$RULES_DIR" >&2
+# ---------------------------------------------------------------------------------------
+# Stage 2: merge the per-source rulesets into one candidate.
+# ---------------------------------------------------------------------------------------
+
+SYNTH_PROMPT="${SYNTH_PROMPT_DIR}/${D}_synthesis_prompt.md"
+
+# --rulesout writes the destination into the prompt, the same way distill's does for each
+# per-source ruleset. Without it the prompt names no output path and an agent prints the
+# merged ruleset instead of writing one.
+canonizer synthesize --rulesets "$RULES_DIR" --rulesout "$SYNTH_DIR" --out "$SYNTH_PROMPT"
+
+run_agent "synthesis" "$SYNTH_PROMPT" "$RULES_DIR" "$SYNTH_DIR" || exit 1
+
+# The candidate is discovered rather than named. `synthesize --rulesout` derives the
+# filename through skillet's naming rules, and spelling that out again here is how the two
+# would start disagreeing -- the label form alone (`benbjohnson-run2`) already normalises
+# differently than a shell substitution would.
+shopt -s nullglob
+candidates=("${SYNTH_DIR}"/*_rules.md)
+shopt -u nullglob
+if [ "${#candidates[@]}" -ne 1 ]; then
+    printf '%s: expected exactly one ruleset in %s, found %d\n' \
+        "$(basename "$0")" "$SYNTH_DIR" "${#candidates[@]}" >&2
+    exit 1
+fi
+CANDIDATE="${candidates[0]}"
+printf 'candidate: %s\n' "$CANDIDATE" >&2
+
+# ---------------------------------------------------------------------------------------
+# Stage 3: the sources.
+#
+# verify, critic and loop each take a repeatable --source, so a synthesized ruleset is
+# checked against every document it was merged from. An anchor is present when any source
+# contains it.
+#
+# **This replaced a concatenation, and the difference is a false positive.** The union was
+# the honest answer while only one --source existed, but textnorm.Fold collapses whitespace,
+# so joining two documents let an anchor match text spanning the seam between them -- a
+# quotation no source contains. Iterating cannot produce that, and it keeps each source
+# hashable on its own, which --proof and --against-proof depend on.
+# ---------------------------------------------------------------------------------------
+
+shopt -s nullglob
+source_files=("${SRC_DIR}/${D}"/*.md)
+shopt -u nullglob
+if [ "${#source_files[@]}" -eq 0 ]; then
+    printf '%s: no sources in %s\n' "$(basename "$0")" "${SRC_DIR}/${D}" >&2
+    exit 1
+fi
+SOURCE_FLAGS=()
+for s in "${source_files[@]}"; do SOURCE_FLAGS+=(--source "$s"); done
+printf 'sources: %d document(s)\n' "${#source_files[@]}" >&2
+
+# ---------------------------------------------------------------------------------------
+# Stage 4: the refine loop -- verify, critique, decide, rework.
+#
+# canonizer calls no model, so the critic and the rework are the agent's steps and the
+# attempt counter is held here. That division is `canonizer loop`'s own description of the
+# driver it needs, and this is that driver.
+#
+# **Every artifact carries its attempt number.** A loop that overwrote its findings would
+# leave only the last round on disk, and the question worth asking afterwards is whether the
+# rework improved the ruleset -- which needs both rounds.
+# ---------------------------------------------------------------------------------------
+
+verdict="unknown"
+attempt=1
+while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
+    printf '\n───── attempt %d of %d ─────\n' "$attempt" "$MAX_ATTEMPTS" >&2
+
+    verify_out="${FINDINGS_DIR}/verify_${attempt}.json"
+    critic_prompt="${CRITIQUE_DIR}/critic_prompt_${attempt}.md"
+    critic_out="${CRITIQUE_DIR}/critic_findings_${attempt}.json"
+
+    # Deterministic checks first: they cost nothing and a ruleset that fails them has
+    # defects a grader should not have to spend a model call finding.
+    canonizer verify --ruleset "$CANDIDATE" "${SOURCE_FLAGS[@]}" --out "$verify_out"
+
+    # The cold critic sees only the source and the candidate -- never the distilled rulesets
+    # or this script's opinion of them -- which is what makes its finding independent.
+    canonizer critic "${SOURCE_FLAGS[@]}" --ruleset "$CANDIDATE" --out "$critic_prompt"
+    cat >> "$critic_prompt" <<EOF
+
+______________________________________________________________________
+
+## Destination
+
+Write your findings JSON to this exact path:
+
+<destination>${critic_out}</destination>
+
+Write the file. Do not print the JSON as your reply.
+EOF
+    run_agent "critic (attempt ${attempt})" "$critic_prompt" \
+        "${SRC_DIR}/${D}" "$SYNTH_DIR" "$CRITIQUE_DIR" || exit 1
+
+    if [ ! -s "$critic_out" ]; then
+        printf '%s: the critic agent wrote no findings to %s\n' \
+            "$(basename "$0")" "$critic_out" >&2
+        exit 1
+    fi
+
+    # loop merges the deterministic and the graded findings and returns the verdict:
+    # 0 ship, 2 rework, 1 needs-human. Captured rather than allowed to abort, because a
+    # rework verdict is a normal outcome of this loop and not an error in it.
+    code=0
+    canonizer loop "${SOURCE_FLAGS[@]}" --ruleset "$CANDIDATE" --findings "$critic_out" \
+        --attempt "$attempt" --max "$MAX_ATTEMPTS" || code=$?
+
+    case "$code" in
+        0) verdict="ship"; break ;;
+        2) verdict="rework" ;;
+        1) verdict="needs-human"; break ;;
+        *) printf '%s: loop exited %d\n' "$(basename "$0")" "$code" >&2; exit "$code" ;;
+    esac
+
+    # Keep this attempt's candidate before the agent edits it, so the loop leaves a history
+    # rather than the last state of one file.
+    cp "$CANDIDATE" "${SYNTH_DIR}/${D}_rules.attempt${attempt}.md"
+
+    # The revision prompt is `canonizer rework`'s, not this script's. It used to be a
+    # heredoc here -- unversioned, untested, and invisible to the template tests that guard
+    # every other prompt against silently losing the canonical form.
+    rework_prompt="${CRITIQUE_DIR}/rework_prompt_${attempt}.md"
+    canonizer rework --ruleset "$CANDIDATE" \
+        --findings "$verify_out" --findings "$critic_out" --out "$rework_prompt"
+
+    run_agent "rework (attempt ${attempt})" "$rework_prompt" \
+        "${SRC_DIR}/${D}" "$SYNTH_DIR" "$CRITIQUE_DIR" "$FINDINGS_DIR" || exit 1
+
+    attempt=$((attempt + 1))
+done
+
+# ---------------------------------------------------------------------------------------
+# Stage 5: the gate has the last word.
+#
+# It re-reads the final deterministic findings rather than trusting the loop's verdict: the
+# loop decided under a budget, and the gate asks the one question a budget cannot soften --
+# does anything still block.
+# ---------------------------------------------------------------------------------------
+
+final_verify="${FINDINGS_DIR}/verify_final.json"
+canonizer verify --ruleset "$CANDIDATE" "${SOURCE_FLAGS[@]}" --out "$final_verify"
+
+gate_code=0
+canonizer gate --findings "$final_verify" || gate_code=$?
+
+printf '\n───── result ─────\n' >&2
+printf 'candidate : %s\n' "$CANDIDATE" >&2
+printf 'verdict   : %s after %d attempt(s)\n' "$verdict" "$attempt" >&2
+printf 'findings  : %s\n' "$FINDINGS_DIR" >&2
+printf 'critiques : %s\n' "$CRITIQUE_DIR" >&2
+
+if [ "$gate_code" -ne 0 ]; then
+    printf '\ngate: the candidate still has blocking findings; it is not shippable.\n' >&2
+    printf 'every attempt is on disk, so the rounds can be compared rather than re-run.\n' >&2
+    exit "$gate_code"
+fi
+
+printf '\ngate: clean. The refined ruleset is %s\n' "$CANDIDATE" >&2
+
+# The per-source rulesets are inputs to the synthesis rather than the deliverable, and this
+# script no longer tells a caller how to verify them by hand -- it verifies the candidate
+# itself. To inspect one of the distilled inputs:
+printf '\nto inspect a distilled input:\n' >&2
+printf '  canonizer verify --ruleset %s/NAME_rules.md --source %s/NAME.md\n' \
+    "$RULES_DIR" "${SRC_DIR}/${D}" >&2

@@ -71,15 +71,17 @@ func sectionName(anchor string) string {
 //
 // Requires: anchor is section-only, which is the only state where it is asked.
 // Ensures:  false when anchor names no section; it is pure.
-func sectionNamed(anchor, source string) bool {
+func sectionNamed(anchor string, sources []string) bool {
 	name := sectionName(anchor)
 	if name == "" {
 		return false
 	}
 	want := headingKey(name)
-	for _, s := range markdown.Parse(source).Sections {
-		if headingKey(s.Title) == want {
-			return true
+	for i := range sources {
+		for _, s := range markdown.Parse(sources[i]).Sections {
+			if headingKey(s.Title) == want {
+				return true
+			}
 		}
 	}
 	return false
@@ -101,8 +103,8 @@ func sectionNamed(anchor, source string) bool {
 // false positive** -- the expiry Limitations shipped with, and for the same reason.
 //
 // Ensures: exactly one diagnostic, always finding.SeverityWarning; it is pure.
-func sectionDiagnostic(r *ruleset.Rule, source string) finding.Diagnostic {
-	if !sectionNamed(r.SourceAnchor, source) {
+func sectionDiagnostic(r *ruleset.Rule, sources []string) finding.Diagnostic {
+	if !sectionNamed(r.SourceAnchor, sources) {
 		return advisory(r, CategoryAnchorSectionUnknown,
 			"anchor names a section the source has no heading for; the rule may still be "+
 				"sound, but nothing here points at where it came from")

@@ -66,7 +66,7 @@ func TestAnElidedQuotationMatchesEachFragment(t *testing.T) {
 			t.Parallel()
 
 			rs := anchored(c.anchor)
-			got, _ := categoryOf(t, verify.Provenance(&rs, elidedSource))
+			got, _ := categoryOf(t, verify.Provenance(&rs, []string{elidedSource}))
 			if got != c.want {
 				t.Errorf("category = %q, want %q\nanchor: %s", got, c.want, c.anchor)
 			}

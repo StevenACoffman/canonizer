@@ -78,7 +78,7 @@ func TestASectionAnchorIsCheckedAgainstTheSourcesHeadings(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			rs := anchored(c.anchor)
-			got, blocking := categoryOf(t, verify.Provenance(&rs, headingSource))
+			got, blocking := categoryOf(t, verify.Provenance(&rs, []string{headingSource}))
 			if got != c.want {
 				t.Errorf("category = %q, want %q\nanchor: %s", got, c.want, c.anchor)
 			}
@@ -96,11 +96,71 @@ func TestASectionAnchorIsCheckedAgainstTheSourcesHeadings(t *testing.T) {
 func TestAnUnknownSectionReplacesTheSectionOnlyNote(t *testing.T) {
 	t.Parallel()
 	rs := anchored("§Error taxonomy")
-	got := verify.Provenance(&rs, headingSource)
+	got := verify.Provenance(&rs, []string{headingSource})
 	if len(got) != 1 {
 		t.Fatalf("want a single finding, got %+v", got)
 	}
 	if got[0].Category != verify.CategoryAnchorSectionUnknown {
 		t.Errorf("category = %q, want the unknown-section report", got[0].Category)
+	}
+}
+
+// TestAnAnchorIsSoughtInEverySource is the multi-source contract: a synthesized ruleset
+// derives from every source it was merged from, so an anchor drawn from any of them is
+// present.
+func TestAnAnchorIsSoughtInEverySource(t *testing.T) {
+	t.Parallel()
+
+	first := "# Alpha\n\nAlways close what you opened.\n"
+	second := "# Beta\n\nNever ignore a returned error.\n"
+
+	cases := []struct {
+		name    string
+		sources []string
+		anchor  string
+		want    string
+	}{{
+		name:    "found in the first",
+		sources: []string{first, second},
+		anchor:  `§Alpha: "Always close what you opened"`,
+		want:    "",
+	}, {
+		name:    "found in the second",
+		sources: []string{first, second},
+		anchor:  `§Beta: "Never ignore a returned error"`,
+		want:    "",
+	}, {
+		name:    "found in neither",
+		sources: []string{first, second},
+		anchor:  `§Alpha: "Always reboot the server"`,
+		want:    verify.CategoryAnchorAbsent,
+	}, {
+		name:    "a section heading from either source counts",
+		sources: []string{first, second},
+		anchor:  "§Beta",
+		want:    verify.CategoryAnchorSectionOnly,
+	}, {
+		// The reason sources are iterated rather than joined: folding collapses the seam,
+		// so a concatenation would let this match text no document contains.
+		name:    "a quotation spanning two sources is not present in either",
+		sources: []string{first, second},
+		anchor:  `§X: "Always close what you opened. Never ignore a returned error."`,
+		want:    verify.CategoryAnchorAbsent,
+	}, {
+		name:    "one source behaves exactly as before",
+		sources: []string{first},
+		anchor:  `§Alpha: "Always close what you opened"`,
+		want:    "",
+	}}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			rs := anchored(c.anchor)
+			got, _ := categoryOf(t, verify.Provenance(&rs, c.sources))
+			if got != c.want {
+				t.Errorf("category = %q, want %q\nanchor: %s", got, c.want, c.anchor)
+			}
+		})
 	}
 }

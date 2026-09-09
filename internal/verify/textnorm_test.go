@@ -35,7 +35,7 @@ func TestFoldingOnlyWidensAcceptance(t *testing.T) {
 			Section: "1.1", Severity: ruleset.MUST, Level: ruleset.CODE,
 			Statement: "Close it.", SourceAnchor: p.anchor,
 		}}}
-		got := verify.Provenance(&rs, p.source)
+		got := verify.Provenance(&rs, []string{p.source})
 		absent := 0
 		for _, d := range got {
 			if d.Category == "anchor-absent" {

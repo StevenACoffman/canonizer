@@ -137,7 +137,7 @@ func Executable(rs *ruleset.Ruleset) ([]finding.Diagnostic, error) {
 // or whose anchor is absent from the source (E). The search is whitespace-normalized
 // so a quote the model re-wrapped still matches. Whether a present anchor *supports*
 // the claim is the critic's `unsupported` judgment.
-func Provenance(rs *ruleset.Ruleset, source string) []finding.Diagnostic {
+func Provenance(rs *ruleset.Ruleset, sources []string) []finding.Diagnostic {
 	diags := make([]finding.Diagnostic, 0)
 	for i := range rs.Rules {
 		r := &rs.Rules[i]
@@ -151,10 +151,10 @@ func Provenance(rs *ruleset.Ruleset, source string) []finding.Diagnostic {
 			continue
 		}
 		if sectionOnly(r.SourceAnchor) {
-			diags = append(diags, sectionDiagnostic(r, source))
+			diags = append(diags, sectionDiagnostic(r, sources))
 			continue
 		}
-		if !anchorPresent(source, r.SourceAnchor) {
+		if !anchorPresent(sources, r.SourceAnchor) {
 			diags = append(
 				diags,
 				diag(r, CategoryAnchorAbsent, "source anchor is not present in the source"),
@@ -282,7 +282,25 @@ func unanchored(r *ruleset.Rule) (finding.Diagnostic, bool) {
 //
 //	cannot pass on an empty conjunction -- and neither can an empty quotation, which the
 //	single strings.Contains this replaced would have reported as present; it is pure.
-func anchorPresent(source, anchor string) bool {
+func anchorPresent(sources []string, anchor string) bool {
+	for i := range sources {
+		if presentIn(sources[i], anchor) {
+			return true
+		}
+	}
+	return false
+}
+
+// presentIn is anchorPresent against one source.
+//
+// **Sources are iterated rather than concatenated, and the difference is a false positive.**
+// textnorm.Fold collapses whitespace, so joining two documents lets an anchor match text
+// spanning the seam between them -- a quotation no source contains. Iterating cannot produce
+// that. It also keeps each source hashable on its own, which --proof and --against-proof
+// depend on: a concatenation's digest changes when an unrelated file is added to the tree.
+//
+// Ensures: false when no non-empty fragment survives; it is pure.
+func presentIn(source, anchor string) bool {
 	folded := unemphasize(textnorm.Fold(source))
 	found := 0
 	quoted := unemphasize(textnorm.Fold(anchorText(anchor)))

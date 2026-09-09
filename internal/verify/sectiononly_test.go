@@ -81,7 +81,7 @@ func TestSectionOnlyAnchor(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			rs := anchored(tc.anchor)
-			cat, blocking := categoryOf(t, verify.Provenance(&rs, anchorSource))
+			cat, blocking := categoryOf(t, verify.Provenance(&rs, []string{anchorSource}))
 			if cat != tc.wantCategory || blocking != tc.wantBlocking {
 				t.Errorf("Provenance = (%q, blocking=%t), want (%q, blocking=%t) for %q",
 					cat, blocking, tc.wantCategory, tc.wantBlocking, tc.anchor)
@@ -98,7 +98,7 @@ func TestDriftAgreesWithProvenanceOnSectionOnly(t *testing.T) {
 	for _, state := range []verify.SourceState{
 		verify.SourceUnknown, verify.SourceUnchanged, verify.SourceChanged,
 	} {
-		cat, blocking := categoryOf(t, verify.Drift(&rs, anchorSource, state))
+		cat, blocking := categoryOf(t, verify.Drift(&rs, []string{anchorSource}, state))
 		if cat != "anchor-section-only" || blocking {
 			t.Errorf("Drift with state %v = (%q, blocking=%t), want the section-only "+
 				"advisory regardless of what the source did", state, cat, blocking)
@@ -117,7 +117,7 @@ func TestSectionNamesMayContainSpaces(t *testing.T) {
 		"§Common CRUD design in Go",
 	} {
 		rs := anchored(anchor)
-		cat, _ := categoryOf(t, verify.Provenance(&rs, anchorSource))
+		cat, _ := categoryOf(t, verify.Provenance(&rs, []string{anchorSource}))
 		if cat != "anchor-section-only" {
 			t.Errorf("anchor %q reported %q, want anchor-section-only", anchor, cat)
 		}
@@ -169,7 +169,7 @@ func TestAnAnchorWithSomethingToSearchIsNotSectionOnly(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			rs := anchored(c.anchor)
-			got, _ := categoryOf(t, verify.Provenance(&rs, source))
+			got, _ := categoryOf(t, verify.Provenance(&rs, []string{source}))
 			if got != c.want {
 				t.Errorf("category = %q, want %q\nanchor: %s", got, c.want, c.anchor)
 			}

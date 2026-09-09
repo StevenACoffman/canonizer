@@ -2379,3 +2379,98 @@ example teaches another.
       now says the pair does not have to be code and demonstrates the alternative.
       **No code change: `Executable` was right.** It reported a real absence, and the absence
       was the prompt's.
+
+______________________________________________________________________
+
+## The Pipeline Runs to a Refined Artifact (2026-09-08)
+
+`pipeline.sh` now carries a run past distillation: synthesize, then a bounded refine loop of
+verify → critic → decide → rework, then the gate. It is the driver `canonizer loop`'s own
+doc describes as needed — *"canonizer calls no model, the critic and the rework are the
+agent's steps"* — and the attempt counter lives in the script.
+
+Nothing is overwritten: every findings file, critic prompt, rework prompt and candidate
+carries its attempt number, so a run leaves its whole history rather than the last state of
+one file. Exercised with stubs on all three paths — ship first time, ship after two reworks,
+and blocked with a non-zero exit.
+
+- [x] **`synthesize` has no `--rulesout`, so the pipeline appends the destination itself.**
+      DONE 2026-09-09 as `synthesize --rulesout DIR`, mirroring `distill` exactly. The
+      template gained a `{{DESTINATION_CONTENT}}` placeholder — verified safe first, since
+      skillet's `synthesize.FillTemplate` requires only `{{RULESETS}}` and ignores other
+      markers, so no kernel change and no release.
+      **The filename comes from `naming.RulesFilename`, and testing caught that it preserves
+      an extension rather than adding one**: a bare directory name came back as
+      `benbjohnson_rules` with no suffix. `distillgen` feeds it a source filename, so the
+      base is now suffixed before the call.
+      **An empty `--rulesout` states today's behaviour rather than leaving a hole** — it
+      fills with an instruction to print the ruleset, because replacing the marker with
+      nothing leaves a heading over an empty section and leaving the marker puts a raw
+      placeholder in front of an agent.
+      **`pipeline.sh` now discovers the candidate rather than re-deriving its name**, by
+      globbing the output directory. Spelling the naming rule out again in shell is how the
+      two would disagree — the label form `benbjohnson-run2` already normalises differently
+      than a shell substitution would. Original entry:
+      `distill --rulesout` writes the target path into every prompt it generates, which is
+      how each distill agent knows the file to create. `synthesize` has no equivalent, so its
+      prompt names no destination and an agent given it prints the merged ruleset instead of
+      writing one — the failure that produced eight files of plan prose on the first run.
+      **The script appends a `<destination>` block to the generated prompt as a stopgap**,
+      and that is the same knowledge in two places: the distill path gets it from a flag and
+      the synthesis path from a heredoc. The fix is `synthesize --rulesout DIR`, matching
+      `distill` exactly, after which the append comes out.
+- [x] **The rework instruction lives in a shell heredoc and belongs in a template.**
+      DONE 2026-09-09 as `internal/prompt/rework_prompt.md` behind `canonizer rework`.
+      **`prompt_test.go`'s two tables gained it, which was the point.**
+      `TestTemplatesSpecifyCanonicalForm` immediately failed — the template described the
+      form but never showed a `§` header — so the guard earned its keep before the commit
+      that added it. That is the defect a heredoc keeps by construction.
+      **`--findings` is repeatable** because a round produces two documents and an agent
+      reworking against one resolves half the round; each is embedded labelled with its
+      path, since a deterministic check and a grader's judgement are not interchangeable.
+      **The text gained a section a heredoc had not**: what *not* to change. Leaving
+      untouched rules and their numbering is what lets one round's findings be compared with
+      the next, and renumbering to close a gap makes every `path` refer to a different rule.
+      Original entry:
+      `distill`, `synthesize` and `critic` each have a template under `internal/prompt` with
+      a test that reads it. Rework has none, so the text deciding what an agent does to a
+      candidate ruleset — including "do not delete a rule to silence a finding" and the
+      canonical-form reminders — is unversioned, untested, and invisible to
+      `prompt_test.go`.
+      **It is also the prompt with the most leverage in the whole pipeline**, since it is the
+      only one that edits an artifact rather than producing one. It should be
+      `internal/prompt/rework_prompt.md` behind a `canonizer rework` command taking the
+      candidate and both findings files, on the shape `critic` already uses.
+- [x] **The multi-source `--source` problem is answered by a union, and the answer deserves
+      a better one.**
+      **MIS-FILED AS BLOCKED, and corrected 2026-09-09.** This entry said the real fix was
+      *"blocked on the format, not on a flag"*. That is true of matching each anchor against
+      **its own** source, which needs a rule to record where it came from. It is false of
+      matching an anchor against **any** source, which needed only a repeatable flag —
+      `ff/v4` has `StringListVar` and always did.
+      DONE: `--source` is repeatable on `verify`, `critic` and `loop`, and the checks
+      **iterate rather than concatenate**.
+      **Iterating is not tidiness, it removes a false positive.** `textnorm.Fold` collapses
+      whitespace, so a union let an anchor match text spanning the seam between two
+      documents — a quotation no source contains. A test pins that case. It also keeps each
+      source hashable on its own, which `--proof` and `--against-proof` depend on: a
+      concatenation's digest changes when an unrelated file joins the tree.
+      **`sourceState` now folds many digests into one verdict**, and any source changing
+      makes the set changed. Reporting unchanged because seven of eight matched would be the
+      fail-open reading.
+      **A slice, not a variadic**, so *no sources* is something a caller passes on purpose —
+      that state is what `Unverifiable` exists to report.
+      **Regression-checked: all eight rulesets report byte-identical categories under a
+      single `--source`.** Original entry: `verify` and `critic` each take one `--source`; a synthesized ruleset
+      derives from all of them. The script concatenates the source tree into
+      `work/<D>/<D>_union_source.md` and passes that, so an anchor from any source is
+      findable.
+      **It is the honest choice and not a correct one.** A union lets an anchor match text
+      from a sibling source, which overstates provenance for that rule. Omitting `--source`
+      is measurably worse — it replaces the anchor gates with an advisory, and on an earlier
+      batch dropped the blocking count from 17 to 5, 15 to 3 and 8 to 2 — so the union is
+      the better of two wrong answers.
+      **What would make it right is `verify --source A --source B`**, matching each anchor
+      against the source its rule came from. That needs a rule to know which source it came
+      from, which the canonical form does not record — so this is blocked on the format, not
+      on the flag.

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/peterbourgon/ff/v4"
 
@@ -23,7 +24,7 @@ import (
 // *root.Config for shared I/O.
 type Config struct {
 	*root.Config
-	Source   string
+	Source   []string
 	Ruleset  string
 	Template string
 	Out      string
@@ -36,8 +37,10 @@ func New(parent *root.Config) *Config {
 	var cfg Config
 	cfg.Config = parent
 	cfg.Flags = ff.NewFlagSet("critic").SetParent(parent.Flags)
-	cfg.Flags.StringVar(&cfg.Source, 0, "source", "",
-		"source document the ruleset was distilled from")
+	// Repeatable so a synthesized candidate can be graded against every source it was
+	// merged from. The grader sees them in the order given, each in its own block.
+	cfg.Flags.StringListVar(&cfg.Source, 0, "source",
+		"source document the grader reads (repeatable)")
 	cfg.Flags.StringVar(&cfg.Ruleset, 0, "ruleset", "",
 		"candidate *_rules.md to critique")
 	cfg.Flags.StringVar(&cfg.Template, 0, "template", "",
@@ -65,7 +68,7 @@ produced — so its judgement is independent of the distillation.`,
 // exec resolves the template, reads the source and ruleset, fills the prompt, and
 // writes it to --out or stdout. Flags are already parsed; it reads them from cfg.
 func (cfg *Config) exec(_ context.Context, _ []string) error {
-	if cfg.Source == "" {
+	if len(cfg.Source) == 0 {
 		return errors.New("critic: --source is required")
 	}
 	if cfg.Ruleset == "" {
@@ -75,9 +78,9 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 	if err != nil {
 		return errors.WrapWithMessage(err, "critic")
 	}
-	source, err := os.ReadFile(cfg.Source)
+	source, err := cfg.readSources()
 	if err != nil {
-		return errors.WrapWithMessage(err, "critic: read source", slog.String("path", cfg.Source))
+		return err
 	}
 	candidate, err := os.ReadFile(cfg.Ruleset)
 	if err != nil {
@@ -88,7 +91,7 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 		return errors.WrapWithMessage(err, "critic: candidate ruleset")
 	}
 	_, _ = fmt.Fprintf(cfg.Stderr, "critic: critiquing %d rule(s)\n", len(rs.Rules))
-	filled, err := crit.FillPrompt(tmpl, string(source), string(candidate))
+	filled, err := crit.FillPrompt(tmpl, source, string(candidate))
 	if err != nil {
 		return errors.Wrap(err) // crit already prefixes "critic:"
 	}
@@ -101,4 +104,42 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 	}
 	_, _ = fmt.Fprintf(cfg.Stdout, "wrote %s\n", cfg.Out)
 	return nil
+}
+
+// readSources concatenates every --source into the one block the template carries, each
+// labelled with the path it came from.
+//
+// **The grader sees the sources joined where verify iterates them, and the asymmetry is
+// deliberate.** verify asks a mechanical question -- is this text present -- where a seam
+// between two documents could manufacture a match. A grader is asked whether the ruleset is
+// supported by what it reads, and a labelled boundary is something it can see and reason
+// about rather than a substring hazard.
+//
+// Ensures: every path given is named in the result; a missing file is an error rather than
+//
+//	a silent skip, because a grader given fewer sources than the ruleset was built from
+//	would report unsupported rules that are in fact supported.
+func (cfg *Config) readSources() (string, error) {
+	var b strings.Builder
+	for i, path := range cfg.Source {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return "", errors.WrapWithMessage(err, "critic: read source",
+				slog.String("path", path))
+		}
+		if i > 0 {
+			b.WriteString("\n\n")
+		}
+		if len(cfg.Source) > 1 {
+			fmt.Fprintf(
+				&b,
+				"<document path=%q>\n%s\n</document>",
+				path,
+				strings.TrimSpace(string(body)),
+			)
+			continue
+		}
+		b.WriteString(string(body))
+	}
+	return b.String(), nil
 }

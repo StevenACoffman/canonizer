@@ -105,10 +105,13 @@ done
 
 # 2. Merge the per-source rulesets into one synthesis prompt; the agent produces the
 #    single candidate ruleset R.
-canonizer synthesize --rulesets ./rulesets --out ./synthesize_prompt.md
+canonizer synthesize --rulesets ./rulesets --rulesout ./synthesis --out ./synthesize_prompt.md
 
 # 3. Deterministic checks: executability (the ✗/✓ pair) and, with --source, provenance.
 canonizer verify --ruleset R.md --source S.md --out findings.json
+#    --source is repeatable. A synthesized ruleset derives from every source it was merged
+#    from, so pass them all: an anchor is present when any source contains it. Sources are
+#    iterated, never joined, so no anchor can match text spanning two documents.
 
 # 4. Cold critic: emit a prompt giving a fresh grader only S and R; the agent runs it and
 #    writes its findings JSON.
@@ -117,15 +120,23 @@ canonizer critic --source S.md --ruleset R.md --out critic_prompt.md
 
 # 5. Gate on the findings: exit non-zero while anything blocks.
 canonizer gate --findings findings.json
+
+# 6. If anything blocks and attempts remain, emit the revision prompt and let the agent
+#    revise R in place, then repeat from 3. pipeline.sh is that driver: it holds the
+#    attempt counter and keeps every round's artifacts.
+canonizer rework --ruleset R.md --findings findings.json --findings critic_findings.json \
+  --out rework_prompt.md
 ```
 
 ## Commands
 
 - **`distill --source DIR --out DIR`** — Fill a distillation prompt for every source in a
   tree.
-- **`synthesize --rulesets DIR [--out FILE]`** — Assemble one synthesis prompt from
-  distilled rulesets.
-- **`verify --ruleset PATH [--source PATH] [--proof PATH] [--out FILE] [--sign-off]`** — Check
+- **`synthesize --rulesets DIR [--rulesout DIR] [--out FILE]`** — Assemble one synthesis
+  prompt from distilled rulesets. `--rulesout` writes the destination into the prompt, as
+  `distill`'s does; without it the prompt names no output path and an agent prints the
+  merged ruleset instead of writing one.
+- **`verify --ruleset PATH [--source PATH]... [--proof PATH] [--out FILE] [--sign-off]`** — Check
   executability and provenance, then emit findings JSON. `--proof` writes a packet binding
   the ruleset (and source) to their exact bytes. It also reports two kinds of vagueness as
   **warnings that never block**: *hedging*, a rule using a discretion phrase
@@ -158,8 +169,14 @@ canonizer gate --findings findings.json
   already-canonical file is left untouched. No text is lost — the word sequence is identical
   before and after — but wrapping moves: a rationale hand-wrapped across three lines becomes
   one long line. This is the command that clears `--sign-off`'s non-canonical refusal.
-- **`critic --source PATH --ruleset PATH [--out FILE]`** — Emit a cold-critic prompt for a
-  fresh grader.
+- **`critic --source PATH [--source PATH] --ruleset PATH [--out FILE]`** — Emit a
+  cold-critic prompt for a fresh grader. `--source` is repeatable, so a synthesized ruleset
+  is graded against every document it was merged from.
+- **`rework --ruleset PATH --findings FILE [--findings FILE] [--out FILE]`** — Emit the
+  prompt an agent runs to revise a ruleset against its findings. `--findings` is repeatable
+  because a refine round produces two documents — the deterministic checks and the grader —
+  and reworking against one resolves half the round. It is the only prompt canonizer emits
+  that asks an agent to *edit* an artifact rather than produce one.
 - **`gate [--findings FILE] [--selftest]`** — Block (exit 1) while any finding is blocking.
   `--selftest` runs a planted-defect control.
 - **`budget [--findings FILE] --attempt K --max N`** — Decide ship / rework / needs-human,

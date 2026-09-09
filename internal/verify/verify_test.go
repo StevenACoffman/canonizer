@@ -57,7 +57,7 @@ func TestProvenanceFlagsMissingAndAbsentAnchors(t *testing.T) {
 		rule("1.3", ruleset.SHOULD, "b", "g", ""),                          // no anchor → flag
 		rule("1.4", ruleset.CONSIDER, "b", "g", "irrelevant"),              // advisory → exempt
 	}}
-	diags := verify.Provenance(&rs, source)
+	diags := verify.Provenance(&rs, []string{source})
 	if len(diags) != 2 {
 		t.Fatalf("got %d findings, want 2 (§1.2 absent, §1.3 no-anchor)", len(diags))
 	}
@@ -70,7 +70,7 @@ func TestProvenanceMatchesAcrossRewrappedWhitespace(t *testing.T) {
 	rs := ruleset.Ruleset{Rules: []ruleset.Rule{
 		rule("1.1", ruleset.MUST, "b", "g", "close the connection"),
 	}}
-	if diags := verify.Provenance(&rs, source); len(diags) != 0 {
+	if diags := verify.Provenance(&rs, []string{source}); len(diags) != 0 {
 		t.Errorf("whitespace-normalized anchor should match; got %+v", diags)
 	}
 }

@@ -54,7 +54,7 @@ func TestProvenanceGatesOnTheWarrantWhereTheAnchorIsAbsent(t *testing.T) {
 			t.Parallel()
 			assertCategory(
 				t,
-				verify.Provenance(adjudicated(tc.warrant), "any source"),
+				verify.Provenance(adjudicated(tc.warrant), []string{"any source"}),
 				tc.wantCategory,
 			)
 		})
@@ -87,7 +87,7 @@ func TestDriftAppliesTheSameWarrantPolicy(t *testing.T) {
 	for _, state := range []verify.SourceState{
 		verify.SourceUnknown, verify.SourceUnchanged, verify.SourceChanged,
 	} {
-		if got := verify.Drift(rs, "any source", state); len(got) != 0 {
+		if got := verify.Drift(rs, []string{"any source"}, state); len(got) != 0 {
 			t.Errorf("Drift with state %v = %+v, want an adjudicated rule accepted", state, got)
 		}
 	}

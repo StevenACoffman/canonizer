@@ -44,9 +44,9 @@ type SourceState int
 // one signal anchor-absent remains the honest answer.
 //
 // Ensures: one diagnostic at most per enforced rule; it is pure.
-func Drift(rs *ruleset.Ruleset, source string, state SourceState) []finding.Diagnostic {
+func Drift(rs *ruleset.Ruleset, sources []string, state SourceState) []finding.Diagnostic {
 	if state == SourceUnknown {
-		return Provenance(rs, source)
+		return Provenance(rs, sources)
 	}
 	diags := make([]finding.Diagnostic, 0)
 	for i := range rs.Rules {
@@ -54,7 +54,7 @@ func Drift(rs *ruleset.Ruleset, source string, state SourceState) []finding.Diag
 		if !enforced(r.Severity) {
 			continue
 		}
-		if d, ok := driftOne(r, source, state); ok {
+		if d, ok := driftOne(r, sources, state); ok {
 			diags = append(diags, d)
 		}
 	}
@@ -62,7 +62,7 @@ func Drift(rs *ruleset.Ruleset, source string, state SourceState) []finding.Diag
 }
 
 // driftOne returns the diagnostic for one rule, and whether there is one.
-func driftOne(r *ruleset.Rule, source string, state SourceState) (finding.Diagnostic, bool) {
+func driftOne(r *ruleset.Rule, sources []string, state SourceState) (finding.Diagnostic, bool) {
 	if r.SourceAnchor == "" {
 		// No anchor at all is unaffected by what the source did: nothing was ever cited,
 		// so there is nothing a source edit could have invalidated. Routed through the
@@ -84,7 +84,7 @@ func driftOne(r *ruleset.Rule, source string, state SourceState) (finding.Diagno
 			"anchor names a section and quotes nothing, so provenance cannot be "+
 				"confirmed or refuted from the source text"), true
 	}
-	if anchorPresent(source, r.SourceAnchor) {
+	if anchorPresent(sources, r.SourceAnchor) {
 		if state == SourceChanged {
 			return advisory(r, CategoryAnchorDrift,
 				"source changed since distillation but the anchor still appears in it; "+

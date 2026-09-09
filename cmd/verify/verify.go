@@ -32,7 +32,7 @@ import (
 type Config struct {
 	*root.Config
 	Ruleset string
-	Source  string
+	Source  []string
 	Proof   string
 	Against string
 	Out     string
@@ -55,8 +55,12 @@ func New(parent *root.Config) *Config {
 	cfg.Flags = ff.NewFlagSet("verify").SetParent(parent.Flags)
 	cfg.Flags.StringVar(&cfg.Ruleset, 0, "ruleset", "",
 		"canonical *_rules.md to verify")
-	cfg.Flags.StringVar(&cfg.Source, 0, "source", "",
-		"source document; enables the provenance (anchor) checks")
+	// Repeatable because a synthesized ruleset derives from every source it was merged
+	// from, and one --source is then the wrong argument rather than a partial one. An
+	// anchor is present when any source contains it; sources are iterated, never joined,
+	// so no anchor can match text spanning two documents.
+	cfg.Flags.StringListVar(&cfg.Source, 0, "source",
+		"source document; enables the provenance (anchor) checks (repeatable)")
 	cfg.Flags.StringVar(&cfg.Proof, 0, "proof", "",
 		"write a proof packet binding the ruleset and source bytes to this path")
 	cfg.Flags.StringVar(&cfg.Against, 0, "against-proof", "",
@@ -125,20 +129,16 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 	diags = append(diags, vfy.Canonical(string(raw), &rs)...)
 	diags = append(diags, vfy.Limitations(&rs)...)
 	diags = append(diags, vfy.Soundness(&rs)...)
-	if cfg.Source != "" {
-		source, readErr := os.ReadFile(cfg.Source)
+	if len(cfg.Source) > 0 {
+		sources, readErr := cfg.readSources()
 		if readErr != nil {
-			return errors.WrapWithMessage(
-				readErr,
-				"verify: read source",
-				slog.String("path", cfg.Source),
-			)
+			return readErr
 		}
-		state, stateErr := cfg.sourceState(source)
+		state, stateErr := cfg.sourceState(sources)
 		if stateErr != nil {
 			return stateErr
 		}
-		diags = append(diags, vfy.Drift(&rs, string(source), state)...)
+		diags = append(diags, vfy.Drift(&rs, sources, state)...)
 	} else {
 		// No source is not "no provenance problem": it is the third state, where an
 		// anchor is neither present nor absent because nothing searched for it. Reported
@@ -185,7 +185,7 @@ func (cfg *Config) signOff(rs *ruleset.Ruleset, result *finding.Result) error {
 	if !cfg.SignOff {
 		return nil
 	}
-	if cfg.Source == "" {
+	if len(cfg.Source) == 0 {
 		// Measured, and the incentive ran backwards without this: withholding --source
 		// drops the blocking count on the stored corpus from 17 to 5, 15 to 3 and 8 to 2,
 		// because the anchor checks are replaced by Unverifiable, which is advisory. A
@@ -272,7 +272,7 @@ func (cfg *Config) reportScope(rs *ruleset.Ruleset) []finding.Diagnostic {
 // A packet that does not name the source is SourceUnknown rather than an error. It means
 // this proof was taken over a different set of files, which is a mismatch to report by
 // declining to answer -- not a reason to fail a verify run that is otherwise fine.
-func (cfg *Config) sourceState(source []byte) (vfy.SourceState, error) {
+func (cfg *Config) sourceState(sources []string) (vfy.SourceState, error) {
 	if cfg.Against == "" {
 		return vfy.SourceUnknown, nil
 	}
@@ -281,17 +281,43 @@ func (cfg *Config) sourceState(source []byte) (vfy.SourceState, error) {
 		return vfy.SourceUnknown, errors.WrapWithMessage(
 			err, "verify: load proof", slog.String("against-proof", cfg.Against))
 	}
-	digest, ok := digestOf(&packet, cfg.Source)
-	if !ok {
-		_, _ = fmt.Fprintf(cfg.Stderr,
-			"verify: %s records no artifact for %s; anchor drift not separated\n",
-			cfg.Against, cfg.Source)
-		return vfy.SourceUnknown, nil
+	// **Any source changing makes the set changed.** Drift asks whether the text the
+	// anchors were written against still says what it said, and one document moving is
+	// enough for that answer to be no. Reporting unchanged because the other seven matched
+	// would be the fail-open reading, and a source the packet never recorded is unknown
+	// rather than unchanged for the same reason.
+	state := vfy.SourceUnchanged
+	for i := range cfg.Source {
+		digest, ok := digestOf(&packet, cfg.Source[i])
+		if !ok {
+			_, _ = fmt.Fprintf(cfg.Stderr,
+				"verify: %s records no artifact for %s; anchor drift not separated\n",
+				cfg.Against, cfg.Source[i])
+			return vfy.SourceUnknown, nil
+		}
+		if identity.Hash(sources[i]) != digest {
+			state = vfy.SourceChanged
+		}
 	}
-	if identity.Hash(string(source)) == digest {
-		return vfy.SourceUnchanged, nil
+	return state, nil
+}
+
+// readSources reads every --source in the order given.
+//
+// Ensures: one entry per --source, index-aligned with cfg.Source so sourceState can pair a
+//
+//	body with the path its digest was recorded under; a missing file is an error.
+func (cfg *Config) readSources() ([]string, error) {
+	out := make([]string, 0, len(cfg.Source))
+	for _, path := range cfg.Source {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return nil, errors.WrapWithMessage(err, "verify: read source",
+				slog.String("path", path))
+		}
+		out = append(out, string(body))
 	}
-	return vfy.SourceChanged, nil
+	return out, nil
 }
 
 // digestOf returns the digest the packet records for path, matching on the file name so a
@@ -332,7 +358,7 @@ func (cfg *Config) renderAct() {
 	// exists to prevent. Corrected when that state landed.
 	claim := "this ruleset is well-formed and its anchors are present in the source, " +
 		"not that the source supports what any rule claims"
-	if cfg.Source == "" {
+	if len(cfg.Source) == 0 {
 		claim = "this ruleset is well-formed -- no source was supplied, so nothing " +
 			"searched for its anchors at all"
 	}
@@ -365,10 +391,7 @@ func (cfg *Config) emit(result finding.Result) error {
 // writeProof binds the ruleset (and source, when given) to their exact bytes in a
 // proof packet. root "" uses the paths as given, so absolute or cwd-relative both work.
 func (cfg *Config) writeProof() error {
-	paths := []string{cfg.Ruleset}
-	if cfg.Source != "" {
-		paths = append(paths, cfg.Source)
-	}
+	paths := append([]string{cfg.Ruleset}, cfg.Source...)
 	packet, err := proof.Create("", "ruleset-provenance", "", paths)
 	if err != nil {
 		return errors.WrapWithMessage(err, "verify: create proof")
