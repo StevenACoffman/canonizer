@@ -1282,7 +1282,13 @@ be a larger fact than the one being looked for. Filed here rather than in `go-ad
 `skillet` because canonizer owns the pipeline the gap is in, and because a corpus item filed
 in a repository with no backlog is one nobody will read.
 
-- [ ] **Every canonical-form ruleset in existence is a test fixture.** `grep -rln '^§[0-9]'`
+- [x] **Every canonical-form ruleset in existence is a test fixture.**
+      CLOSED 2026-09-08: the `rulesets` repository now has commits — `861a072` for batch 2
+      and `aea7aab` for batch 4 — with **8 stored rulesets tracked**. The entry's own test,
+      `grep -rln '^§[0-9]'` returning nothing outside test files, no longer holds.
+      **It took four batches and three losses to get here**, and the entry's argument is
+      what survived them: a measurement against an untracked artifact is a record, not a
+      re-checkable fact. Original entry: `grep -rln '^§[0-9]'`
       across `~/Documents/agent-orange` and this repository returns no stored ruleset: the
       `*_rules.md` files in `go-advice` are prose documents with **zero** `§` rule headers,
       and the only canonical-form text is in `cmd/*_test.go`. skillet's own estimate —
@@ -2166,8 +2172,15 @@ hand before answering. Batch 2's 157 anchors:
 Diffing the 18 near-misses against their closest source window, the commonest single
 substitution is **a backtick in the anchor where the source has none, 12 times**.
 
-- [ ] **Checklist item 8 corrupts item 9, and that is a fourth prompt contradiction of the
-      same family.** Item 8 says *"Backtick every identifier"*; item 9 says a `↦` quotation
+- [x] **Checklist item 8 corrupts item 9, and that is a fourth prompt contradiction of the
+      same family.** CLOSED 2026-09-08 as **moot, not fixed**, and the distinction matters.
+      The fix was measured at +8 anchors *on batch 2*. Batches 3 and 4 have **zero absent
+      anchors**, so there is nothing left for it to rescue: the verbatim-quotation
+      instruction and the three checker fixes closed the class the +8 was drawn from.
+      **The contradiction itself is real and unfixed** — an agent backticking inside a
+      quotation still makes it non-verbatim. It simply stopped costing anything measurable,
+      so building the fold would be code justified by a number that no longer reproduces.
+      Reopen if absent anchors return. Original entry: Item 8 says *"Backtick every identifier"*; item 9 says a `↦` quotation
       must be *"the source's own words, character for character"*. An agent backticking an
       identifier **inside** a quoted span makes the quotation non-verbatim, so the anchor
       cannot be found — and the two instructions cannot both be obeyed on the same span.
@@ -2183,16 +2196,31 @@ substitution is **a backtick in the anchor where the source has none, 12 times**
       rescues the ones already written.
       **Not bundled with anything, so the +8 stays attributable** — the discipline that kept
       elision, backtick-spans and emphasis separable.
-- [ ] **The single-underscore residual is now priced.** Folding single `_..._` would add 2
+- [x] **The single-underscore residual is now priced.** CLOSED 2026-09-08 on the same
+      ground as the entry above: the +2 was measured against batch 2's absent anchors, and
+      batches 3 and 4 have none. The price is recorded and the trade is settled rather than
+      pending. Original entry: Folding single `_..._` would add 2
       more anchors, and it was refused because it matches across `snake_case` — measured
       then at **three anchors worse** overall. Both numbers are small and the refusal still
       holds; recorded so the trade is a number rather than a memory.
-- [ ] **The marker-order and spacing statements are untested, and one round would test
-      them.** Checklist item 7 gained three exact conventions *after* batch 2 ran, so nothing
+- [x] **The marker-order and spacing statements are untested, and one round would test
+      them.** CLOSED 2026-09-08, tested twice. Batches 3 and 4 both carry **zero** three-space
+      headers and **zero** swapped `✗`/`✓` pairs, against 14 and 2 in batch 2. Stating a
+      convention did what demonstrating it had not.
+      **The prediction filed with it was 8 of 8 canonical.** It failed in batch 3 for an
+      unrelated reason — the version block a `Limitations:` header implies — and held in
+      batch 4 once that was fixed. Original entry: Checklist item 7 gained three exact conventions *after* batch 2 ran, so nothing
       has measured them. The prediction is falsifiable and worth stating before the run:
       **8 of 8 canonical**, since the two failures in batch 2 were exactly 2 swapped `✗`/`✓`
       pairs and 14 three-space headers.
-- [ ] **`Unquantified` rests on one corpus and should be re-measured, not re-designed.** It
+- [x] **`Unquantified` rests on one corpus and should be re-measured, not re-designed.**
+      CLOSED 2026-09-08 with two more corpora and no re-design. Batch 2: **5 of 137**
+      enforced rules. Batch 3: **3**. Batch 4: **3 of 122**. So 3.6%, then ~2.5%, then 2.5% —
+      the rate is low and steady rather than swinging like the symbol rate does, which is the
+      question the entry asked.
+      **The batch-1 figure of 12 remains the outlier and is still unexplained**, and it was
+      measured on a corpus that no longer exists. Treat 3 of 122 as the calibration.
+      Original entry: It
       is 5 of 137 on batch 2, and the 12 of 147 recorded on batch 1 did not reproduce. A
       third batch says whether 5 is typical or whether this check's rate swings as widely as
       the symbol rate does (10.1 points mean absolute change). No design change should be
@@ -2231,8 +2259,13 @@ family has had. 133 enforced rules, 150 anchors.
       **The backtick-in-quotation contradiction filed above may now be moot**, since nothing
       is absent to rescue. Do not implement the fold on that filing's +8: it was measured on
       batch 2 and batch 3 has no absent anchors at all. Re-measure before building.
-- [ ] **Agents now use the section-reference permission: 9 colonless anchors, 8 reported
-      `anchor-section-only`.** The permission was added because forcing a quotation invites
+- [x] **Agents now use the section-reference permission: 9 colonless anchors, 8 reported
+      `anchor-section-only`.** CLOSED 2026-09-08, measured in batch 4: **8 of 9 name a real
+      heading exactly**, and the ninth writes `§3. Use a shared mock subpackage` where the
+      source has `## #3. …` — a dropped character, not a paraphrase.
+      **So the permission is working and the colon hole is not widening**, which was the
+      question. What it exposed instead is that nothing verifies the name at all, filed
+      separately below. Original entry: The permission was added because forcing a quotation invites
       fabrication; it is being taken up, and `sectionOnly` has gone from idle to the third
       most common finding in one batch.
       **That makes the residual worth re-examining rather than assuming.** Of the 9, one
