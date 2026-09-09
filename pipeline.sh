@@ -2,9 +2,14 @@
 #
 # pipeline.sh — distill one source subdirectory into canonical rulesets.
 #
-# Usage: ./pipeline.sh SUBDIR [LABEL]
+# Usage: ./pipeline.sh [--src-dir DIR] [--out-root DIR] [--max-attempts N] SUBDIR [LABEL]
 #
-# SUBDIR names a directory under $SRC_DIR. Prompts are written under
+# Run with --help for the flags and their defaults. Every path is a flag or an environment
+# variable because the values built in below describe one workspace and nothing else could
+# use them; a flag wins over CANONIZER_SRC_DIR / CANONIZER_OUT_ROOT / CANONIZER_MAX_ATTEMPTS,
+# which win over the default.
+#
+# SUBDIR names a directory under --src-dir. Prompts are written under
 # rulesets/prompts/SUBDIR, and each prompt is told to write its ruleset into
 # rulesets/distilled/SUBDIR via canonizer distill --rulesout.
 #
@@ -67,8 +72,67 @@ has_cmd() {
     fi
 }
 
+# Defaults, overridable by environment and then by flag.
+#
+# **These two are one workspace's layout, not a convention**, which is the whole reason the
+# flags exist: nothing but this checkout can use the paths baked in below. They stay the
+# defaults so the invocation the author types keeps working; a relative default would be
+# more portable and would break the only current caller, which buys nothing.
+#
+# **The environment names are prefixed and the plain ones are not read.** `SRC_DIR` is a name
+# a CI job or a sourced profile may already hold, and a script that silently picks up someone
+# else's variable is worse than one that ignores it.
+SRC_DIR="${CANONIZER_SRC_DIR:-${HOME}/Documents/agent-orange/go-advice/Sources}"
+OUT_ROOT="${CANONIZER_OUT_ROOT:-${HOME}/Documents/git/rulesets}"
+
+# MAX_ATTEMPTS bounds the refine loop. It is the --max canonizer budget reads, and the reason
+# a bound exists at all: a loop that reworks until it passes will eventually pass by attrition
+# rather than by the ruleset improving.
+#
+# The bare name is still honoured because it was the only name until now, and silently
+# ignoring an existing MAX_ATTEMPTS=1 would change a run without saying so.
+MAX_ATTEMPTS="${CANONIZER_MAX_ATTEMPTS:-${MAX_ATTEMPTS:-3}}"
+
+usage() {
+    printf 'usage: %s [--src-dir DIR] [--out-root DIR] [--max-attempts N] SUBDIR [LABEL]\n' \
+        "$(basename "$0")"
+    printf '\n'
+    printf '  --src-dir DIR       source tree holding SUBDIR      (default %s)\n' "$SRC_DIR"
+    printf '  --out-root DIR      where every artifact is written (default %s)\n' "$OUT_ROOT"
+    printf '  --max-attempts N    refine rounds before escalating (default %s)\n' "$MAX_ATTEMPTS"
+    printf '\n'
+    printf '  CANONIZER_SRC_DIR, CANONIZER_OUT_ROOT and CANONIZER_MAX_ATTEMPTS set the same\n'
+    printf '  values; a flag wins over the environment, which wins over the default.\n'
+}
+
+# Flags are parsed before the positionals, which stay positional because SUBDIR and LABEL are
+# what actually gets typed.
+#
+# An unknown flag is an error rather than a positional: treating `--src-dr` as SUBDIR would
+# fail later with "no such source directory: .../--src-dr", which reads as a typo in the
+# wrong place. `--help` exits 0 where a usage error exits 2, so a caller checking status can
+# tell a question from a mistake.
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --src-dir)      SRC_DIR="${2-}"; shift 2 ;;
+        --src-dir=*)    SRC_DIR="${1#*=}"; shift ;;
+        --out-root)     OUT_ROOT="${2-}"; shift 2 ;;
+        --out-root=*)   OUT_ROOT="${1#*=}"; shift ;;
+        --max-attempts) MAX_ATTEMPTS="${2-}"; shift 2 ;;
+        --max-attempts=*) MAX_ATTEMPTS="${1#*=}"; shift ;;
+        -h | --help)    usage; exit 0 ;;
+        --)             shift; break ;;
+        -*)
+            printf '%s: unknown flag: %s\n' "$(basename "$0")" "$1" >&2
+            usage >&2
+            exit 2
+            ;;
+        *) break ;;
+    esac
+done
+
 if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
-    printf 'usage: %s SUBDIR [LABEL]\n' "$(basename "$0")" >&2
+    usage >&2
     exit 2
 fi
 D="$1"
@@ -101,19 +165,12 @@ else
     SUFFIX=""
 fi
 
-SRC_DIR="${HOME}/Documents/agent-orange/go-advice/Sources"
-OUT_ROOT="${HOME}/Documents/git/rulesets"
 PROMPT_DIR="${OUT_ROOT}/prompts/${D}${SUFFIX}"
 RULES_DIR="${OUT_ROOT}/distilled/${D}${SUFFIX}"
 SYNTH_PROMPT_DIR="${OUT_ROOT}/synthesis_prompts/${D}${SUFFIX}"
 SYNTH_DIR="${OUT_ROOT}/synthesis/${D}${SUFFIX}"
 FINDINGS_DIR="${OUT_ROOT}/findings/${D}${SUFFIX}"
 CRITIQUE_DIR="${OUT_ROOT}/critique/${D}${SUFFIX}"
-
-# MAX_ATTEMPTS bounds the refine loop. It is the --max canonizer budget reads, and the reason
-# a bound exists at all: a loop that reworks until it passes will eventually pass by attrition
-# rather than by the ruleset improving.
-MAX_ATTEMPTS="${MAX_ATTEMPTS:-3}"
 
 for cmd in canonizer claude; do
     if ! has_cmd "$cmd"; then
@@ -122,8 +179,23 @@ for cmd in canonizer claude; do
     fi
 done
 
+# Both paths are checked up front, and each message names the flag that set the value.
+# A mistyped --out-root otherwise surfaced much later as a mkdir failure deep in the run,
+# and "no such directory" without the flag name is a hunt rather than a fix.
+if [ ! -d "$SRC_DIR" ]; then
+    printf '%s: --src-dir is not a directory: %s\n' "$(basename "$0")" "$SRC_DIR" >&2
+    exit 1
+fi
 if [ ! -d "${SRC_DIR}/${D}" ]; then
     printf '%s: no such source directory: %s\n' "$(basename "$0")" "${SRC_DIR}/${D}" >&2
+    printf '  (SUBDIR is resolved under --src-dir %s)\n' "$SRC_DIR" >&2
+    exit 1
+fi
+# The output root may not exist yet -- the run creates it -- but its parent must, or mkdir
+# would fail after the distillation had already written prompts somewhere else.
+if [ ! -d "$OUT_ROOT" ] && [ ! -d "$(dirname "$OUT_ROOT")" ]; then
+    printf '%s: --out-root %s does not exist and neither does its parent\n' \
+        "$(basename "$0")" "$OUT_ROOT" >&2
     exit 1
 fi
 

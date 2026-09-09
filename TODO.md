@@ -2517,3 +2517,40 @@ ______________________________________________________________________
       `non-canonical` 5-of-8 → 0, `unexecutable` 18 → 0, canonical 3-of-8 → 8-of-8. Six
       prompt contradictions found and fixed, each by measuring the corpus and finding the
       prose and the worked example disagreeing.
+
+______________________________________________________________________
+
+## `pipeline.sh` Is No Longer Tied to One Workspace (2026-09-09)
+
+- [x] **Two absolute paths named one machine, and nothing else could run the script.**
+      DONE 2026-09-09: `--src-dir`, `--out-root` and `--max-attempts`, each also readable
+      from `CANONIZER_SRC_DIR`, `CANONIZER_OUT_ROOT` and `CANONIZER_MAX_ATTEMPTS`. A flag
+      wins over the environment, which wins over the default — adh's order, and the one a
+      caller expects.
+      **The environment names are prefixed and the bare ones are not read.** `SRC_DIR` is a
+      name a CI job or a sourced profile may already hold, and a script silently picking up
+      someone else's variable is worse than one ignoring it. `MAX_ATTEMPTS` was the
+      exception already in the file, so it gained the prefix **and still honours the bare
+      name**: it was the only name until now, and silently ignoring an existing
+      `MAX_ATTEMPTS=1` would change a run without saying so.
+      **The defaults stay the current paths, which is a compromise rather than an
+      oversight.** A relative default (`./sources`, `./rulesets`) would be more portable and
+      would break the only invocation anyone actually types. The goal was reuse by others,
+      not portability for its own sake, so the paths remain and the header says plainly that
+      they describe one workspace rather than a convention.
+      **Both directories are now validated up front, each message naming the flag that set
+      the value.** A mistyped `--out-root` used to surface much later as a `mkdir` failure
+      deep in the run, and "no such directory" without the flag name is a hunt.
+      **It closed a real testing wart.** Every previous stub run rewrote the script with
+      `sed` to redirect its paths, so a bug in that rewrite could have masked a bug in the
+      script. The run now goes through the flags, unmodified.
+      Checked: precedence in all three directions, both `--flag value` and `--flag=value`,
+      `--` terminator, `--help` exiting 0 where a usage error exits 2, an unknown flag
+      refused rather than taken as `SUBDIR`, and the full ship-after-rework path.
+- [ ] **`bin/distill.sh` and `bin/pipeline.sh` are dead identical duplicates.** Recommended
+      for deletion twice and still present: 444 and 445 bytes, differing by one blank line,
+      referenced nowhere, superseded by the root `pipeline.sh`. They hardcode paths, predate
+      `--rulesout`, know nothing of labels, and never invoke an agent — so anyone finding
+      them gets a distillation that writes prompts and no rulesets.
+      Left in place because deleting files nobody asked me to delete is not mine to decide;
+      recorded so the recommendation is not made a third time from memory.

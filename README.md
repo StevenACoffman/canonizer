@@ -92,7 +92,9 @@ distill ─▶ [agent writes rules] ─▶ synthesize ─▶ [agent merges] ─�
 ```
 
 `pipeline.sh` is that whole loop as one command, holding the attempt counter and keeping
-every round's artifacts. canonizer itself calls no model: the four `[agent …]` steps are
+every round's artifacts. Its paths are flags — `--src-dir`, `--out-root`, `--max-attempts`,
+each also settable as `CANONIZER_*` — so it is not tied to one workspace; run it with
+`--help` for the defaults. canonizer itself calls no model: the four `[agent …]` steps are
 where a model runs, and every command below is deterministic.
 
 A worked run:
