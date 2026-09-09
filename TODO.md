@@ -2243,3 +2243,57 @@ family has had. 133 enforced rules, 150 anchors.
       line that says little satisfies the check by construction, which `verify.Limitations`
       already warns of — *"`Limitations: none` satisfies the field and states nothing"*. Read
       the eight before trusting the zero.
+
+______________________________________________________________________
+
+## Batch 4: the Gates Went Quiet, and the Quiet Was Checked (2026-09-08)
+
+The version-block fix landed and the prediction held: **8 of 8 canonical**, against 0 of 8
+in batch 3. 122 enforced rules, 150-odd anchors. `unbounded`, `anchor-absent` and
+`non-canonical` are all **zero**.
+
+Three gates reporting nothing is the state worth distrusting, so each zero was checked
+rather than accepted.
+
+- [x] **`unbounded` is zero because the headers are real, not because the check is
+      satisfiable by a stub.** `verify.Limitations` accepts any non-empty string and its own
+      doc warns that *"`Limitations: none` satisfies the field and states nothing"*. Measured:
+      the eight run **841 to 1406 characters**, and the content is specific — *"Predates Go
+      1.13, so it says nothing about `errors.Is`, `errors.As`, `%w` wrapping"*, *"Covers only
+      the read side of a service implementation — `FindXByID` and `FindXs`"*. The prompt's
+      instruction not to write `none` is holding.
+- [x] **`anchor-absent` is zero across three batches of improvement**: 59 → 32 → 0. Every
+      quoted anchor is now found in its source.
+- [x] **A check of mine reported fabrication that was not there, and the bug was in the
+      check.** Two section references read NOT FOUND against their source's headings. The
+      source writes `## 2\. Use the "underscore test" package` — a **backslash-escaped
+      period** — and the normaliser did not strip markdown escapes. Corrected before the
+      claim was made; recorded because a false fabrication report is the most expensive kind
+      of wrong answer this repository can give.
+- [ ] **A section reference is a checkable claim and nothing checks it.** Nine anchors name a
+      section and quote nothing, which `sectionOnly` reports advisory and leaves unsearched.
+      But a source's headings are enumerable, so *does this section exist* is answerable —
+      and the batch already shows the answer drifting: **8 of 9 name a heading exactly, and
+      one writes `§3. Use a shared mock subpackage` where the source has `## #3. Use a shared
+      mock subpackage`**, dropping the `#`.
+      **That one is a transcription slip rather than an invention**, and it is invisible
+      precisely because nothing looks. The permission was granted so a rule drawn from a
+      whole passage has an honest answer; it should not also be a channel where a name can be
+      wrong without anyone noticing.
+      **The check is cheap and its shape is already here**: parse the source's `#` headings,
+      normalise markdown escapes and smart quotes the way `textnorm.Fold` normalises
+      typography, and report a section reference naming no heading. Advisory or blocking is a
+      separate decision — the honest default is advisory, matching the anchor's own severity.
+      **Do not reuse the "not found" wording of `anchor-absent`.** *Named a section that does
+      not exist* and *quoted text not in the source* are different defects, and this family
+      has spent four entries separating exactly that kind of pair.
+- [ ] **`unexecutable` is now the dominant finding at 18 of 122 enforced rules, 14%, and it
+      is accurate.** Sampled: the flagged rules genuinely carry a statement and a rationale
+      with no `✗`/`✓` pair at all — the check is not miscounting. Every one sampled is a
+      `[SHOULD]`, which suggests agents treat the pair as optional at lower severity while
+      the format requires it of every enforced rule.
+      **Unmeasured: whether the prompt says so plainly enough.** The format section states
+      that every `[MUST]` and `[SHOULD]` rule must end with a `↦` line, and states the `✗`/`✓`
+      pair as part of the rule format, but never says the pair is required at `[SHOULD]` in
+      the way it says the anchor is. That is a candidate sixth contradiction of the same
+      family, and it should be read before it is fixed.
