@@ -8,13 +8,14 @@ import (
 	"github.com/StevenACoffman/canonizer/internal/prompt"
 )
 
-func TestFillPromptSubstitutesBothMarkers(t *testing.T) {
+func TestFillPromptSubstitutesEveryMarker(t *testing.T) {
 	t.Parallel()
-	got, err := critic.FillPrompt("A {{SOURCE}} B {{RULESET}} C", "SRC", "RULES")
+	got, err := critic.FillPrompt(
+		"A {{SOURCE}} B {{RULESET}} C {{DESTINATION_CONTENT}} D", "SRC", "RULES", "DEST")
 	if err != nil {
 		t.Fatalf("FillPrompt: %v", err)
 	}
-	if want := "A SRC B RULES C"; got != want {
+	if want := "A SRC B RULES C DEST D"; got != want {
 		t.Errorf("FillPrompt = %q, want %q", got, want)
 	}
 }
@@ -25,13 +26,16 @@ func TestFillPromptMissingMarkerIsError(t *testing.T) {
 		name string
 		tmpl string
 	}{
-		{"missing source", "only {{RULESET}} here"},
-		{"missing ruleset", "only {{SOURCE}} here"},
+		{"missing source", "only {{RULESET}} and {{DESTINATION_CONTENT}} here"},
+		{"missing ruleset", "only {{SOURCE}} and {{DESTINATION_CONTENT}} here"},
+		// A prompt with nowhere to write leaves the grader printing its findings into a
+		// transcript, which is how the pipeline's first run lost its artifacts.
+		{"missing destination", "only {{SOURCE}} and {{RULESET}} here"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if _, err := critic.FillPrompt(tt.tmpl, "s", "r"); err == nil {
+			if _, err := critic.FillPrompt(tt.tmpl, "s", "r", "d"); err == nil {
 				t.Error("FillPrompt with a missing marker returned nil; want an error")
 			}
 		})
@@ -43,7 +47,7 @@ func TestCriticPromptStatesTheSpecificityTests(t *testing.T) {
 	// The three dimensions are a judgment rubric, and canonizer routes judgment to the
 	// critic rather than to code. Asserting them on the *filled* prompt, not the file,
 	// is the point: this is what the grader is actually handed.
-	filled, err := critic.FillPrompt(prompt.Critic, "SOURCE TEXT", "RULESET TEXT")
+	filled, err := critic.FillPrompt(prompt.Critic, "SOURCE TEXT", "RULESET TEXT", "DEST")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +77,7 @@ func TestCriticPromptStatesItsCategoryContract(t *testing.T) {
 	// true when a fourth category is appended -- so the test that existed to catch exactly
 	// that change passed when `coverage` was added on 2026-09-05. Asserting the whole line
 	// is what makes it a pin.
-	filled, err := critic.FillPrompt(prompt.Critic, "s", "r")
+	filled, err := critic.FillPrompt(prompt.Critic, "s", "r", "d")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +99,7 @@ func TestCriticPromptStatesItsCategoryContract(t *testing.T) {
 // only in code, it would never reach the model that has to act on it.
 func TestCriticPromptSaysDeclaringAGapIsFree(t *testing.T) {
 	t.Parallel()
-	filled, err := critic.FillPrompt(prompt.Critic, "s", "r")
+	filled, err := critic.FillPrompt(prompt.Critic, "s", "r", "d")
 	if err != nil {
 		t.Fatal(err)
 	}

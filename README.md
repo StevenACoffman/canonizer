@@ -83,11 +83,17 @@ source anchor the provenance check looks for.
 ## The Pipeline
 
 ```text
-distill ─▶ [agent writes rules] ─▶ synthesize ─▶ [agent merges] ─▶ verify ─┐
+distill ─▶ [agent writes rules] ─▶ synthesize ─▶ [agent merges] ─▶ fmt ─▶ verify ─┐
                                                              critic ─▶ [agent grades] ─┤
                                                                                        ▼
                                                                         gate / loop / budget
+                                                                                       │
+                                              rework ─▶ [agent revises] ◀──────────────┘
 ```
+
+`pipeline.sh` is that whole loop as one command, holding the attempt counter and keeping
+every round's artifacts. canonizer itself calls no model: the four `[agent …]` steps are
+where a model runs, and every command below is deterministic.
 
 A worked run:
 
@@ -115,8 +121,10 @@ canonizer verify --ruleset R.md --source S.md --out findings.json
 
 # 4. Cold critic: emit a prompt giving a fresh grader only S and R; the agent runs it and
 #    writes its findings JSON.
-canonizer critic --source S.md --ruleset R.md --out critic_prompt.md
-#    the agent runs critic_prompt.md and writes critic_findings.json
+canonizer critic --source S.md --ruleset R.md \
+  --findingsout critic_findings.json --out critic_prompt.md
+#    --findingsout is the file the prompt tells the grader to write. Without it the prompt
+#    names no destination and the grader prints its JSON into a transcript.
 
 # 5. Gate on the findings: exit non-zero while anything blocks.
 canonizer gate --findings findings.json
@@ -128,66 +136,55 @@ canonizer rework --ruleset R.md --findings findings.json --findings critic_findi
   --out rework_prompt.md
 ```
 
+Every command that hands work to an agent names the file the agent must write —
+`distill --rulesout`, `synthesize --rulesout`, `critic --findingsout`. The reply is a report
+about the work; the artifact is the file.
+
 ## Commands
 
-- **`distill --source DIR --out DIR`** — Fill a distillation prompt for every source in a
-  tree.
-- **`synthesize --rulesets DIR [--rulesout DIR] [--out FILE]`** — Assemble one synthesis
-  prompt from distilled rulesets. `--rulesout` writes the destination into the prompt, as
-  `distill`'s does; without it the prompt names no output path and an agent prints the
-  merged ruleset instead of writing one.
-- **`verify --ruleset PATH [--source PATH]... [--proof PATH] [--out FILE] [--sign-off]`** — Check
-  executability and provenance, then emit findings JSON. `--proof` writes a packet binding
-  the ruleset (and source) to their exact bytes. It also reports two kinds of vagueness as
-  **warnings that never block**: *hedging*, a rule using a discretion phrase
-  (`it depends`), and an *unquantified* amount, a rule that commits to an action while
-  leaving the threshold it turns on unstated (`too many files`, `roughly 10K SLOC`). The two
-  vocabularies are disjoint — one says *you may choose*, the other *some unstated
-  quantity*: such a rule is sometimes correct and a deterministic check cannot tell which,
-  so this reports and does not decide.
-  It reports two proportions per run rather than per rule: how many enforced rules **name a
-  symbol a checker can see**, and how many anchors **name a section only**, whose provenance
-  therefore went unsearched. Both were per-rule findings once. The first claimed a rule
-  "names no object, tool or API" and fired on 63 of 147 rules where the claim was false —
-  what it actually measured is backtick-convention adherence, which is true of a document
-  and false of a rule, and which varies 11% to 76% across distillations from one prompt. The
-  per-rule version of that question belongs to `critic`, whose `vague` test asks it in the
-  same words and blocks on it.
-  `--sign-off` appends a verification event to the ruleset's frontmatter (`format: 4`),
-  recording who confirmed it. The actor comes from `identity.actor` in `--config`
-  (default `.canonizer.yaml`) and **never from a flag** — a caller-supplied actor would let
-  anyone mint a human's sign-off. It is **attributable rather than authenticated**: it says
-  which actor this checkout was configured as, not who was at the keyboard.
-  A sign-off is refused when the run found blocking findings (it would attest to a state
-  the same run disproved), when `--source` was omitted (nothing searched for the anchors,
-  so the event would vouch for unexamined provenance), and when no actor is configured (an
-  event with no actor records nothing). **Every ruleset in the current corpus is refused**,
-  each carrying 3–17 blocking findings; that is the gate working, not a defect.
-- **`fmt --ruleset PATH [--check]`** — Rewrite a ruleset into the exact form
-  `ruleset.Render` emits, which is what `verify`'s `non-canonical` finding measures against.
-  `--check` reports without writing and exits 1, the same split exegesis `normalize` uses; an
-  already-canonical file is left untouched. No text is lost — the word sequence is identical
-  before and after — but wrapping moves: a rationale hand-wrapped across three lines becomes
-  one long line. This is the command that clears `--sign-off`'s non-canonical refusal.
-- **`critic --source PATH [--source PATH] --ruleset PATH [--out FILE]`** — Emit a
-  cold-critic prompt for a fresh grader. `--source` is repeatable, so a synthesized ruleset
-  is graded against every document it was merged from.
-- **`rework --ruleset PATH --findings FILE [--findings FILE] [--out FILE]`** — Emit the
-  prompt an agent runs to revise a ruleset against its findings. `--findings` is repeatable
-  because a refine round produces two documents — the deterministic checks and the grader —
-  and reworking against one resolves half the round. It is the only prompt canonizer emits
-  that asks an agent to *edit* an artifact rather than produce one.
-- **`gate [--findings FILE] [--selftest]`** — Block (exit 1) while any finding is blocking.
-  `--selftest` runs a planted-defect control.
-- **`budget [--findings FILE] --attempt K --max N`** — Decide ship / rework / needs-human,
-  exiting 0 / 2 / 1.
-- **`loop --source PATH --ruleset PATH [--findings FILE] --attempt K --max N`** — One
-  deterministic rework round: verify, merge critic findings, and decide.
-- **`calibrate --samples PATH`** — Report the critic's calibration (ECE/MCE/Brier) from a
-  review log.
-- **`version [--json]`** — Print version information.
+Every command is deterministic — canonizer calls no model. `--help` on any of them carries
+the reasoning; this list is for finding the right one.
 
-Run `canonizer <command> --help` for the full flag surface of any command.
+**Producing prompts an agent runs.** Each names the file the agent must write, because the
+reply is a report about the work and the artifact is the file.
+
+- **`distill --source DIR --out DIR [--rulesout DIR]`** — one distillation prompt per
+  source in a tree; `--rulesout` is where each agent writes its ruleset.
+- **`synthesize --rulesets DIR [--rulesout DIR] [--out FILE]`** — one prompt merging the
+  distilled rulesets into a single candidate.
+- **`critic --source PATH... --ruleset PATH [--findingsout FILE] [--out FILE]`** — a
+  cold-critic prompt for a fresh grader, which sees only the sources and the ruleset.
+- **`rework --ruleset PATH --findings FILE... [--out FILE]`** — the prompt an agent runs to
+  revise a ruleset against its findings. The only one that asks an agent to *edit* an
+  artifact rather than produce one.
+
+**Checking a ruleset.**
+
+- **`verify --ruleset PATH [--source PATH]... [--proof PATH] [--out FILE] [--sign-off]`** —
+  executability and provenance, as findings JSON. Reports hedging and unquantified
+  thresholds as warnings that never block, and two per-document proportions: how many rules
+  name a symbol a checker can see, and how many anchors name a section only.
+  `--sign-off` appends a verification event to the ruleset, attributed to `identity.actor`
+  in `--config` and never to a flag. It is refused on a run with blocking findings, on a run
+  given no `--source`, and when no actor is configured.
+- **`fmt --ruleset PATH [--check]`** — rewrite a ruleset into canonical form, which is what
+  `verify`'s `non-canonical` finding measures against. `--check` reports and exits 1 without
+  writing. No text is lost; wrapping moves.
+- **`gate [--findings FILE] [--selftest]`** — exit 1 while any finding blocks. `--selftest`
+  runs a planted-defect control first.
+
+**Deciding what happens next.**
+
+- **`budget [--findings FILE] --attempt K --max N`** — ship / rework / needs-human, exiting
+  0 / 2 / 1.
+- **`loop --source PATH... --ruleset PATH [--findings FILE] --attempt K --max N`** — one
+  round: verify, merge the critic's findings, decide.
+- **`calibrate --samples PATH`** — the critic's calibration (ECE/MCE/Brier) from a review log.
+- **`version [--json]`** — version information.
+
+`--source` is repeatable on `verify`, `critic` and `loop`: a synthesized ruleset derives from
+every document it was merged from, so an anchor is present when any source contains it.
+Sources are iterated, never joined, so no anchor can match text spanning two documents.
 
 ## The Rework Loop
 
@@ -199,13 +196,16 @@ thin driver wraps it and supplies the agent's steps between rounds:
 ```sh
 K=1; MAX=3
 while true; do
-  canonizer critic --source S.md --ruleset R.md --out critic_prompt.md
-  # agent runs critic_prompt.md -> critic_findings.json, and reworks R.md if asked
-  canonizer loop --source S.md --ruleset R.md --findings critic_findings.json \
+  canonizer critic --source S.md --ruleset R.md \
+    --findingsout "critic_findings_$K.json" --out "critic_prompt_$K.md"
+  # agent runs critic_prompt_$K.md and writes critic_findings_$K.json
+  canonizer loop --source S.md --ruleset R.md --findings "critic_findings_$K.json" \
     --attempt "$K" --max "$MAX"
   case $? in
     0) echo "ship"; break ;;                 # adopt R.md
-    2) K=$((K+1)) ;;                          # rework and retry
+    2) canonizer rework --ruleset R.md --findings "critic_findings_$K.json" \
+         --out "rework_prompt_$K.md"          # agent revises R.md, then retry
+       K=$((K+1)) ;;
     1) echo "needs human"; break ;;           # budget spent, blocked
   esac
 done

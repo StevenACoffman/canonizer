@@ -2474,3 +2474,46 @@ and blocked with a non-zero exit.
       against the source its rule came from. That needs a rule to know which source it came
       from, which the canonical form does not record — so this is blocked on the format, not
       on the flag.
+
+______________________________________________________________________
+
+## The Destination Gap Had a Third Instance (2026-09-09)
+
+- [x] **`critic` had no destination flag, and I closed the same item twice without noticing.**
+      DONE 2026-09-09 as `critic --findingsout FILE`.
+      **The pattern was visible and I fixed two thirds of it.** `distill --rulesout` and
+      `synthesize --rulesout` each tell the agent where its artifact goes; `critic` did not,
+      so `pipeline.sh` appended a `<destination>` block with a heredoc — the same stopgap the
+      synthesize entry called out as belonging in the command. Closing that entry with *"the
+      fix belongs in the command"* and leaving the identical case one stage later in the same
+      file is the miss worth recording.
+      **Found by a question, not by a check.** Asked whether the heredocs I had mentioned
+      were Python, a grep found no Python anywhere in canonizer and exactly one heredoc left.
+      *"The cleanup is done"* was an assertion; *"no heredoc remains in `pipeline.sh`"* is
+      checkable, and it is now 0.
+      **Filled in `FillPrompt`, not in the command**, unlike synthesize's. That one fills
+      outside `sksynth.FillTemplate` because the kernel owns it; `internal/critic.FillPrompt`
+      is canonizer's own and already validates `{{SOURCE}}` and `{{RULESET}}`, so extending
+      it keeps one authority for what the critic template must contain and gets the
+      missing-marker guard free.
+      **A custom `--template` predating the marker now fails, deliberately.** The other two
+      markers already imposed that contract, so a template without the third is as
+      incomplete as one without `{{RULESET}}`.
+      **It names a file where its siblings name a directory.** Those derive each artifact's
+      name from its source; a critic run's findings belong to one candidate at one *attempt*,
+      and the attempt number is the driver's knowledge — canonizer holds no counter — so the
+      caller supplies the name. A stub run confirms `critic_findings_1.json` reaches the
+      prompt.
+- [x] **The corpus is clean, and the README claimed the opposite.** Measured 2026-09-09:
+      **0 blocking findings across all eight rulesets, and 8 of 8 canonical** — so every one
+      is now signable, and one signed on a copy to prove the chain closes (`format: 4` with
+      a `verified` event).
+      **The README said *"Every ruleset in the current corpus is refused, each carrying 3–17
+      blocking findings; that is the gate working, not a defect."*** True when written and
+      false now, which is the hazard of putting a measurement in prose that nothing
+      re-checks. Removed rather than updated: the number will move again, and the README is
+      not where a corpus measurement belongs.
+      **The arc, for the record**: `unbounded` 8-of-8 → 0, `anchor-absent` 59 → 32 → 0,
+      `non-canonical` 5-of-8 → 0, `unexecutable` 18 → 0, canonical 3-of-8 → 8-of-8. Six
+      prompt contradictions found and fixed, each by measuring the corpus and finding the
+      prose and the worked example disagreeing.

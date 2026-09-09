@@ -258,19 +258,8 @@ while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
 
     # The cold critic sees only the source and the candidate -- never the distilled rulesets
     # or this script's opinion of them -- which is what makes its finding independent.
-    canonizer critic "${SOURCE_FLAGS[@]}" --ruleset "$CANDIDATE" --out "$critic_prompt"
-    cat >> "$critic_prompt" <<EOF
-
-______________________________________________________________________
-
-## Destination
-
-Write your findings JSON to this exact path:
-
-<destination>${critic_out}</destination>
-
-Write the file. Do not print the JSON as your reply.
-EOF
+    canonizer critic "${SOURCE_FLAGS[@]}" --ruleset "$CANDIDATE" \
+        --findingsout "$critic_out" --out "$critic_prompt"
     run_agent "critic (attempt ${attempt})" "$critic_prompt" \
         "${SRC_DIR}/${D}" "$SYNTH_DIR" "$CRITIQUE_DIR" || exit 1
 

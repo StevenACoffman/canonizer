@@ -94,3 +94,9 @@ after it:
 - If every rule holds, output `{"diagnostics": [], "unexamined": [...]}` — the empty
   findings list still needs the gaps named, because that is what makes it readable as
   "found none" rather than "looked at none".
+
+______________________________________________________________________
+
+## Destination
+
+{{DESTINATION_CONTENT}}

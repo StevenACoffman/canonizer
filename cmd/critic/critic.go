@@ -24,12 +24,13 @@ import (
 // *root.Config for shared I/O.
 type Config struct {
 	*root.Config
-	Source   []string
-	Ruleset  string
-	Template string
-	Out      string
-	Flags    *ff.FlagSet
-	Command  *ff.Command
+	Source      []string
+	Ruleset     string
+	FindingsOut string
+	Template    string
+	Out         string
+	Flags       *ff.FlagSet
+	Command     *ff.Command
 }
 
 // New creates and registers the critic command under parent.
@@ -41,6 +42,12 @@ func New(parent *root.Config) *Config {
 	// merged from. The grader sees them in the order given, each in its own block.
 	cfg.Flags.StringListVar(&cfg.Source, 0, "source",
 		"source document the grader reads (repeatable)")
+	// Names a file where distill's and synthesize's --rulesout name a directory, and the
+	// asymmetry has a reason. Those derive each artifact's name from its source; a critic
+	// run's findings belong to one candidate at one *attempt*, and the attempt number is the
+	// driver's knowledge -- canonizer holds no counter -- so the caller supplies the name.
+	cfg.Flags.StringVar(&cfg.FindingsOut, 0, "findingsout", "",
+		"file the prompt tells the grader to write its findings JSON to")
 	cfg.Flags.StringVar(&cfg.Ruleset, 0, "ruleset", "",
 		"candidate *_rules.md to critique")
 	cfg.Flags.StringVar(&cfg.Template, 0, "template", "",
@@ -48,13 +55,19 @@ func New(parent *root.Config) *Config {
 	cfg.Flags.StringVar(&cfg.Out, 0, "out", "",
 		"file to write the filled prompt into (empty writes to stdout)")
 	cfg.Command = &ff.Command{
-		Name:      "critic",
-		Usage:     "canonizer critic --source PATH --ruleset PATH [--out FILE] [--template PATH]",
+		Name: "critic",
+		Usage: "canonizer critic --source PATH... --ruleset PATH [--findingsout FILE] " +
+			"[--out FILE] [--template PATH]",
 		ShortHelp: "emit a cold-critic prompt for a candidate ruleset",
 		LongHelp: `Fill the cold-critic prompt with a source document and a candidate
 ruleset and write it to --out or stdout. A fresh agent runs the prompt and returns
 JSON findings (skillet/finding shape); the "gate" command then blocks the ruleset
 while any finding is blocking.
+
+--source is repeatable, so a synthesized ruleset is graded against every document it
+was merged from. --findingsout is the file the prompt tells the grader to write its
+findings to; without it the prompt names no destination and a grader prints its JSON
+into a transcript instead of leaving an artifact.
 
 The grader sees only the source and the ruleset — never how the ruleset was
 produced — so its judgement is independent of the distillation.`,
@@ -91,7 +104,7 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 		return errors.WrapWithMessage(err, "critic: candidate ruleset")
 	}
 	_, _ = fmt.Fprintf(cfg.Stderr, "critic: critiquing %d rule(s)\n", len(rs.Rules))
-	filled, err := crit.FillPrompt(tmpl, source, string(candidate))
+	filled, err := crit.FillPrompt(tmpl, source, string(candidate), cfg.destination())
 	if err != nil {
 		return errors.Wrap(err) // crit already prefixes "critic:"
 	}
@@ -142,4 +155,22 @@ func (cfg *Config) readSources() (string, error) {
 		b.WriteString(string(body))
 	}
 	return b.String(), nil
+}
+
+// destination is the instruction the prompt carries about where the grader's findings go.
+//
+// **An empty --findingsout states today's behaviour rather than leaving a hole**, matching
+// what synthesize does for an absent --rulesout: replacing the marker with nothing leaves a
+// heading over an empty section, and leaving the marker puts a raw placeholder in front of
+// an agent.
+//
+// Ensures: never empty; it is pure.
+func (cfg *Config) destination() string {
+	if cfg.FindingsOut == "" {
+		return "No destination was given. Print your findings JSON as your reply, and say " +
+			"in one line that no output path was supplied."
+	}
+	return "Write your findings JSON to this exact path:\n\n" +
+		"<destination>" + cfg.FindingsOut + "</destination>\n\n" +
+		"Write the file. Do not print the JSON as your reply."
 }
