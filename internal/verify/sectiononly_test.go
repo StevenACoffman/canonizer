@@ -8,7 +8,15 @@ import (
 	"github.com/StevenACoffman/skillet/ruleset"
 )
 
-const anchorSource = "In practice we define our services with an interface in the root package."
+// anchorSource carries the headings the section-only anchors below name, because a section
+// reference is now checked against the source's headings: a fixture without them makes every
+// such anchor report an unknown section, which is the check working rather than a failure.
+const anchorSource = "# Common CRUD design in Go\n\n" +
+	"## Transactional boundaries\n\n" +
+	"In practice we define our services with an interface in the root package.\n\n" +
+	"## The interface\n\n" +
+	"## Errors\n\n" +
+	"## 4.2\n"
 
 // anchored builds an enforced rule carrying the given source anchor.
 func anchored(anchor string) ruleset.Ruleset {
@@ -122,7 +130,8 @@ func TestSectionNamesMayContainSpaces(t *testing.T) {
 func TestAnAnchorWithSomethingToSearchIsNotSectionOnly(t *testing.T) {
 	t.Parallel()
 
-	const source = "We call `NewTestDB` to open a real Bolt database, and `TestYoClient` " +
+	const source = "## Transactional boundaries\n\n## 4.2\n\n" +
+		"We call `NewTestDB` to open a real Bolt database, and `TestYoClient` " +
 		"to mock the remote client. Transactions stay inside the service method."
 
 	cases := []struct {

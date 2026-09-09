@@ -2303,7 +2303,7 @@ rather than accepted.
       period** — and the normaliser did not strip markdown escapes. Corrected before the
       claim was made; recorded because a false fabrication report is the most expensive kind
       of wrong answer this repository can give.
-- [ ] **A section reference is a checkable claim and nothing checks it.** Nine anchors name a
+- [x] **A section reference is a checkable claim and nothing checks it.** Nine anchors name a
       section and quote nothing, which `sectionOnly` reports advisory and leaves unsearched.
       But a source's headings are enumerable, so *does this section exist* is answerable —
       and the batch already shows the answer drifting: **8 of 9 name a heading exactly, and
@@ -2320,13 +2320,62 @@ rather than accepted.
       **Do not reuse the "not found" wording of `anchor-absent`.** *Named a section that does
       not exist* and *quoted text not in the source* are different defects, and this family
       has spent four entries separating exactly that kind of pair.
-- [ ] **`unexecutable` is now the dominant finding at 18 of 122 enforced rules, 14%, and it
+      **DONE 2026-09-08 as `verify.sectionNamed` + `CategoryAnchorSectionUnknown`.**
+      Measured: **1 of 9 flagged**, the `§3. Use a shared mock subpackage` slip, with every
+      other category on all eight rulesets unchanged.
+      **The headings come from `markdown.Sections`, not a scan for `#` lines.** A second
+      parser would disagree with the kernel's on setext headings and on `#` inside fenced
+      code, and canonizer would then report a fabrication skillet's own reader does not see.
+      A test pins the fenced-code case.
+      **The normalisation is the check, and its specification is a bug I made.** `Title` is
+      raw source text, so it keeps `2\.` and curly quotes; the one-off version of this
+      comparison reported two anchors as fabricated for want of stripping that backslash.
+      `headingKey` resolves escapes, then `textnorm.Fold`, then case — and the escaped-period
+      heading is a regression test.
+      **Numbering is kept deliberately.** Normalising a leading `#3.` away would excuse the
+      one real slip, and would also let an anchor citing section 2 match a heading numbered
+      3 — a worse error than the one excused.
+      **Advisory, though parity with `anchor-absent` argues for blocking, and the expiry is
+      written down**: make it blocking once this normalisation has met a second corpus with
+      no false positive. Blocking on a comparison whose failure mode is *silently wrong on
+      unusual markdown* would fail a ruleset for the checker's bug — which already happened
+      once.
+      **`sectionName` was factored out mid-implementation**, because `sectionOnly` cuts a
+      name at the colon and the first version of `sectionNamed` did not, so `§Errors:`
+      reported a heading that exists as missing. Two spellings of one question, caught by a
+      test.
+- [x] **`unexecutable` is now the dominant finding at 18 of 122 enforced rules, 14%, and it
       is accurate.** Sampled: the flagged rules genuinely carry a statement and a rationale
       with no `✗`/`✓` pair at all — the check is not miscounting. Every one sampled is a
       `[SHOULD]`, which suggests agents treat the pair as optional at lower severity while
       the format requires it of every enforced rule.
-      **Unmeasured: whether the prompt says so plainly enough.** The format section states
-      that every `[MUST]` and `[SHOULD]` rule must end with a `↦` line, and states the `✗`/`✓`
-      pair as part of the rule format, but never says the pair is required at `[SHOULD]` in
-      the way it says the anchor is. That is a candidate sixth contradiction of the same
-      family, and it should be read before it is fixed.
+      **Read 2026-09-08, and the guess in this entry was wrong.** It supposed agents treat
+      the pair as optional at `[SHOULD]`. By severity it is 16 `[SHOULD]` and **2 `[MUST]`**,
+      so severity is not the axis. By level it is:
+
+| level    | unexecutable | enforced |    rate |
+| -------- | -----------: | -------: | ------: |
+| `METHOD` |            7 |       13 | **54%** |
+| `CODE`   |            7 |       51 |     14% |
+| `ARCH`   |            4 |       58 |      7% |
+
+**`METHOD` is four to eight times the others, and the cause is structural**: a `✗`/`✓` pair
+is a code-example format, and a process rule has no natural code counterexample.
+
+**And the prompt's three worked examples formed a descending gradient nothing in its prose
+licensed** — `[MUST][CODE]` carried both marks, `[MUST][ARCH]` omitted the anchor, and
+`[SHOULD][METHOD]` omitted both. The `[ARCH]` example contradicted a stated rule outright,
+since the format section requires a `↦` line on every enforced rule. Agents were copying a
+gradient, which is the sixth instance of this family: the prose says one thing and the
+example teaches another.
+
+- [x] **DONE 2026-09-08, in the prompt only.** All three examples now carry a pair and an
+      anchor, and the requirement is stated beside the anchor requirement rather than left
+      to be inferred.
+      **The `METHOD` example shows a *process* pair**, and that is the part that matters.
+      Demanding a pair everywhere without showing a non-code one would push agents to
+      manufacture code for process rules — the same failure as demanding a quotation where
+      none exists, which this corpus already showed produces cherry-picked text. The prompt
+      now says the pair does not have to be code and demonstrates the alternative.
+      **No code change: `Executable` was right.** It reported a real absence, and the absence
+      was the prompt's.

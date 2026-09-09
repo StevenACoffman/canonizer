@@ -31,8 +31,20 @@ lines, `Source:`, `Scope:`, `Limitations:`, a `§` rule header, a rationale line
 a `✓` line, or a `↦` source-anchor line will corrupt the parse. Do not emit Markdown headings, tables, prose, blank rules, or
 commentary.
 
-Every `[MUST]` and `[SHOULD]` rule must end with a `↦` line: a short quote or section
-reference from the source that this rule derives from, so its provenance is auditable.
+Every `[MUST]` and `[SHOULD]` rule must carry **both** a `✗`/`✓` pair and a `↦` line — no
+exceptions, at any level, at either severity.
+
+The `✗`/`✓` pair is what makes a rule checkable: the `✗` shows something the rule forbids
+and the `✓` the thing it asks for instead, and they must differ in the way the rule is about.
+A rule with no pair states a preference nothing can test.
+
+**The pair does not have to be code.** For an `[ARCH]` or `[METHOD]` rule it is a contrast
+between two designs or two ways of working, written as prose — see the second and third
+worked examples below. Do not manufacture a code snippet for a rule that is not about code;
+write the contrast the rule actually draws.
+
+The `↦` line is a short quote or section reference from the source that this rule derives
+from, so its provenance is auditable.
 
 Begin with the version block and then the metadata block, exactly like this:
 
@@ -77,9 +89,13 @@ applied belongs before the rules it constrains. Within a section, order `[MUST]`
       Embedding domain rules in stored procedures or ORM hooks couples correctness to a specific database technology; unit-testing the logic or migrating the database then requires the full database stack.
       ✗  Validation trigger in PostgreSQL enforces a domain invariant
       ✓  Domain service validates the invariant before calling the repository
+      ↦  §Layers: "business rules belong above the store, never inside it"
 
 §7.2  [SHOULD][METHOD]  Deploy each change independently rather than batching releases.
       Batched deployments make it impossible to attribute a production incident to a specific change and force full rollback when only one change is defective.
+      ✗  Hold Monday's, Tuesday's and Wednesday's changes and release the three together on Thursday
+      ✓  Release each change when it is ready, so a bad one can be reverted without reverting the others
+      ↦  §Releases: "one change per deploy is the only way to know which one broke it"
 ```
 
 Within each section, order rules `[MUST]` first, then `[SHOULD]`, then

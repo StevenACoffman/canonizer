@@ -71,6 +71,9 @@ const (
 	CategoryUnsound = "unsound"
 	// CategoryUnquantified is a statement that turns on an amount it never states.
 	CategoryUnquantified = "unquantified"
+	// CategoryAnchorSectionUnknown is an anchor naming a section the source has no heading
+	// for, which is a different defect from quoting text the source does not contain.
+	CategoryAnchorSectionUnknown = "anchor-section-unknown"
 	// CategoryAnchorSectionOnly is an anchor that names a section and says nothing else,
 	// so there is no text to search the source for.
 	CategoryAnchorSectionOnly = "anchor-section-only"
@@ -148,9 +151,7 @@ func Provenance(rs *ruleset.Ruleset, source string) []finding.Diagnostic {
 			continue
 		}
 		if sectionOnly(r.SourceAnchor) {
-			diags = append(diags, advisory(r, CategoryAnchorSectionOnly,
-				"anchor names a section and quotes nothing, so provenance cannot be "+
-					"confirmed or refuted from the source text"))
+			diags = append(diags, sectionDiagnostic(r, source))
 			continue
 		}
 		if !anchorPresent(source, r.SourceAnchor) {
@@ -355,8 +356,8 @@ func sectionOnly(anchor string) bool {
 	// is what the gate should search, and its absence is what makes an anchor a bare
 	// section reference. Splitting on whitespace instead would reject `§Transactional
 	// boundaries`, since a section name may be several words.
-	name, content, hasColon := strings.Cut(rest, ":")
-	if strings.TrimSpace(name) == "" {
+	_, content, hasColon := strings.Cut(rest, ":")
+	if sectionName(anchor) == "" {
 		return false
 	}
 	return !hasColon || strings.TrimSpace(content) == ""
