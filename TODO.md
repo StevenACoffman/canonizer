@@ -27,8 +27,24 @@ ______________________________________________________________________
   `--template`; no binary-relative / cwd lookup, no absolute paths, no `os.Getenv`.
   (Replaces ai-skill's fragile three-tier template lookup and the hardcoded absolute
   paths in `make_distill.sh`.)
+- **`verify`** — the deterministic floor over a parsed ruleset. Blocking: `Executable`
+  (every enforced rule carries a discriminating ✗/✓ pair), `Provenance` / `Drift` (its
+  anchor is in the source), `Canonical` (the stored form round-trips through
+  `ruleset.Render`). Advisory: `Specificity`, `Conflicts`, and the scope report. With
+  `--against-proof` an absent anchor splits four ways instead of one — see the anchor
+  entries below. With `--proof` it writes a packet binding ruleset and source bytes.
+- **`gate`** — reads a critic reply via `critic.ParseReply` (which rejects a reply whose
+  coverage record is malformed rather than draining it), blocks on error-severity findings,
+  and renders the critic's `unexamined` record after the decision so it can never affect it.
+  Self-tests with a planted defect on every invocation.
 - Lint-clean (`golangci-lint`), structurally clean (`climax lint`), tested (pure
   `synth` core + end-to-end command tests through `cmd.Run`).
+
+**State as of 2026-09-05.** Pinned to `skillet v0.27.0`; `golangci-lint run ./...` reports
+0 issues and the suite passes. Entries written before that pin may reason about an older
+kernel — three did, and were found stale rather than blocked when checked against the code
+(`CategorySoftening`, the adjudication warrant, and the canonical-form version reader). **An
+entry citing a skillet version below v0.27.0 is worth re-checking before acting on it.**
 
 ______________________________________________________________________
 
@@ -321,7 +337,15 @@ repositories.
   exegesis (`quotecheck`, `a2check`) and canonizer is the third — recorded as a promotion
   candidate in skillet's TODO under *Contradiction Detection*. Adopt it here when it lands;
   expect the set of accepted anchors to grow, which is the point.
-- [ ] **`anchor-absent` conflates a fabrication with a drift, and they warrant opposite
+- [x] **`anchor-absent` conflates a fabrication with a drift, and they warrant opposite
+  responses.** RESOLVED 2026-09-05 by the entry below, not by this one's own plan.
+  **This entry concluded the split "needs the immutable evidence archive" and offered only a
+  cheap half in the meantime. That was wrong, and the `ruflo` entry shows why**: crossing two
+  signals — the anchor and the source's digest — gets the *full* split with no archive at
+  all. The archive would answer a further question (what did the source say *then*), but
+  separating a fabrication from a drift never needed it.
+  Kept for the reasoning and for the three-way sub-item, which is about gnosis's archive
+  design and is untouched by this. Original entry:
   responses.** `Provenance` emits one category when `r.SourceAnchor` is not found in the
   haystack, whether the anchor was **invented by the model** (a real defect — block, always)
   or the **source moved under it** (a new edition, a reformat, a re-exported PDF — where the
@@ -336,7 +360,41 @@ repositories.
   then, the cheap half is available now: record the source's content hash beside the ruleset
   at distill time, so a later `anchor-absent` can at least *report* whether the source has
   changed since — a different message, not yet a different verdict.
-  - [ ] **It is a three-way split, not two.** `gnosis`
+  - [x] **It is a three-way split, not two — and `Drift` now implements two of the three.**
+    DONE 2026-09-06 as `verify.Unverifiable`, advisory, reported when no `--source` is
+    supplied.
+    **The 2026-09-05 update above framed this as a decision about whether `SourceUnknown`
+    should block. That was the wrong question, and reading this entry to its end answers
+    it.** `SourceUnknown` means no *proof packet* while the source is readable, so an absent
+    anchor is a real finding and still blocks — unchanged. `unverifiable` is the case where
+    there is nothing to search, and it was not covered at all.
+    **The gap was live and worse than filed.** With no `--source`, `cmd/verify` ran no
+    provenance check and emitted nothing, so a ruleset whose rules all cite anchors produced
+    output byte-identical to one where every anchor was found — the entry's own warning that
+    *"`unverifiable` must not be spelled as an absent value"*, already true. And the summary
+    line added the day before asserted *"a pass means this ruleset is well-formed **and its
+    anchors are present**"*, which was false on exactly those runs. Both are fixed; the
+    clause is now conditional on a source having been supplied.
+    **The vocabulary is skillet's, not a third local tri-state.** `quotecheck.Status` is
+    reused, and its zero value is pinned by a test rather than by a comment — a comment
+    saying "Unchecked must stay the zero value" is what a refactor deletes.
+    One diagnostic for the ruleset rather than one per rule: the repair is a single action,
+    so N lines would repeat one instruction, and the count of unverified anchors is in the
+    message. Original entry: `gnosis`
+    **UPDATED 2026-09-05.** `verify.Drift` ships `SourceUnchanged` and `SourceChanged`,
+    which are this table's `fabricated` and `drifted`. The third state is the one still
+    open, and building the other two made the disagreement precise rather than resolving it:
+    **`SourceUnknown` currently falls back to `Provenance`, which blocks.** This table says
+    `unverifiable` must *report, never block*. Both readings are defensible and they are not
+    the same claim — `SourceUnknown` means *no proof packet was supplied* while the current
+    source is still readable, whereas `unverifiable` means *no archived text exists at all*.
+    An anchor absent from a readable current source is a stronger signal than an anchor with
+    nothing to check against.
+    So the open question is narrower than the entry states: **does an absent anchor with no
+    second signal block?** It does today, which preserves the pre-2026-09-05 verdict and is
+    the conservative choice; the argument against is this entry's, that it blocks every rule
+    drawn from a PDF. Deciding it needs the archive distinction, not just the flag.
+    Original entry: `gnosis`
     (`~/Documents/git/gnosis/SPEC.md` §4.2–§4.3) has now settled the archive design, and it
     is text-only with **deliberately no PDF extractor** — so a source that cannot be archived
     is admitted as `referenced`: hash and URI recorded, no local text retained. That is a
@@ -412,7 +470,25 @@ repositories.
   ruleset but not the reasoning that produced them — no new machinery needed for it.
   Note the sequencing: `conflict` compares normalized rule text, so it depends on the
   `textnorm` item above being settled first, or it will inherit the same disagreement.
-- [ ] **Adjudication records have no home and fail `Provenance` by construction.** When two
+- [x] **Adjudication records have no home and fail `Provenance` by construction.** DONE
+  2026-09-05. The entry's own scoping held exactly: *"the kernel carries the datum because
+  `ruleset` is skillet's type; the decision stays here."* skillet v0.27.0 shipped
+  `ruleset.Rule.Warrant{By, At, Rationale}` with `Present()` and `Valid()`; what landed here
+  is the policy -- **an enforced rule with no anchor but a valid warrant is sourced
+  differently, not unsourced**, and `Provenance` gates on the warrant where the anchor is
+  absent.
+  **An invalid warrant is reported, not accepted**, as `warrant-incomplete`. Without that the
+  warrant becomes a way to opt out of provenance entirely: a rule could carry an empty
+  marker and pass. skillet keeps `Present` and `Valid` as separate questions precisely so
+  both can be asked, and both are.
+  **`Provenance` and `Drift` route through one `unanchored()`**, so the two cannot disagree
+  about the policy -- the same reason `anchorPresent` was factored out when `Drift` landed.
+  The smaller-than-gnosis scoping was kept: presence plus validity, no tiers, no co-signers,
+  no reversal links, because importing a permission model would be adopting the position
+  this repo declined.
+  **The false rejection is still not live**, as the entry says: a ruleset carrying a warrant
+  renders as format 2 and none exist yet. So this is enabling work, and the test is the
+  artifact. Original entry: When two
   rules conflict and a person decides, the decision is knowledge present in neither source,
   so it can carry no `↦` anchor — and `Provenance` will block it as `no-anchor`. That is
   the highest-value artifact the team produces, rejected by the check that exists to
@@ -458,7 +534,20 @@ repositories.
 Source: a survey of `~/Documents/agent-blue` (22 projects — the sources the practice came
 from). Checked against the code in both repositories.
 
-- [ ] **Nothing asserts a stored ruleset is in canonical form.** `verify` parses
+- [x] **Nothing asserts a stored ruleset is in canonical form.** DONE 2026-09-05 as
+  `verify.Canonical`, blocking, wired into `verify` — `Render(Parse(raw)) != raw` is now a
+  finding.
+  **This entry's stated sequencing was satisfied and its stated hazard was not real.** It
+  sequenced the check behind a format-version reader, reasoning that re-rendering an older
+  file would report drift where the honest answer is "this is format N and I write M".
+  skillet answers that inside `Render`: `formatOf` returns the ruleset's *own* format and
+  `renderFormat` emits no header below 2.
+  **A version guard was written, measured, and removed — it made the check vacuous.**
+  Guarding on `rs.Format != FormatVersion` declined on every file in the corpus, because no
+  stored ruleset declares a version and they all parse as format 1. Measured before removing
+  it: a header-less ruleset parses as format 1 and round-trips byte-identically. A check that
+  can never fire is the trap this file keeps catching, and it was nearly shipped here as
+  care. Original entry: `verify` parses
   (`ruleset.Parse`) and never renders: a grep for `Render` across this repo returns no
   non-test hit, and no command carries a `--check` flag. So a ruleset an agent wrote can be
   *parseable* while `Render(Parse(x)) != x` — reordered, reformatted, or quietly dropping a
@@ -485,7 +574,12 @@ from). Checked against the code in both repositories.
   and roughly ten stored files exist, most of them 1-4 rule prompt examples. So a breaking
   format change is a bump here rather than a family-wide event, which is why skillet chose to
   do it now rather than defer it again.
-- [ ] **The cold critic reports what it found, never what it did not look at.**
+- [x] **The cold critic reports what it found, never what it did not look at.** DONE
+  2026-09-05: `critic_prompt.md` gained the constraint footer, and the record is carried in
+  `finding.Result.Unexamined` — which skillet already defines, with the advisory-only
+  guarantee structural rather than remembered. The prompt asks for gaps named *specifically*
+  ("I read the rules against §3 and did not cross-check §7"), because "I may have missed
+  things" records nothing. Original entry:
   `critic_prompt.md` asks for `unsupported` / `vague` / `duplicate` findings; an empty
   category is therefore indistinguishable from an uninspected one, and `gate` ships on that
   silence. `agent-blue/super-hermes` closes exactly this hole:
@@ -499,7 +593,22 @@ from). Checked against the code in both repositories.
   design. Shape: an additive `examined` / `not_examined` block beside the findings array,
   advisory only — a critic that declares a gap must not thereby block, or it will learn to
   declare none.
-- [ ] **One cold critic is one opinion.** `agent-blue/evals-differential-oracle` is the
+- [x] **One cold critic is one opinion.** REJECTED 2026-09-05 — recorded rather than built,
+  and the reason is architectural rather than effort.
+  A second prompt file is cheap. The **independence** is not, and it is the whole of the
+  claim: this entry's own thesis is that *agreement between two independently-built systems*
+  is the strong signal. canonizer *"is a prompt-filler… it never calls a model itself"*
+  (**Decided — Architecture**), so it can emit two prompts and has no way to learn whether
+  they were answered by two graders or twice by one session.
+  Shipping the cheap half would claim a property the architecture cannot deliver — the same
+  ground the reduced-independence entry above was closed on: a field canonizer cannot
+  populate honestly *"reads as evidence of an isolation nobody checked."*
+  Worth keeping from the entry: it notes the deterministic complement is **already built** —
+  *"`verify.Executable` / `verify.Provenance` already are that net"* — so the gap was only
+  ever the second opinion, which is exactly the part that needs the seam canonizer declines
+  to add. The trigger that could reopen this is identity on the reply, letting a critic
+  answer from the session that produced the distillation be refused; that is a relay feature
+  no tool in the family has. Original entry: `agent-blue/evals-differential-oracle` is the
   source of adh's `oracle` self-test, and its thesis applies verbatim to grading:
   *agreement between two independently-built systems is a far stronger signal than either
   passing its own tests*. canonizer runs a single critic prompt; a second grader given the
@@ -511,7 +620,117 @@ from). Checked against the code in both repositories.
   net for rulesets. So the gap is only the *second opinion*, not the invariant tier.
   Already absorbed and worth not re-deriving: `gate.SelfTest`'s planted-defect negative
   control is that repo's `impl_buggy.py` idea, and mirrors adh's `oracle selftest`.
-- [ ] **OKF states our thesis as two data fields.**
+- [x] **OKF states our thesis as two data fields.** DONE 2026-09-08 — the record arrives
+      from skillet, the slot is the ruleset frontmatter at format 4, and `verify --sign-off`
+      writes it. Details below.
+  **Skillet decided 2026-09-07: the verification *record* is promoted, the *fold* is not**
+  — `Verification{By, At}`, list-valued, with each consumer keeping its own tier derivation.
+  The trigger fired on two repos having independently hand-written that same type
+  (`bundle.Verification` in gnosis, `contextstore.Verification` in adh) while their folds
+  differ by design.
+  **So this entry's own conclusion is half-superseded.** It said *"when this lands it lands
+  here, local to canonizer, until a second consumer appears"* — the record now arrives from
+  skillet instead, so the `anchor-absent` split can use the shared element rather than
+  inventing a third copy, which is what this entry was trying to avoid. What stays local is
+  any tier derivation canonizer wants.
+  **MEASURED 2026-09-07: the type is available and there is nowhere to put it, so this is
+  adopt-on-arrival rather than adopt-now.** `verification.Event` is a *record*, and canonizer
+  persists nothing that could hold one. Every candidate slot was checked rather than assumed:
+  rulesets carry no provenance metadata — this entry's own unmet condition, and adding a
+  header is a skillet format bump; `proof.Packet` is `{Arc, Provenance{GitSHA}, Artifacts}`
+  with no field for events and is skillet's type to change; `finding.Result` is
+  `{Diagnostics, Unexamined}`, and an envelope around it changes the format `gate` reads,
+  which was rejected on this same ground for `semantic_verification`. A grep for every write
+  canonizer performs finds three — the findings JSON, the proof packet, and prompt files.
+  There is no ledger and no state file.
+  **A canonizer-local events file was considered and rejected** — it would be building a
+  feature to consume a type, and the events would be testimony canonizer cannot check, the
+  ground on which the critic's independence flag was already refused.
+  **Corrected 2026-09-07 on both halves of that reasoning.** It cited skillet's package doc
+  saying `verification` *"has no importers yet"*; that is stale — **gnosis and adh both pin
+  v0.31.0 and use `verification.Event` today**, so the risk it invoked does not apply and
+  the doc needs rewriting. And the objection about testimony was right about a **flag** and
+  wrong to stop there: adh's `RecordVerification` shows the buildable form, taking the actor
+  from *"the repository's configured identity, never from a flag on the invocation"*, since
+  a caller-supplied actor lets anyone mint a `human:` event. Config-derived is still
+  self-asserted, and adh states that limit rather than implying it.
+  **Where the events go is settled by precedent, not open.** Both consumers store them in the
+  artifact they are about, under a `verified` key — gnosis in document frontmatter, adh
+  appended to the unit's own file. canonizer's artifact is the ruleset, so the slot is a
+  slot on the ruleset at **format 4**, which is also the only candidate that satisfies this
+  entry's own trigger, *"if rulesets ever carry provenance metadata"*. Filed in
+  `skillet/TODO.md`; a `proof.Packet` field was the alternative until the precedent was
+  checked.
+  **Narrowed 2026-09-08: the slot is the ruleset's YAML frontmatter block, not a `Verified:`
+  body header.** `Verified` is list-valued while every existing header is one string, so a
+  body header would need an invented delimiter grammar; the frontmatter block already exists
+  and holds a list natively. It is also what gnosis actually reads — frontmatter, not a body
+  header — and it keeps the record out of reach of the agent that authors the rule body.
+  **The trigger this entry set is now the thing being built**, so the next state for this
+  item is *adopt*, not *wait*: once skillet models `Verified` and canonizer pins that
+  release, `unanchored`'s record and the `anchor-drift`/`anchor-stale` gap below both have a
+  place to read from. Reasoning and the measured costs live in `skillet/TODO.md` under "No
+  artifact carries verification events" — **one authoritative location**, referenced rather
+  than restated, because this is a kernel decision that canonizer consumes.
+  **DONE 2026-09-08 against skillet v0.33.0: `verify --sign-off`.** `internal/signoff` holds
+  the policy; `cmd/verify` is the shell that loads the actor, asks, and writes.
+  **The actor is config-derived, and two cheaper sources were rejected on the policy's own
+  grounds.** An environment variable is per-invocation and caller-supplied — a flag with
+  worse discoverability — so it fails for the reason the rule exists. Git's `user.email`
+  carries no *class*, so it would have to be guessed into one, and guessing `human` is
+  exactly the guess adh names as letting an automated runner mint a person's sign-off; it
+  would also add the version-control dependency `proof.Create` avoids by taking the SHA from
+  its caller. What ships is `identity.actor` in a YAML file, validated `<class>:<name>` with
+  no defaulting, read from `--config` (default `.canonizer.yaml`).
+  **`--config` is a flag after all, and the repository's own lint rule decided it.** The plan
+  rejected one on §4 — a caller does not know a better default — and reached for an injected
+  `getenv` like adh's. `forbidigo` forbids `t.Setenv` here (*"pass environment via a getenv
+  parameter instead"*) and `cmd.Run` has no getenv seam, so an env var would have been
+  untestable through the dispatcher a user actually uses. A flag names the *file*, not the
+  actor, so the trust argument is untouched.
+  **Three refusals, and the third was not in the plan.** Blocking findings refuse, because a
+  sign-off would *"attest to a state this run disproved"* — adh's words, and only the
+  definition of condemned differs (a blocking diagnostic here, drift there). An unconfigured
+  actor refuses rather than recording an anonymous event. And **`--sign-off` requires
+  `--source`**: measured, withholding it drops the blocking count on the stored corpus from
+  17 to 5, 15 to 3 and 8 to 2, because the anchor checks are replaced by advisory
+  `Unverifiable` — so a caller could get *closer* to a signable run by supplying less
+  evidence. That incentive ran backwards and is now closed, which is the same fail-closed
+  rule this family keeps arriving at: not checked must not read as clean.
+  **A fourth refusal was planned and turned out to be unnecessary.** "Refuse a non-canonical
+  ruleset" was there because writing means `Parse` → append → `Render`, which rebuilds the
+  document and would silently reformat a non-canonical body — five of eight stored rulesets
+  are non-canonical. But `Canonical` already emits `non-canonical` at `severity=error`, so
+  the blocking refusal covers it. What was a rule became an **invariant with a test**:
+  `Render` only ever runs on a document that already round-trips, so a sign-off cannot
+  reformat anything.
+  **Measured on the corpus: all eight refuse and none was written.** Every stored ruleset
+  carries 3–17 blocking findings. So this ships a write path with no subject today, and the
+  entry says so rather than leaving a reader to conclude it is broken.
+  **Atomic, unlike this command's other three writes.** Those create new files, where a
+  partial write costs a re-run; this one replaces a document a human owns and cannot
+  regenerate, so it uses `atomicfile.WriteFile`.
+  **Still attributable rather than authenticated**, and stated in `--help` and the README
+  rather than implied: it says which actor the checkout was configured as, not who was at
+  the keyboard.
+  **What `Event` buys when a slot exists**, recorded so the next reader need not re-derive
+  it: `anchor-drift` and `anchor-stale` both say *the source changed* and neither can say
+  whether anyone re-confirmed the anchors since. That is §5.2's independence of `verified`
+  from `generated.at`, and it is the one distinction the four-verdict split still cannot
+  draw.
+  **The `Warrant`/`Event` overlap noticed here is answered and closed in skillet**: they stay
+  unrelated. A warrant *substitutes* for evidence — `unanchored` reads it exactly where
+  `SourceAnchor` is empty, and its `Rationale` is the only reviewable content there is — while
+  an event *attests to* evidence that already stands. Adding `Rationale` to `Event` would
+  break a list that mixes `human:` and `check:` actors; embedding `Event` in `Warrant` would
+  imply there was something to verify, which is the case a warrant exists for the absence of.
+  What is shared is the raw-string grammar of `By`, and only that.
+  **What is still not promoted is the `Generated`/`Verified` block**, and the reason is
+  recorded in skillet: YAML cannot round-trip, gnosis re-emits its frontmatter verbatim, so
+  a block struct would be decode-only. This entry cites §5.2's independence of `verified`
+  from `generated.at` as the vocabulary it needs; that independence is a property of the
+  *document*, and reading it still means reading the block yourself.
+  Original entry:
   `agent-blue/knowledge-catalog/okf/SPEC.md` §5.2 keeps `generated` and `verified` separate
   "because who *wrote* a concept need not be who *confirmed* it" — which is this repo's
   entire reason to exist, expressed as frontmatter rather than as a pipeline stage. Two
@@ -561,7 +780,15 @@ from). Checked against the code in both repositories.
   it still beats inventing a third. When it lands it lands **here, local to canonizer**,
   until a second consumer appears — and if what lands is a fold rather than a stored tier,
   that *is* the trigger, so say so in the commit.
-- [ ] **Say what a score is not allowed to claim.**
+- [x] **Say what a score is not allowed to claim.** DONE 2026-09-05 as a README policy
+  section enumerating the four claims a clean gate does *not* license — the rules are
+  correct, the anchor supports the claim, the set covers its scope, nothing was flagged —
+  each with the reason the pipeline cannot support it. `verify` and `gate` now state the
+  same thing at the moment it matters (see the entry below).
+  **The reason it is written down is that the failure is silent**: a gate that blocks says
+  why, and a gate that passes says nothing — so the word chosen for that silence in a commit
+  message is where the overclaim enters. The README asks for "passed canonizer's structural
+  gate" over "verified". Original entry:
   `agent-blue/cc-thinking-skills/analysis/AUDIT.md` pins its evidence file *and* the
   registry it references by SHA-256, then states "If this narrative disagrees with the JSON,
   **the JSON wins**", carries a global disposition of `no_automatic_elevation`, and
@@ -584,7 +811,20 @@ from). Checked against the code in both repositories.
 Source: a survey of `~/Documents/agent-fuschia` (26 repositories). canonizer takes the most
 from it, because `vac-protocol` independently arrived at this repo's central distinction.
 
-- [ ] **`verify` and `critic` are VAC's structural/semantic split, and the output should
+- [x] **`verify` and `critic` are VAC's structural/semantic split, and the output should
+  say so.** DONE 2026-09-05. `verify` states on every run — passing or failing — that it ran
+  structural checks only and did not perform semantic replay; `gate` qualifies its *clean*
+  verdict and only that one, since a blocked run is in no danger of being read as a pass.
+  **`semantic_verification: "not-performed"` was not added to the findings JSON, and the
+  reasoning is the same one that produced `Scope` last pass.** `finding.Unexamined` is the
+  obvious home and is the wrong one: skillet documents it as *testimony* — an agent's
+  unverifiable claim about its own behaviour — and separates it explicitly from the case
+  "where code decided a check did not apply and can say so mechanically", which is this. A
+  diagnostic is worse: it would fire on every run, so every clean `verify` would report one
+  finding and the count would stop meaning anything.
+  So the human half shipped and **the machine-readable half needs a producer field on
+  `finding.Result`**, which is skillet's to add — the third item this pass to end there.
+  Original entry:
   say so.** `agent-fuschia/vac-protocol` §4 calls them "two distinct acts, **never to be
   conflated**": *structural verification* is zero-network, zero-issuer-code — schema valid,
   artifacts hash-identical, closure, limitations stated, every declared number recomputed
@@ -602,7 +842,38 @@ from it, because `vac-protocol` independently arrived at this repo's central dis
   And the case worth designing for, which the taxonomy currently has no name for: a ruleset
   that passes `verify` and fails `critic` "is a precise, reproducible accusation" — not a
   malformed artifact but a well-formed wrong one.
-- [ ] **A ruleset that will not say what it does not cover is an advertisement.** VAC makes
+- [x] **A ruleset that will not say what it does not cover is an advertisement.** COMPLETED
+  2026-09-06 against `skillet v0.30.0`, which shipped the `Limitations:` header this entry
+  was waiting on. `verify.Limitations` now reads `rs.Limitations`.
+  **The word list is deleted, not demoted to a fallback.** `exclusionWords`,
+  `statesAnExclusion` and `notLetter` are gone. Keeping them would have been worse than the
+  original guess: a ruleset with an empty `Limitations:` would still pass because its
+  `Scope:` happened to contain "only" -- the guess silently overriding the fact it was
+  standing in for.
+  **The check stays advisory and its justification changed rather than lapsed.** It was
+  advisory because the detection was a word list; it is advisory now because no ruleset in
+  the corpus carries the header, so blocking would fail every one on the day it ships. That
+  reason expires on a migrated corpus, which is the trigger for making it blocking -- and it
+  is recorded in the doc comment, because a rule whose stated reason no longer applies is one
+  nobody can evaluate later.
+  **Deliberately not checked: whether the stated limits are any good.** `Limitations: none`
+  satisfies the field and states nothing, and detecting that is the same word list in a new
+  place. Presence is what a deterministic check can honestly assert; the rest is the critic's.
+  Original entry: PARTLY
+  DONE 2026-09-05 as `verify.Limitations`, advisory — and the half that is missing is the
+  half this entry actually asked for.
+  **The `Limitations:` header cannot be added from here, and it was measured rather than
+  assumed.** skillet's parser reads only `Source:` and `Scope:` and `Render` writes only
+  those two, so a `Limitations:` line parses without error, is dropped on render, and the
+  file then **fails the blocking canonical-form check** that landed earlier this pass. The
+  header needs a skillet marker and a `FormatVersion` bump, exactly like the warrant.
+  What shipped instead asks the same question of the field that exists: a `Scope:` stating
+  only what is covered, with no exclusion, is the advertisement the entry objects to.
+  **Advisory for two independent reasons**, both worth keeping when the header lands: the
+  detection is a word list and cannot be more than a prompt to look; and every ruleset in
+  the corpus would fail on day one, and a gate that turns a whole corpus red teaches people
+  to bypass the gate. VAC's `empty-limitations` *invalid* verdict is reachable only once the
+  header exists and the corpus has been migrated. Original entry: VAC makes
   `claim.limitations` **REQUIRED and non-empty**; a bundle without explicit non-claims is
   invalid (`empty-limitations`), because "a capability statement that will not say what it
   does not cover is an advertisement, and VAC does not carry advertisements". A distilled
@@ -613,7 +884,14 @@ from it, because `vac-protocol` independently arrived at this repo's central dis
   Candidate: `ruleset.Ruleset` already carries `Source:` and `Scope:` header lines; a
   `Limitations:` sibling, checked non-empty by `verify`, is a small change with a large
   honesty return.
-- [ ] **The critic's categories are missing coverage.** `critic_prompt.md` asks for
+- [x] **The critic's categories are missing coverage.** DONE 2026-09-05: `coverage` is the
+  fourth category, documented as a property of the *set* and reported once with
+  `"path": "ruleset"`.
+  **The test that existed to prevent exactly this change did not fire, and that was the more
+  useful find.** `TestCriticPromptKeepsThreeCategories` asserted the substring
+  "one of `unsupported`, `vague`, `duplicate`" — which stays true when a fourth is appended.
+  It now asserts the whole contract line and checks every named category is also defined
+  above it. Original entry: `critic_prompt.md` asks for
   `unsupported` / `vague` / `duplicate` — all properties of an individual rule. VAC §6's
   challenge protocol has three classes and the middle one has no analogue here:
   **coverage** — "the evidence does not support the stated `capability`/`scope`", e.g. "the
@@ -622,7 +900,14 @@ from it, because `vac-protocol` independently arrived at this repo's central dis
   property of the *set*, invisible to any per-rule category, and it is the failure a reader
   is most likely to be harmed by. Pairs with the limitations item — a stated scope is what
   makes a coverage challenge decidable at all.
-- [ ] **Named reasons, from a closed vocabulary.** VAC enumerates nineteen structural
+- [x] **Named reasons, from a closed vocabulary.** DONE 2026-09-05. `internal/verify` now
+  defines its categories as constants in one block, and a new test pins each one's *string*
+  because the behavioural tests must keep asserting literals: a test comparing a constant
+  against itself passes however the value is edited, so the one change it cannot catch is
+  the one that breaks every consumer.
+  **The registrable-`Category` question is left open deliberately**, as this entry filed it
+  against skillet. Constants get the whole benefit — one place, compile-checked references —
+  without canonizer answering a kernel question for the family on its own. Original entry: VAC enumerates nineteen structural
   failure reasons and emits exactly one per failure. `internal/verify` currently produces
   `no-anchor`, `anchor-absent`, and the Executable categories as string literals into
   `finding.Category`, which `skillet` types as a bare `string`. Define canonizer's set as
@@ -652,8 +937,13 @@ ______________________________________________________________________
 `finding.Category` was always going to allow. The full reasoning, including why a closed
 enum and a registration seam were both refused, is in `skillet/TODO.md`.
 
-- [ ] **Import `skilllens.CategorySoftening` in `internal/verify/verify.go:106`.** Waits on
-  a skillet release; canonizer pins v0.18.0 and carries no `replace`.
+- [x] **Import `skilllens.CategorySoftening`.** DONE — the constant is referenced at
+  `internal/verify/verify.go:150`, and go.mod pins **v0.27.0**, nine releases past the
+  v0.18.0 this entry was written against. The checkbox was stale rather than the work
+  outstanding; corrected 2026-09-05 while auditing the file against the code.
+  The line reference in the original title has moved and is left as written, since the entry
+  is a record of a decision rather than a pointer. Original entry: waits on a skillet
+  release; canonizer pins v0.18.0 and carries no `replace`.
   **The value does not change** — the constant is `"softening"`, which is what canonizer
   emits today. No output moves, `verify_test.go:96`'s `wantCat` stays as it is, and the
   whole change is a literal becoming an identifier. Worth doing anyway: the point is that
@@ -678,7 +968,19 @@ first, which was the wrong home for a backlog belonging to this tool.
 The first one resolves the oldest open defect in this file, and it does it with a mechanism
 rather than with the evidence archive that entry has been waiting on.
 
-- [ ] **`verify.Provenance` wants two signals crossed, not one anchor looked up.** The
+- [x] **`verify.Provenance` wants two signals crossed, not one anchor looked up.** DONE
+  2026-09-05 as `verify.Drift` plus `verify --against-proof PATH`.
+  **The second signal was already on disk and nothing read it back.** `verify --proof` has
+  been writing a `proof.Packet` binding the ruleset *and the source bytes* since it shipped,
+  and `proof.Artifact` carries `{Path, Digest}`. So the file hash this entry asks for
+  required no new record at all — only `proof.Load` and a comparison.
+  The four verdicts are as filed: anchor present + source unchanged passes; present +
+  changed is `anchor-drift` (advisory); **absent + unchanged is `anchor-fabricated`, the one
+  certain defect and the only blocking one**; absent + changed is `anchor-stale` (advisory).
+  Without `--against-proof` the behaviour is exactly as before — with one signal,
+  `anchor-absent` blocking remains the honest verdict, and that fallback is pinned by a test.
+  `anchorPresent` was factored out so `Provenance` and `Drift` cannot disagree about what
+  "present" means. Original entry: The
   `anchor-absent` entry above concludes that separating a fabrication from a drift *"needs
   the immutable evidence archive"*, and offers only a cheap half in the meantime — record the
   source hash so a later failure can at least *report* whether the source changed. `ruflo`'s
@@ -710,7 +1012,10 @@ rather than with the evidence archive that entry has been waiting on.
   and presents as authentication. This repo already holds the correct position (`gate`
   refuses a weighted score for the same class of reason); the instance is worth knowing
   because it is what `vac-protocol`'s refusal of signatures predicts, observed in the wild.
-- [ ] **A critic that ran with reduced independence must say so, and there is no state for
+- [x] **A critic that ran with reduced independence must say so, and there is no state for
+  it.** CLOSED 2026-08-22 in this entry's own body; the checkbox was never ticked and is
+  corrected 2026-09-05. The conclusion stands and is restated at the end of the entry: the
+  state cannot occur, because canonizer spawns nothing. Original entry:
   it.** `critic` withholds the distillation by design and that is the whole basis for calling
   its opinion cold. `oh-my-agent`'s judge protocol reaches the same design from scratch — a
   spawned subagent with fresh context, briefed on the criteria and never on what the
@@ -746,8 +1051,18 @@ rather than with the evidence archive that entry has been waiting on.
   benefits from misreporting it. The only real fix is identity on the reply, refusing a
   critic answer from the session that produced the distillation, and that is a relay feature
   neither tool has. Recorded so the trigger is one that can fire.
-- [ ] **The coverage record is one design that four entries in this family describe
-  separately, and it should be promoted once.** *This is not new work here — it is a note on
+- [x] **The coverage record is one design that four entries in this family describe
+  separately, and it should be promoted once.** RESOLVED 2026-09-05, and it resolved the way
+  the entry asked: **promoted once, into skillet, as `finding.Unexamined` + `Result.Unexamined`**
+  — carrying the load-bearing constraint structurally rather than by convention, since a
+  consumer walking `Diagnostics` to decide an outcome never sees the coverage list. canonizer
+  now consumes that type rather than inventing an `examined`/`not_examined` block of its own.
+  **One of the four descriptions does not collapse into it, and should not be made to.** The
+  `Limitations:` item below is the *ruleset* declaring what it does not cover; this is the
+  *critic* reporting what it did not look at. Different author, different moment, different
+  object — and a reader needs both, because a well-scoped ruleset graded narrowly and a
+  badly-scoped one graded thoroughly are different failures. Kept open on its own terms.
+  Original entry: *This is not new work here — it is a note on
   the `cold critic reports what it found` entry above, so it is not double-counted.* The same
   shape appears as: this repo's `examined` / `not_examined` block; this repo's *"a ruleset
   that will not say what it does not cover is an advertisement"* (VAC's REQUIRED non-empty
@@ -776,7 +1091,20 @@ package doc:
 canonizer was not one of the five sites — it has no derived-applicability mechanism — but
 the rule's second half lands on it anyway, and this is the first thing found by applying it.
 
-- [ ] **`verify` silently drops every non-enforced rule, so a clean result cannot be told
+- [x] **`verify` silently drops every non-enforced rule, so a clean result cannot be told
+  from an unexamined one.** DONE 2026-09-05 as `verify.Scope` plus a stderr line on every
+  run and one advisory diagnostic when nothing was enforced.
+  **The entry was right that this is a count and not a predicate**, and right that skipping a
+  CONSIDER rule is correct — the defect was only that the skipping was invisible.
+  **It must not be `finding.Unexamined`, and skillet's own doc is why.** That type is
+  *testimony*: a critic's unverifiable claim about its own behaviour. This is mechanical —
+  code applied a documented rule and can say so exactly — and skillet documents the two as
+  "deliberately different types" for that reason. skillet has no type for the mechanical
+  half, so `Scope` stays local until a consumer beyond canonizer wants one.
+  The advisory goes into the findings JSON rather than only to stderr, so it reaches `gate`;
+  a fact that lives in a terminal is a fact somebody did not read. Never blocking: a
+  CONSIDER-only ruleset is legitimate. An *empty* ruleset is not the advisory case — it
+  examines nothing and misleads nobody. Original entry:
   from an unexamined one.** All three checks open with `if !enforced(r.Severity) { continue }`
   (`internal/verify/verify.go:31`, `:59`, `:101`) and nothing downstream records how many
   rules that skipped. A ruleset of entirely `[MAY]` rules produces **zero diagnostics** —
@@ -806,7 +1134,16 @@ entry plus adh's matching one — two consumers with present defects. Design rec
   that would break it.
 - **`Reason` is required.** `Valid()` rejects either field empty or whitespace-only.
 - **It is testimony, not a derived fact** — a critic's claim about its own behaviour.
-- [ ] **Parse `unexamined` from the critic reply and render it in `gate`.** The prompt in
+- [x] **Parse `unexamined` from the critic reply and render it in `gate`.** DONE 2026-09-05
+  as `critic.ParseReply`, which replaced the bare `json.Unmarshal` in `gate.readFindings`.
+  **Parsing and validating are one call so a caller cannot do the first and forget the
+  second** — `finding.Result` already has the field and a json tag, so the reply was in fact
+  already being read; what was missing was that nothing checked it. A malformed entry rejects
+  the whole reply, as filed, and the error names which entry.
+  `gate` renders the record after the blocking decision is made, so nothing in it can change
+  the outcome — the ordering is the guarantee, not a formality. A reply naming no gaps prints
+  nothing: "no gaps declared" would read as a positive fact about coverage and is the absence
+  of one. Original entry: The prompt in
   `internal/prompt/critic_prompt.md` gains a constraint footer asking the critic to name
   the angles it did not take, in `super-hermes`' form — *"This analysis maximized X. It did
   not examine: …"*. The parse is pure and belongs beside the findings parse.
@@ -814,7 +1151,9 @@ entry plus adh's matching one — two consumers with present defects. Design rec
   adh already handles a malformed finding, and the reason is the same: silently discarding
   half a reply is how an answer that says nothing passes for an answer that found nothing.
   Render below the findings, clearly separated, and never count it toward the exit code.
-- [ ] **Say in `critic_prompt.md` that declaring a gap is free.** The whole mechanism turns
+- [x] **Say in `critic_prompt.md` that declaring a gap is free.** DONE 2026-09-05, and
+  pinned by a test that compares with whitespace collapsed, so re-wrapping the prose cannot
+  silently drop the sentence the mechanism depends on. Original entry: The whole mechanism turns
   on the critic believing that, and a critic that suspects a declared gap will be held
   against it declares none — which costs both the gap and the finding it would have come
   with. State it in the prompt, not only in the code.
@@ -869,7 +1208,35 @@ open that `skillsaw` had already closed. **A backlog that mirrors another
 repository's work goes stale in the direction that flatters.** One home, and a
 pointer from everywhere else.
 
-- [ ] **A known-answer soundness test per rule.** `gate.SelfTest`'s planted-defect
+- [x] **A known-answer soundness test per rule.** DONE 2026-09-06 as `verify.Soundness`,
+  which maps `ruleset.Sound`'s findings onto blocking diagnostics. `skillet v0.30.0` added
+  `Rule.Checks` and the `⊨` marker, closing the block this entry recorded.
+  **Blocking, unlike the other two advisory checks, and the difference is decidability.**
+  `Specificity` and `Conflicts` report things a deterministic check cannot settle. This one
+  is settled: the checks ran against the rule's own examples and either discriminated or did
+  not, so there is no judgement left for a reader to supply -- the line `Executable` and
+  `Provenance` already sit on.
+  **A rule with no checks is not reported**, because `Sound` declines to and canonizer must
+  not add a "rules should carry checks" opinion on top. That is a separate policy, and no
+  ruleset in this corpus carries a check yet, so it would fire on every rule.
+  The rejected proxy this entry recorded is now moot and worth keeping anyway: the converse
+  of `Executable`'s one-directional test would have flagged `✗ conn.Close()` /
+  `✓ defer conn.Close()`, which is the shape a real fix takes. That case is now a **test**
+  -- "a check passing on both examples is unsound" -- rather than a warning in prose.
+  Original entry: **BLOCKED on skillet, established
+  2026-09-05.** gnosis does this over a *pattern table*, where a regex either matches its
+  positive example or it does not. canonizer's rules are prose statements for a model:
+  `ruleset.Rule` carries `Statement`, `Bad`, `Good` and **no executable predicate**, so there
+  is nothing to run against the two cases. `judge` has the matcher ops (`OpRegex`,
+  `OpContains`, …) — the machinery exists; the field to hold per-rule checks does not, and
+  canonizer has no `replace` directive.
+  **A cheap proxy was considered and rejected, and the rejection is the useful part.**
+  `Executable` already checks one direction (the ✓ does not appear inside the ✗); the
+  converse looks free. It is wrong: `✗ conn.Close()` / `✓ defer conn.Close()` has the ✓
+  containing the ✗, and that is the most natural shape a fix takes. Shipping it would flag
+  correct rules — the false-alarm failure *this entry itself* warns about, that a rule firing
+  on ordinary work gets the tool switched off.
+  Unblocks when `ruleset.Rule` can carry `judge.Check`s. Original entry: `gate.SelfTest`'s planted-defect
   control generalised from the gate to the *rules*: every rule ships a case it must
   flag and a case it must not, and the set refuses to load if any rule fails either.
   gnosis now does this for its §9.3 pattern table, at load rather than in a test — the
@@ -882,7 +1249,21 @@ pointer from everywhere else.
   sensitive to false alarms than to misses — a rule that fires on ordinary work gets
   the tool switched off, and the negative case is the one an author will not write
   unprompted.
-- [ ] **The cache key should carry the rubric edition.** gnosis's relay key
+- [ ] **The cache key should carry the rubric edition.** **NOT ACTIONABLE — there is no
+  cache.** Established 2026-09-05: `grep -rni cache --include=*.go` returns nothing outside
+  tests. There is no key to extend, and building a cache in order to key it correctly would
+  be inventing the problem to solve it. Keep as a **constraint on a future cache**, not as
+  work.
+  **The principle underneath is live and separable, and is proposed rather than built.** A
+  verdict that does not say which rubric produced it is silently yesterday's grade under
+  today's rules — and canonizer already emits findings a consumer stores, with nothing in
+  that document naming the edition of the checks or the critic prompt behind it.
+  The entry's hard question — what identifies an edition, given it must change when scoring
+  changes and not when prose does — has an exact answer for the critic half: **the prompt
+  template *is* the rubric, all of it is instructions, so `identity.Hash(prompt.Critic)`
+  changes precisely when the rubric changes.** The deterministic half would need a
+  hand-bumped constant, since its "edition" is the set of checks and their severities.
+  Not built because it is adjacent to the item rather than the item. Original entry: gnosis's relay key
   deliberately omits its `standards/` version, and the reason it can is that the rubric
   never enters the prompt there: a threshold change cannot stale a model's reply about
   a source. Wherever the rubric **is** what is being applied, a key without it serves
@@ -891,3 +1272,1285 @@ pointer from everywhere else.
   The design question is what identifies an edition: it has to change when scoring
   changes and not when prose does, or every comment edit invalidates every cached
   result.
+
+______________________________________________________________________
+
+## No Ruleset Has Ever Been Through This Pipeline (2026-09-07)
+
+Noticed while looking for something to exercise the format-3 gates on, and it turned out to
+be a larger fact than the one being looked for. Filed here rather than in `go-advice` or
+`skillet` because canonizer owns the pipeline the gap is in, and because a corpus item filed
+in a repository with no backlog is one nobody will read.
+
+- [x] **Every canonical-form ruleset in existence is a test fixture.**
+      CLOSED 2026-09-08: the `rulesets` repository now has commits — `861a072` for batch 2
+      and `aea7aab` for batch 4 — with **8 stored rulesets tracked**. The entry's own test,
+      `grep -rln '^§[0-9]'` returning nothing outside test files, no longer holds.
+      **It took four batches and three losses to get here**, and the entry's argument is
+      what survived them: a measurement against an untracked artifact is a record, not a
+      re-checkable fact. Original entry: `grep -rln '^§[0-9]'`
+      across `~/Documents/agent-orange` and this repository returns no stored ruleset: the
+      `*_rules.md` files in `go-advice` are prose documents with **zero** `§` rule headers,
+      and the only canonical-form text is in `cmd/*_test.go`. skillet's own estimate —
+      *"roughly ten stored files exist, most of them 1-4 rule prompt examples"* — was
+      generous.
+      **So the format-3 gates being idle is a symptom, not the problem.** `verify.Limitations`
+      flags every ruleset advisory-only and `Soundness` finds nothing to judge, and the
+      reason is not that nobody has migrated a ruleset to format 3 — it is that **nobody has
+      produced one at all**. `distill` and `synthesize` emit prompts; an agent is supposed to
+      run them and write the ruleset back; that last step has never been completed against a
+      real source and committed.
+      **What this means for every gate here, and it is uncomfortable.** `Executable`,
+      `Provenance`, `Drift`, `Canonical`, `Conflicts`, `Specificity`, `Limitations`,
+      `Soundness` and the `--against-proof` split are all tested and none has met content it
+      did not come packaged with. Their tests are honest about the logic and say nothing
+      about whether the *rules a real distillation produces* trip them — the distinction
+      between a check that works and a check that is calibrated.
+      **The smallest thing that would change that:** run `distill` over one real source,
+      have an agent produce the ruleset, and commit it. Everything else follows from having
+      a subject — the format-3 features are then an edit to a real document rather than an
+      exercise, and the first honest measurement of how noisy `Specificity` is on genuine
+      rules becomes possible.
+      **Expect the first run to find defects in the gates, not in the ruleset**, and treat
+      that as the return on it. Every measured surprise in this backlog came from running
+      something over real content: `normalize` deleting rationales, the `anchor-absent`
+      conflation, the description predicate flagging the good case. None came from a test.
+
+______________________________________________________________________
+
+## `Specificity` Measures Typography, Not Concreteness (2026-09-07)
+
+The first real distillation run — eight sources under `go-advice/Sources/benbjohnson` —
+produced the first content these gates have ever seen, and this is what it found. It is the
+return the *No Ruleset Has Ever Been Through This Pipeline* entry predicted: a defect in a
+gate rather than in a ruleset.
+
+Two rulesets carried parseable rules. Measured on both:
+
+| ruleset                          | statements with backticks | `unspecific`      |
+| -------------------------------- | ------------------------- | ----------------- |
+| `real-world-sql-part-one`        | **0 of 29**               | 26 of 26 enforced |
+| `structuring-applications-in-go` | **15 of 19**              | 4                 |
+
+19 − 15 = 4, and `unspecific` = 4 exactly. **The check is not erratic: it fires precisely
+when a statement holds no code span.** An earlier reading of the first file alone called it
+"miscalibrated at 100%", which was too strong and is corrected here.
+
+- [x] **The proxy is wrong whenever concrete prose is unbackticked.** DONE 2026-09-07 as
+      `internal/verify.concrete`, which asks `doc.Links` first and falls back to four
+      identifier shapes — `pkg.Name`, `pkg/name`, `Foo()`, `*T`.
+      **Measured on the 48 real statements, code spans stripped so each pattern is judged on
+      bare prose**: `pkg.Name` 7, `Foo()` 5, `*T` 4, `pkg/name` 2. A `snake_case` pattern was
+      written and **dropped at 0 matches** — a pattern that fires on nothing is a claim
+      nobody has checked.
+      **Result: `real-world-sql-part-one` falls 29 → 15, and `structuring-applications-in-go`
+      stays at exactly 4.** The second number is the one that matters: widening bought
+      accuracy without going blind, which a laxer check would not have.
+      Widened locally rather than in skillet: `markdown.Links` is the kernel's and its doc
+      records the mixing as deliberate *because four consumers read it*, so what was widened
+      is canonizer's question, not skillet's datum.
+      **A residual is recorded in the code, because it bounds what this check can mean.** The
+      15 that survive name no symbol and are still perfectly actionable — *"Open a
+      transaction at the top of every service method"* is a definite instruction with a
+      definite target. **Naming an identifier is not the same as being actionable**, and no
+      widening of these patterns closes that. It is why the check is advisory and must stay
+      so.
+- [x] **The convention it depends on is unstated, so the score is non-deterministic.** Same
+      command, same source tree, one run: one distillation backticked throughout, another
+      backticked nothing. Nothing in `distill_source_prompt.md` asked for it and its own
+      worked examples do not use it, so the same source distilled twice can score 0% or
+      100% unspecific. **That is the more serious of the two**, because noise can be
+      dismissed and a signal that varies run to run cannot be read at all.
+      **Partly addressed 2026-09-07**: the prompt's pre-submission checklist gained item 8,
+      "Backtick every identifier", with the reason stated — a rule naming a real symbol in
+      plain prose reads to a checker as a rule naming nothing. Left open until a re-run
+      measures whether it holds.
+      **Also reduced, not removed, by the widened check above.** With identifier shapes read
+      out of bare prose, the unbackticked ruleset scores 15 rather than 29 — so typography
+      still moves the number, by half as much. The two fixes are independent and both are
+      wanted: the prompt makes the input consistent, the widened check makes the score less
+      hostage to it. Neither alone would have been enough.
+      **Re-measured 2026-09-07 on the full released corpus — 162 rules, eight rulesets — and
+      the convention now holds: 94% of the 99 rules that pass carry a code span.** Checklist
+      item 8 worked. But the same number read the other way is the finding below: passing
+      and being backticked have become nearly the same event.
+      **CORRECTION 2026-09-08: that was the wrong measurement, and it was used to argue this
+      entry was nearly closeable.** "94% of passing rules carry a code span" is a fact about
+      the *check*, not the convention: `Specificity` fires when a code span is absent, so
+      passing implies backticked almost by construction. It cannot speak to whether the
+      convention is followed uniformly, which is what this entry is about.
+      **Measured directly, per ruleset, and the spread is the finding:**
+
+| ruleset                          | rules | with a code span | rate |
+| -------------------------------- | ----: | ---------------: | ---: |
+| `real_world_sql_part_one`        |    28 |               22 |  78% |
+| `failure_is_your_domain`         |    20 |               15 |  75% |
+| `standard_package_layout`        |    20 |               12 |  60% |
+| `structuring_applications_in_go` |    20 |               12 |  60% |
+| `crud`                           |    25 |               14 |  56% |
+| `structuring_tests_in_go`        |    20 |               11 |  55% |
+| `packages_as_layers`             |    18 |                7 |  38% |
+| `wtf_dial`                       |    11 |                1 |   9% |
+
+**9% to 78% across eight distillations from one prompt in one batch.** This entry's original
+observation — *"one distillation backticked throughout, another backticked nothing"* — is
+**reproduced, not resolved**: `wtf_dial` at 9% is that second case, in the new corpus, after
+checklist item 8. The instruction reduced the variance; it did not remove it.
+**So the measurement this entry always wanted is a per-ruleset spread, not a per-rule rate**,
+and it stays open. What would close it is a repeat distillation of *one* source scored twice,
+which needs the agent pipeline and was not run here. Until then the honest statement is that
+`unspecific` still varies with which distillation produced the ruleset.
+
+**The measurement this entry wanted now ships (2026-09-08).** `verify` reports `N of M
+enforced rule(s) name a symbol a checker can see` on every run, and across the eight
+rulesets that reads 11% to 76% — the spread this entry describes, visible without a script.
+
+**MEASURED 2026-09-08 on a second full run of the same eight sources.** The comparison this
+entry asked for exists, and the answer is yes:
+
+| source                           | run 1 | run 2 | delta |
+| -------------------------------- | ----: | ----: | ----: |
+| `real_world_sql_part_one`        |   76% |   60% |   −16 |
+| `failure_is_your_domain`         |   73% |   84% |   +11 |
+| `crud`                           |   63% |   45% |   −18 |
+| `standard_package_layout`        |   57% |   45% |   −12 |
+| `structuring_applications_in_go` |   57% |   60% |    +3 |
+| `structuring_tests_in_go`        |   50% |   65% |   +15 |
+| `packages_as_layers`             |   31% |   26% |    −5 |
+| `wtf_dial`                       |   11% |   12% |    +1 |
+
+**Mean absolute change per source: 10.1 points, with individual sources moving up to 18.**
+The input did not change. So the score does vary with the run, which is what this entry
+claimed and could not previously demonstrate.
+
+**But it is confirmed in kind and overstated in degree, and both halves matter.** The entry
+said *"one distillation backticked throughout, another backticked nothing"* — 0% against
+100%. The measured run-to-run variance is about ten points, and **Spearman rank correlation
+between the two runs is 0.57**, so roughly half the ordering survives. The rate is therefore
+*partly a property of the source*: `wtf_dial` is lowest in both runs (11%, 12%) and
+`packages_as_layers` second-lowest in both (31%, 26%), because a source with little code in
+it has few symbols to name. The middle of the range is where the volatility lives.
+
+**Caveat, stated because it bounds the claim**: the prompt changed between the runs — item 9
+on anchors, and the worked examples' formatting. Item 8, *"Backtick every identifier"*, was
+**identical** in both, so for the symbol rate specifically this is near-controlled rather
+than uncontrolled. A stricter comparison would use the label argument on one prompt.
+
+**CLOSED on that basis.** The item asked for one source distilled twice; eight sources
+distilled twice is stronger, and the finding is now a number rather than an anecdote: the
+score moves about ten points on re-distillation, and a specificity reading is comparable
+across sources only to within that.
+
+- [x] **When the convention is followed the check looks sound, and that is the argument for
+      keeping it.** The 4 it flagged in the well-formatted ruleset are the softest rules
+      there — *"a real dependency boundary"*, *"closely related"*, *"by importance"*,
+      *"roughly 10,000 SLOC"*. Judgement-laden, naming nothing an agent can match on:
+      exactly what the check exists to surface.
+      So the fix is **not** to relax it. Confirm this on a second corpus before treating the
+      four as evidence — one file is an anecdote, and this entry exists because the first
+      file alone produced a wrong conclusion.
+      **Strengthened 2026-09-07: all four survived the widening unchanged.** They name no
+      identifier in any form, so the accuracy gain that halved the other ruleset did not
+      touch them. That is the best evidence so far that the check catches something real.
+      **And a hypothesis was formed, tested and refused in the same pass.** It looked as
+      though the axis separating these four from the 15 was *hedging* rather than
+      identifiers, and that `SofteningPhrases` — which `Specificity` already runs first —
+      might make the second signal redundant. It does not: `skilllens.SofteningTerms` is a
+      short list of **discretion** phrases (*"as appropriate"*, *"it depends"*, *"at your
+      discretion"*), and none of the four matches one. Verified by running the gate: the
+      output carries `unspecific` and no `softening` at all. The two signals detect different
+      things and both are load-bearing. Recorded because the hypothesis was plausible enough
+      to act on and wrong.
+      **The second corpus this entry asked for now exists, and it does not confirm the
+      entry.** 162 rules across eight rulesets, each joined to its diagnostics by `path`.
+      Of the 63 flagged, **not one carries a code span**; of the 99 that pass, **94% do**.
+      Hedging — the axis proposed above — separates them 9% against 3%, which is **not a
+      signal**, and refutes the hypothesis rather than leaving it open.
+      The widening rescues 5 of the 68 unbackticked rules, **7%**, so `concrete` remains at
+      corpus scale very close to a backtick detector; the four identifier shapes fire far
+      less often on real prose than the 48-statement sample implied.
+      **What the flagged rules read like matters more than the percentage**, because many
+      are plainly actionable — *"Accept search criteria as one filter struct parameter,
+      never as a list of individual filtering arguments"*, *"Never surface an undefined
+      error's own text to an end user; show the generic support message instead."* Neither
+      names a symbol; both tell a reader exactly what to do.
+      **So the residual is confirmed rather than closed, and this entry's optimistic reading
+      was drawn from too little data — the error it exists to record, repeated.** The four
+      soft rules are still correctly flagged; the claim that being flagged *means* soft does
+      not survive 63 of them. What to do is a separate question: accept the check as a
+      typography lint and rename it for what it measures, or find a signal for actionability
+      that is not lexical. Do not relax it on this evidence alone.
+      **DECIDED 2026-09-08 — keep the computation, drop the accusation.** Delete
+      `unspecific` as a per-rule finding, and report what it computes once per document
+      instead. Not yet implemented.
+      **The check's message is false on essentially every rule it flags.** It says the
+      statement *"names no object, tool or API a reader could act on"*, and reading all 63:
+      one is *"Hand-write these mocks rather than generating them with a mocking library such
+      as GoMock"* — which names a tool — and another is *"Accept search criteria as one
+      filter struct parameter"* — which names the object. They all name something. What
+      separates the four soft rules is **hedging on a threshold or criterion** (*"closely
+      related"*, *"by decreasing importance"*, *"roughly 10K SLOC"*), not naming.
+      **63 of 147 enforced rules, a 43% fire rate.** An advisory that fires on two rules in
+      five is noise a reader learns to scroll past, and renaming it would make the label
+      honest without making the signal useful.
+      **The per-rule question already has an owner, and it is not a regex.** The cold
+      critic's `vague` test 2 is word for word what this claims to measure — *"Could a reader
+      act on it without further interpretation? It should name the object, tool, API or step
+      involved"* — asked by something that can read, at **error** severity. Two spellings of
+      one question, and the deterministic one is the weaker.
+      **What the data does support is a document-level statistic.** Zero of the flagged
+      rules carry a code span against 94% of those that pass, so what this measures is
+      **backtick-convention adherence** — a true property of a document and a false claim
+      about a rule. It belongs in the scope line beside *"examined 9 of 11 rule(s)"*.
+      **That is the measurement the entry below has been asking for**, which is why this
+      decision is worth making for its sake as much as this entry's: the per-ruleset rate
+      runs 9% to 78%, and nothing currently reports it.
+      **One option is kept on file rather than taken.** Swapping concreteness for a
+      *comparative-hedge* vocabulary — distinct from `SofteningTerms`, which is discretion
+      phrases only — scores **63 → 12**, retains all four rules this entry defends, and adds
+      three plausible catches. It is still a lexical proxy for a semantic property, which is
+      the wall five attempts have hit, so it must earn a second corpus before being trusted.
+      That discipline is what this entry exists to enforce.
+      **Honesty about the argument for deleting**: that the critic covers these 63 is an
+      argument from its rubric, not from evidence. Nobody has run `critic` against them. The
+      cheap check before deleting is one critic run on one ruleset.
+      **DONE 2026-09-08.** `Specificity` is now `Softening` — removing the concreteness
+      branch left a function reporting hedging and nothing else, so the name stopped
+      describing it. `CategoryUnspecific` is gone. `concrete` and `identifierPatterns` are
+      **kept**, because they are the computation the decision preserved; they now feed
+      `Scope.Symbolic`, reported once per document.
+      **Measured: 63 `unspecific` findings removed and every other category byte-identical
+      on all eight rulesets.** The scope line now carries `N of M enforced rule(s) name a
+      symbol a checker can see`, printed on every run including at its ceiling, for the
+      reason the examined line is: a reader who only ever meets a number at 100% never
+      learns what it means.
+      **And the spread reproduces through the shipped code**: 11% to 76% across the eight,
+      `wtf_dial` lowest and `real_world_sql_part_one` highest. The script measured 9%–78%
+      over all 162 rules; this counts the 147 **enforced** ones, which is the right
+      denominator because only those are examined.
+      **A consequence worth stating rather than discovering later: `Softening` now fires
+      zero times on the corpus.** No ruleset carries a `softening` finding, because
+      `skilllens.SofteningTerms` is discretion phrases (*"as appropriate"*, *"at your
+      discretion"*) and none of the eight uses one. So this check is entirely idle, exactly
+      as `sectionOnly` is. That is not a reason to delete it — a hedged rule is a real defect
+      and the vocabulary is shared with skillsaw and adh — but it does mean the
+      comparative-hedge option on file is the one that would make this check earn its place,
+      and it now has a second reason to be tried: it scores 12 where this scores 0.
+
+______________________________________________________________________
+
+## `Provenance` Never Matched a Correctly-Written Anchor (2026-09-07)
+
+Found by running the gates on the first ruleset the pipeline produced end to end —
+`crud_rules.md`, 26 rules distilled from Ben Johnson's *Common CRUD Design in Go* with the
+source actually read rather than recalled. `Provenance` reported **26 of 26 anchors absent**,
+and the ruleset was largely right.
+
+- [x] **The check searched for the whole anchor, and a correct anchor is not all quotation.**
+      DONE 2026-09-07. `distill_source_prompt.md` asks for a `↦` line of the form
+      `§Section: "the quote"` — its own worked example is
+      `↦  §Errors: "never ignore the value returned by a function"` — so a well-formed anchor
+      carries a section prefix that is *about* the source rather than *from* it.
+      `anchorPresent` did `strings.Contains(source, anchor)` on the whole string, which the
+      prefix guarantees will fail.
+      **Isolated on one file with one folding, so the number is the change and not the
+      corpus: 25 anchors, whole-anchor match 0, quoted-span match 14.** `anchorText` now
+      takes the first quoted span and falls back to the anchor as written, so a bare
+      quotation — which most of the corpus writes — still matches. A prefix cannot launder a
+      fabricated quotation: that case is a test.
+      **The first before/after taken for this was confounded and is not the one above.** The
+      agent revised the ruleset two minutes after writing it, so an earlier 26 → 11
+      comparison spanned two different files. Re-measured against a single file.
+- [x] **An anchor may legitimately carry no quotation, and there is no verdict for that.**
+      DONE 2026-09-07 as `verify.sectionOnly` + `CategoryAnchorSectionOnly`, advisory and
+      `ActionHuman`, asked by both `Provenance` and `Drift.driftOne` through the one
+      predicate — presence is asked *after* it, because "is it in the source" is meaningless
+      when there is nothing to look for.
+      **The predicate is "does it say anything beyond the section name", not "does it carry
+      a quotation", and the second was written first and was wrong twice over.** A bare
+      quotation with no quote marks would have been reclassified unsearchable, undoing the
+      fallback `anchorText` preserves; and `§Errors: every method takes ctx first` carries no
+      quotation while being a **paraphrase**, so keying on quote marks would have turned all
+      eight paraphrase anchors below into advisories and buried a real finding. Cutting on
+      the colon separates them, and does not reject a multi-word `§Transactional boundaries`.
+      **Advisory rather than blocking because the prompt permits a section reference**;
+      blocking one would fail a ruleset for doing what it was asked. Making anchors
+      verbatim-only is a *prompt* change and is the entry two below.
+      **The population is unmeasured and the entry should not pretend otherwise.** The "one
+      anchor" count came from a ruleset revised two minutes after it was measured and deleted
+      two hours later; the conflation is wrong regardless of frequency, but the fix is
+      fixture-tested rather than corpus-measured, which is weaker than the prefix fix beside
+      it. Original entry:
+      The prompt permits *"a short quote **or section reference**"*. A section reference
+      cannot be verbatim-matched by anything, so it reports `anchor-absent` — the same
+      category as a fabricated quotation, which is the conflation the `Drift` work exists to
+      undo, in a new place.
+      It wants the `quotecheck.Status` shape already used for the unverifiable third state:
+      *checked and missing* and *not checkable* are different answers. One anchor in the
+      measured ruleset is of this kind, so the cost today is one false blocking finding —
+      small, and the argument is the confusion rather than the count.
+- [x] **An elided quotation cannot match, and eliding is what a careful quoter does.**
+      DONE 2026-09-08 in `anchorPresent`, which now reads a quotation as a conjunction of
+      fragments. **Measured: `anchor-absent` falls 59 → 39 across the eight rulesets, −20,
+      and every other category is byte-identical on all eight.** The predicted class size
+      was 20, so the fix lands exactly where the measurement said it would.
+      **The separator is `"... "`, not `"..."`, and the corpus is why.** Of 31 ellipses in
+      its anchors, the 30 marking an elision are followed by whitespace and the one that is
+      not is Go variadic syntax inside a code span — `` `tx.QueryContext(ctx, ...)` ``.
+      A bare separator cuts that into `` `tx.QueryContext(ctx,` `` and `` `)` ``, and a lone
+      `)` is in every source, so a code anchor could pass on a fragment carrying no
+      evidence. Both spellings score 117 of 162 today, so this bought no anchors and closed
+      a failure channel; two tests fail under the bare separator, which is what keeps it.
+      Safe as a plain string because `textnorm.Fold` collapses whitespace and rewrites
+      U+2026 first, so `…` and a line-wrapped ellipsis arrive in one spelling.
+      **The conjunction is weaker than a whole-span match and the weakness is recorded, not
+      hidden.** Fragments may come from anywhere and **order is not checked** — `"B ... A"`
+      passes a source reading `"A ... B"`. An offset per fragment would close it; no anchor
+      in the corpus exhibits it, so the gap is priced and left open.
+      **A trailing elision is refused, and that is pinned by a test rather than implied.**
+      `Fold` trims, so `"text ... "` loses the space that makes the mark a separator. The
+      corpus has **zero** leading and **zero** trailing elisions and the prompt's convention
+      is a gap *between* two spans, so refusing an unbounded remainder is the reading — and
+      it is pinned so widening it later has to be deliberate.
+      **A latent vacuous pass died with the branch.** Reviewing against §4 showed the
+      elided/unelided guard was unnecessary: an unelided quotation splits to one fragment
+      and behaves identically, so the two paths merged into one loop. The old single
+      `strings.Contains` reported an **empty** quotation as present; the conjunction reports
+      it absent, which is the fail-closed default this family keeps rediscovering.
+      Original entry: Six of
+      26 anchors quote with `...` — *"I rarely expose internal details like transactions to
+      the rest of my application ... it's rarely necessary"* — which is a faithful quotation
+      of two spans and matches neither.
+      Splitting on the ellipsis and requiring each fragment present would accept these
+      without accepting a fabrication, since both halves still have to be in the source.
+      **Not done with the prefix fix, deliberately:** that fix corrected a check that could
+      never pass, and this one widens what passes. They deserve separate measurement, and
+      bundling them would make the 0 → 14 number above unattributable.
+- [x] **Eight anchors are paraphrase rather than quotation, and that is the ruleset's
+      defect.** DONE 2026-09-08 as checklist item 9 in `distill_source_prompt.md`, which
+      says quote verbatim, mark a gap with `...` and a space, and make each side verbatim
+      on its own.
+      **The premise does not reproduce, and the conclusion survives it anyway.** On the
+      eight-ruleset corpus **zero** anchors are paraphrase — every one carries a quoted
+      span, in double quotes or in backticks. The eight came from `crud_rules.md` as it
+      stood at 19:52 on 2026-09-06, a file revised two minutes later and deleted two hours
+      after that; it is the third finding in this backlog traced to that vanished file.
+      **What is actually there is misquotation: 31 anchors quote a span that is not in the
+      source.** Sampled against the nearest source window, 18 of 31 sit at 0.85–0.95
+      similarity — near-misses, not inventions. So the prompt still needs to say *verbatim*,
+      for a different reason than this entry gave: the anchors are quoting, and quoting
+      inexactly. Fix the reason, keep the fix.
+      **The prompt's effect is unmeasured on purpose.** Checklist items only bind the next
+      distillation, so nothing here can be verified until `pipeline.sh` is re-run. The
+      31 misquotations stay open as the residual below.
+      Original entry: *"every method in the `DialService` interface takes `ctx context.Context`
+      first"* describes the source instead of quoting it. No substring check can validate a
+      paraphrase, and it should not try to: this is the `anchor-fabricated` case the gate
+      exists for, and the honest fix is upstream — the prompt says the anchor makes
+      provenance auditable without saying it must be verbatim.
+
+______________________________________________________________________
+
+## The Backtick Convention Walked the Corpus into a Parser Bug (2026-09-07)
+
+The first full batch: eight rulesets, **162 rules**, every one opening cleanly at `Source:`.
+The three invocation fixes hold and the pipeline produces artifacts. Six verify; two do not.
+
+- [x] **Two of eight rulesets are unparseable, and this repository's own prompt change is
+      half the cause.** DONE 2026-09-07 — skillet v0.32.0, pinned here. `ruleset.Parse` refuses a rationale line beginning with a backtick —
+      `applyBody` rejects any leading Unicode **symbol**, and a backtick is `Sk` while every
+      prose opener its doc names as safe (`—`, `“`, `(`) is punctuation. Filed in
+      `skillet/TODO.md` with the category table; the guard needs narrowing to the `So`/`Sm`
+      categories the markers actually occupy.
+      **The interaction is the part that belongs here.** *"Backtick every identifier"* was
+      added to `distill_source_prompt.md` yesterday to stop `Specificity` measuring
+      typography. It worked — and it raised the rate of rationales opening with a code span,
+      which is what walked the corpus into a latent parser bug. **Two correct changes, one
+      bug between them**, and neither is worth reverting.
+      Cheap to hit and expensive to suffer: **3 of 299 body lines**, but one line fails a
+      whole document, so three lines cost two rulesets.
+      **Fixed in skillet 2026-09-07** and measured against this exact corpus with a
+      temporary `replace`: both rulesets parse (19 of 20 and 25 of 28 rules examined) and the
+      six that already parsed produce byte-identical diagnostic counts. The guard now tests
+      `So`/`Sm` — the categories the markers occupy — instead of every Unicode symbol.
+      **Closed by skillet v0.32.0**, pinned here and re-measured against the released kernel
+      rather than a `replace`: all **eight** rulesets parse, **162 rules**, no `PARSE-FAIL`.
+      No code changed in this repository — the bump was the whole fix.
+      Recorded because the next person to widen a prompt convention should know it can move
+      the corpus into a part of the grammar nothing had exercised.
+- [x] **Six rulesets now verify, and the gates report a spread rather than a verdict.**
+      DONE 2026-09-07 — superseded by the eight-ruleset recalibration below, which is the
+      same measurement with the two parser casualties restored.
+
+Recalibrated 2026-09-07 against skillet v0.32.0, with all eight parsing:
+
+| ruleset                          | anchor-absent | unspecific | unexecutable | non-canonical |
+| -------------------------------- | ------------- | ---------- | ------------ | ------------- |
+| `crud`                           | 8             | 8          | 2            | 1             |
+| `failure_is_your_domain`         | 8             | 5          | 8            | 1             |
+| `packages_as_layers`             | 6             | 11         | 1            | 1             |
+| `real_world_sql_part_one`        | 12            | 6          | 2            | 1             |
+| `standard_package_layout`        | 14            | 8          | 4            | 1             |
+| `structuring_applications_in_go` | 6             | 8          | 4            | —             |
+| `structuring_tests_in_go`        | 5             | 9          | 5            | 1             |
+| `wtf_dial`                       | —             | 8          | 3            | —             |
+
+**`anchor-absent` has stopped being 100%.** It was 26 of 26 before the prefix fix; it now
+ranges 0–14, and `wtf_dial` verifies every anchor it declares. That is the strongest
+evidence yet that the fix was to the check rather than to the corpus.
+
+**Two rulesets carry no `non-canonical` finding** — the first time `Canonical` has passed on
+content it did not come packaged with.
+
+- [x] **`unbounded` fires on eight of eight, and the gate is not the thing that is wrong.**
+      DONE 2026-09-08 — the prompt now asks. `Limitations:` joins the metadata block with a
+      bracketed instruction, joins the allowed-line list that governs the parse, and joins
+      checklist item 7; and the instruction says not to write `none`, because
+      `verify.Limitations` accepts any non-empty string and its own doc rules out detecting
+      an empty answer with a word list.
+      **The allowed-line list had to change first, and that ordering is the point.** Line 29
+      tells the model any line outside a fixed set *"will corrupt the parse"*. Adding a
+      header to the metadata block without adding it there would have told the model to emit
+      a line the same document forbids. Verified against the kernel before writing either:
+      `ruleset.Parse` has a `Limitations:` case, `Render` emits it, and a round trip through
+      both is byte-identical — so this is format 3 and the parse claim is true today.
+      **No Go change, and the check stays advisory.** `verify.Limitations` already reads the
+      field, and its doc already names the expiry condition — advisory *"because no ruleset
+      in the corpus carries the header yet, so blocking would fail every one of them"*.
+      Whether to make it blocking is a decision for after a corpus carries it, and the
+      corpus will not until `pipeline.sh` is re-run. Original entry:
+      No ruleset declares `Limitations:`, so the check reports a missing header on every
+      document it has ever seen. **A check that fires on 100% of inputs carries no
+      information** — the shape `Specificity` had at 29 of 29 before it was widened.
+      **The cause is that the prompt never asks.** `grep -i limitation` over
+      `distill_source_prompt.md` and all eight generated prompts returns nothing, so the
+      gate demands a section the generator was never told to write. Gate and prompt
+      disagree, and the prompt is the side that is missing something.
+      Two options, neither obviously right: **teach the prompt to emit `Limitations:`**,
+      which makes the check meaningful and costs a re-run of the corpus; or **drop it to
+      advisory** until some ruleset carries the header, on the ground that a blocking error
+      nobody can clear is a gate in name only. Prefer the first — the header is the one
+      place a ruleset says where it stops applying, and the argument for it does not weaken
+      because nothing has one yet.
+      Do not simply delete the check: the header is wanted and the finding is accurate.
+
+______________________________________________________________________
+
+## Two More Anchor Classes, Measured and Deliberately Not Bundled (2026-09-08)
+
+Found while measuring the elision fix. Both are in the function that fix edited, both are
+cheap, and both were left out so the elision result stayed attributable at exactly −20 —
+the same reason the elision work was itself held back from the prefix fix.
+
+Anchor failure classes across the eight rulesets, 162 anchors, before this session:
+
+| class                              |    n | outcome                     |
+| ---------------------------------- | ---: | --------------------------- |
+| ellipsis, every fragment in source |   20 | fixed 2026-09-08            |
+| ellipsis, some fragment absent     |   10 | ruleset's own fault         |
+| backtick-quoted span, present      |    3 | fixed 2026-09-08            |
+| backtick-quoted span, absent       |    1 | ruleset's own fault         |
+| double-quoted span, absent         |   31 | 10 were emphasis, now fixed |
+| no quotation at all (paraphrase)   |    0 | does not occur              |
+
+**All three fixes have now landed, and `anchor-absent` across the corpus is 26**, from 59
+before any of them: elision took 59 → 39, the backtick span 39 → 36, and emphasis folding
+36 → 26. What remains is the residual those entries name — misquotation and partial
+elision, which are the rulesets' own defects rather than the check's.
+
+- [x] **`anchorText` reads `"` and not `` ` ``, so a code quotation is unsearchable.**
+      DONE 2026-09-08. `anchorText` now tries a double-quoted span, then a backtick span,
+      then the whole anchor. **Measured: `anchor-absent` 39 → 36 on enforced rules, −3**,
+      matching the predicted "4 in the class, 3 of them present".
+      **Double quotes win, and the nesting is why**: `` §Helper methods: "`defer
+      rows.Close()`" `` puts the backticks *inside* the quotation, so the outer delimiter is
+      the one bounding the passage.
+      **The scan was extracted rather than copied.** A second hand-rolled search for a
+      delimited span beside the first is the Repetition red flag, and the existing body was
+      already that function with `"` hardcoded. `firstDelimited(s, delim)` now holds the
+      knowledge of *how* to find a span; `anchorText` keeps the knowledge of *which*
+      delimiter wins, which is the part that is a decision. Original entry: An
+      anchor may quote an identifier rather than prose — `` §Remove dependencies by
+      abstracting services: `FindDialByID(ctx context.Context, id int) (*Dial, error)` `` —
+      and `anchorText` looks only for a double-quoted span, so it falls back to the whole
+      anchor and searches the section prefix along with it. That is the same defect the
+      prefix fix corrected, surviving in the delimiter it did not consider.
+      **Measured: 4 anchors, 3 of which are present in the source and wrongly reported
+      absent.** Small, and the smallness is the argument for doing it rather than against:
+      it is one more delimiter in a function that already takes the first quoted span.
+      **The design question is which delimiter wins when an anchor carries both**, since
+      `` §Helper methods: "`defer rows.Close()`" `` nests one inside the other. Taking the
+      outermost — double quotes when present, backticks otherwise — matches what the prompt
+      writes and keeps the rule stateable in a sentence.
+- [x] **`textnorm.Fold` does not fold markdown emphasis, so faithful quotations of the
+      rendered text miss.** DONE 2026-09-08 as `verify.unemphasize`, applied to source and
+      anchor alike so an anchor that quoted the markers verbatim also matches.
+      **Measured: `anchor-absent` 36 → 26 on enforced rules, −10**, the largest of the three
+      anchor fixes. Across all 162 anchors the corpus goes from 45 absent to 31.
+      **Only paired double markers are folded, and the narrow rule won on measurement rather
+      than on caution.** A rule folding every marker run scores **three anchors worse**,
+      because single-marker italic matches across `snake_case`: in `id IN (SELECT dial_id
+      FROM dial_memberships`, the span `_memberships FROM dial_` is a legal `_..._` pair.
+      Doubling the marker removes that whole class of false pair, and a test pins it.
+      **RE2 has no backreference, so it is one pattern per delimiter.** A single
+      `(\*\*|__)(.+?)(\*\*|__)` cannot require the closing marker to match the opening
+      one and would fold `**text__`, which is not emphasis. Two patterns state what the
+      regexp language cannot.
+      **No code-span guard, because the corpus says none is needed.** Of 238 code spans in
+      the sources, 8 hold a marker *character* — `[]*Dial`, `COUNT(*) OVER()`, `"name_asc"`,
+      `*myapp.Error` — and **not one is a paired run**, so a double-marker pattern cannot
+      reach them. Building the guard would be machinery for a case that does not occur,
+      which is the ground `snake_case` was dropped on at zero matches. The residual is stated
+      in the doc instead: a code span holding a genuine `__dunder__` would lose its markers,
+      and none exists here.
+      **Local to canonizer, on the `markdown.Links` precedent**, with the kernel question
+      left filed rather than decided. Original entry: the
+      rendered text miss.** The sources are markdown and use `__bold__`; an anchor quotes
+      what a reader sees, so `only` in the anchor meets `__only__` in the source. Diffing
+      near-miss anchors against their best source window shows this as the single largest
+      systematic cause.
+      **Measured: 10 anchors, 65 → 55 absent on its own, and it composes — with the
+      elision fix and backtick spans it takes the corpus from 65 absent to 31.**
+      **The siting is the real question and it is not obviously canonizer's.** `Fold`'s doc
+      says it folds *"the characters a book and its plain-text extraction are most likely to
+      disagree about"*, and markdown emphasis is squarely that, which argues for skillet.
+      Against: four consumers read `Fold`, and widening a kernel datum to answer one
+      consumer's question is what the `markdown.Links` decision refused — there the
+      consumer's *question* was widened locally instead. Follow that precedent: fold
+      emphasis in canonizer where the anchor question lives, and file the kernel question
+      separately rather than deciding it from here.
+      **Do not fold emphasis inside a code span.** `` `__init__` `` is an identifier whose
+      underscores are content, and stripping them would invent a symbol that does not
+      exist. Unmeasured in this corpus; named because the fix is a regex and this is the
+      case a regex gets wrong.
+- [x] **`sectionOnly` fires zero times on the corpus.** The three-way anchor split shipped
+      in `b469f8b` has **no instance** in the eight rulesets: every anchor carries a
+      quotation, so none is a bare section reference. Its own entry said the population was
+      unmeasured; this measures it at 0.
+      **Not a reason to remove it.** The conflation it undoes — *searched and not found*
+      versus *nothing to search for* — is wrong at any frequency, and the prompt still
+      permits a section reference, so a ruleset may produce one tomorrow. But it is a reason
+      to stop citing it as load-bearing, and to expect the next distillation to be the first
+      test of whether the permission is ever used.
+      **The honest options are to keep it as a fixture-tested guard, or to remove the
+      permission from the prompt and make the check blocking.** The second is coherent —
+      every anchor already quotes, so nothing would break — and it would replace an advisory
+      nobody hits with a rule the corpus already follows.
+      **DECIDED 2026-09-08 — permit and advise, and count it as provenance not examined.**
+      Not yet implemented. Three parts: state the permission plainly in the prompt's
+      checklist, keep the diagnostic advisory, and make a section-only anchor count as *not
+      examined* in the scope line rather than passing silently.
+      **The prompt contradicts itself, and that reframes the decision.** The format spec
+      permits *"a short quote or section reference"*; checklist item 9, added 2026-09-08 in
+      the same session that shipped this check, requires a quotation to be *"the source's own
+      words, character for character"*. So the real question was never keep-or-block but
+      **which direction to resolve an inconsistency nobody had noticed**.
+      **Blocking was rejected because it removes the only honest answer.** A rule genuinely
+      derived from a whole passage has no single sentence to quote, and this corpus has
+      already shown what an agent does when it needs a quotation it does not have: **31
+      anchors quote text absent from the source, 18 of them near-misses**. Forcing a
+      quotation invites a cherry-picked sentence that *looks* verbatim while being worse
+      provenance than an honest section reference. Held as a risk rather than a certainty —
+      the fallback is available today and misquotation happens anyway — but a gate that turns
+      honest imprecision into confident-looking fabrication is the wrong trade.
+      **What is actually broken is that a section-only anchor passes silently**, which is
+      indistinguishable in the output from a verified one. That is the fail-open shape this
+      family keeps closing, and counting it as unexamined fixes it without failing a ruleset
+      for doing what the prompt asked.
+      **It reuses machinery that already exists and already says the right thing.**
+      `reportScope`'s own message is *"an empty result here means unchecked, not clean"*.
+      **Deleting the check was considered and refused**: a legitimate section reference would
+      then report `anchor-absent` — fabrication — which is exactly the conflation the split
+      was built to undo. Trading a correct distinction for 170 lines.
+      **Do both accountings at once.** The entry above decided that `unspecific` becomes a
+      document-level statistic in the same scope line; section-only anchors belong in that
+      same account of how much of a ruleset is machine-checkable. One coherent change to what
+      `verify` reports, not two.
+      **DONE 2026-09-08**, and one framing above is corrected in the doing.
+      **"A section-only anchor passes silently" was wrong.** `Provenance` emits
+      `anchor-section-only` as an advisory, so it *is* reported. What was actually wrong is
+      narrower: the scope line's *"examined 9 of 11"* counted such a rule as examined when
+      its provenance was never searched. The defect was in the **accounting**, not the
+      diagnostic — so the fix is `Scope.SectionOnly` and nothing else. Recorded because the
+      looser phrasing would have led to adding a second diagnostic nobody needs.
+      **Shipped**: `Scope.SectionOnly`, counted only for enforced rules, and a scope line
+      reading `N of M anchor(s) name a section only; their provenance was not searched`.
+      **That line prints only when non-zero, and the asymmetry has a reason.** Zero is the
+      case in all 162 anchors of the corpus, so a line reporting none of them on every run
+      costs attention and teaches nothing. The symbol rate beside it is a proportion
+      informative anywhere in its range; this one is an exception report.
+      **The prompt now says the permission plainly.** Checklist item 9 became *"Quote anchors
+      verbatim, or name a section instead"*, stating that a rule drawn from a whole passage
+      should name the section and quote nothing, that this is the honest answer, and that it
+      is reported as provenance not searched rather than counted against the ruleset. The
+      contradiction with the format spec is gone.
+
+______________________________________________________________________
+
+## Two Gaps the Sign-off Refusals Expose (2026-09-08)
+
+- [x] **A non-canonical ruleset cannot be signed and canonizer offers no way to fix it.**
+      DONE 2026-09-08 as `canonizer fmt --ruleset PATH [--check]`. Default rewrites,
+      `--check` reports and exits 1 without writing — exegesis `normalize`'s split verbatim,
+      so a reader who knows one knows the other.
+      **Measured on the corpus: `--check` names the 5 non-canonical rulesets, and after a
+      rewrite 0 of 8 remain.** An already-canonical file is not rewritten at all, so running
+      this across a corpus does not touch mtimes for nothing; a test asserts that.
+      **What it changes is wrapping, not text, and that is measured rather than hoped.**
+      Reducing each of the eight to its word sequence, stored and rendered are identical on
+      every one. A rule header written with three spaces after its level tag becomes two, and
+      a rationale a human wrapped across three lines becomes one long line. Stored rulesets
+      already carry 265–379 character lines, so that is the format's existing shape — but a
+      hand-wrapped document will not come back wrapped, and `--help` says so before anyone
+      runs it.
+      **One file, not a tree.** exegesis takes a TREE because skills *are* a tree; every
+      canonizer command names its ruleset explicitly, so consistency inside this repository
+      won. A directory mode is possible and unbuilt.
+      **Atomic write**, for `--sign-off`'s reason: it replaces a document a human owns and
+      cannot regenerate. Original entry:
+      `--sign-off` refuses a ruleset whose stored form differs from its rendering, because
+      writing the event re-renders the document and would otherwise reformat the body as a
+      side effect. Five of the eight stored rulesets are in that state, so the refusal is
+      the common case rather than the corner.
+      **`Render` already produces the answer and nothing exposes it.** That is a
+      `canonizer fmt --ruleset PATH`, and it is the natural companion to the refusal:
+      today a user is told the document is non-canonical and left without the one-line
+      command that would make it canonical. exegesis has `normalize` for skills and this is
+      the same shape for rulesets.
+      **Not bundled with the sign-off deliberately.** A formatter writes to the same file
+      the sign-off writes to, and shipping both at once would make it impossible to say
+      which one caused a corpus-wide reformat. It also wants its own `--check` mode, on
+      exegesis's precedent, and that is a design conversation rather than a subroutine.
+- [x] **skillet could export a frontmatter writer, which would remove the refusal entirely.**
+      DECLINED 2026-09-08. Kept rather than deleted, because a rejected option with its
+      reasoning is worth more than a silent absence.
+      **The premise does not survive measurement: `Render` is text-preserving.** Reducing
+      each of the eight stored rulesets to its word sequence, stored and rendered are
+      *identical* on every one. Only wrapping and inter-token spacing differ — rule headers
+      written with three spaces after the level tag where `Render` emits two, and wrapped
+      rationales joined onto one line. So "leave the body untouched" protects **whitespace,
+      not content**, and the stored files already carry 265–379 character lines, so
+      re-flowing does not cost readability that was there.
+      **Against that, the cost is a first-of-its-kind kernel API.** Every skillet function
+      today *produces* a document; this one would *edit* one, and it would need a release, to
+      spare a caller a single `canonizer fmt` before signing.
+      **And the refusal is doing work the writer would remove.** `Canonical` blocks because
+      canonical form is wanted. A writer that appends signatures to a non-canonical ruleset
+      lets a corpus accumulate attestations while never converging on the form the check
+      exists to require — so the two-step workflow is the feature, not the friction.
+      **What would reopen this**: a ruleset carrying content `Parse` does not model, so that
+      re-rendering would genuinely lose something. Nothing in the corpus does today, and the
+      round-trip check above is what would notice. Original entry:
+      The reason `--sign-off` must re-render the whole document is that skillet's
+      frontmatter emitter is unexported, so the alternative — splice a new block into the
+      raw bytes and leave the body untouched — would need a second emitter in canonizer.
+      That is the same knowledge in two modules, and this family has spent three entries
+      avoiding exactly that third copy.
+      **An exported writer would be strictly better than the refusal**, because it is what
+      adh already does: `RecordVerification` decodes to `json.RawMessage` and re-encodes so
+      unmodelled content survives untouched. A ruleset's body is that unmodelled content.
+      Signing would then work on a non-canonical ruleset without touching its body, and the
+      canonical question would go back to being `Canonical`'s alone.
+      **The cost is a kernel API and a release**, and the shape needs thought: a writer that
+      takes a raw document and a `[]verification.Event` and returns the document with its
+      block replaced is not the same function as `Render`, and it would be the first
+      skillet API that edits a document rather than producing one.
+
+______________________________________________________________________
+
+## The Comparative-Hedge Signal Now Has Two Reasons (2026-09-08)
+
+- [x] **Try the comparative-hedge vocabulary: it scores 12 where `Softening` scores 0.**
+      Filed as considered-and-not-taken when `unspecific` was retired, on the ground that a
+      lexical proxy for a semantic property is the wall five attempts have hit and must earn
+      a second corpus first. That reasoning stands. What changed is the comparison.
+      **The first reason was accuracy.** Swapping concreteness for a vocabulary of
+      comparative and threshold hedges — *"closely related"*, *"by decreasing importance"*,
+      *"roughly 10K SLOC"*, *"expensive enough"* — scores **63 → 12** on the eight rulesets,
+      retains **all four** rules the retired entry defended as genuinely soft, and adds three
+      plausible catches (*"at the layers a developer considers significant"*, *"when
+      assertion verbosity hurts readability"*).
+      **The second reason is that the check it would replace is barely used.** `Softening`
+      fired **zero times** on the first batch and **twice** on the second — both on *"it
+      depends"*, in `packages_as_layers` §3.3 and `standard_package_layout` §2.4. So the
+      "scores 0" framing is corrected to "scores 2", and the comparison is 12 against 2
+      rather than 12 against nothing. The argument is weaker than first written and still
+      holds: two findings across 137 enforced rules is a check that fires on 1.5% of what it
+      reads.
+      **And the second batch supplies the second corpus this option owed.** The 12 were
+      measured on batch one; scoring them against batch two is now possible without another
+      distillation run, which removes the last stated obstacle.
+      Original second reason as filed: `Softening` fires **zero times**. `skilllens.SofteningTerms` is a short list of
+      **discretion** phrases — *"as appropriate"*, *"it depends"*, *"at your discretion"* —
+      and no ruleset in the corpus uses one. So the choice is no longer "a noisy signal
+      versus a quieter one" but **12 findings versus none at all**, and a check that reports
+      nothing on every document it has ever seen is not obviously better than one that
+      reports twelve things worth reading.
+      **The axis is different from `SofteningTerms`, which is why this is not just widening
+      it.** Discretion phrases say *you may choose*; comparative hedges say *some unstated
+      amount*. A rule saying "split when a file gets large" commits to an action and refuses
+      to say when — which is the defect, and it contains no discretion phrase at all.
+      **Siting: canonizer-local, on the `markdown.Links` precedent.** `SofteningTerms` is
+      skillet's and skillsaw and adh score against it; widening a shared vocabulary to answer
+      one consumer's question is what that decision refused. What would be added is
+      canonizer's list, and if a second consumer ever wants it the question moves to skillet
+      then.
+      **What it must still earn before shipping**: a second corpus. The 12 are measured on
+      the same eight rulesets that produced the hypothesis, which is exactly the error the
+      retired entry exists to record. Run it against a different batch first.
+      **DONE 2026-09-08 as `verify.Unquantified`, and the second corpus did not reproduce
+      the 12.** Batch two gives **5 of 137 enforced rules**. Batch one was deleted before
+      this shipped, so the 12 is a record and not re-checkable: this is a fresh measurement,
+      not confirmation.
+      **Built on 5 anyway, and the criterion is precision rather than volume.** All five are
+      the class the retired entry defended, and its four named examples — *"closely
+      related"*, *"by importance"*, *"roughly 10K SLOC"*, *"expensive enough"* — are all
+      caught. For an advisory that is the right test: a reader pays for a wrong finding and
+      gains nothing from a check that reports little but is right. Against `Softening`'s two
+      it roughly triples a signal that read 1.5% of what it saw.
+      **The wider list was rejected on measurement, and the two statements that killed it are
+      now test cases.** *"Start from a **small** set of generic error codes — `ECONFLICT`…"*
+      and *"Cut assertion verbosity with a **small** set of helpers — `assert(tb …)`"* both
+      name concrete symbols and are actionable; "small set" is ordinary English rather than
+      an unstated threshold. So `large`, `small`, `simple`, `complex`, `appropriate`,
+      `reasonable`, `sufficient` and `adequate` are gone, and eight terms remain.
+      **A separate function, not a branch on `Softening`.** A function called `Softening`
+      reporting unquantified amounts would be the Vague Name flag two commits after that name
+      was cleaned; and every other check here is its own function.
+      **A canonizer-local category, because the vocabulary is canonizer's.**
+      `skilllens.CategorySoftening` is skillet's word for skillet's list, and emitting it for
+      words skillet does not define would have these findings claim a provenance they lack.
+      **Disjointness is measured, not assumed**: the two vocabularies overlap on **zero** of
+      137 rules, and a test pins both directions. So a rule could in principle draw both
+      findings, and no precedence is built — the old one-note-per-rule guarantee is gone with
+      the single function, and if overlap ever appears the question returns rather than
+      having been answered by a mechanism nobody checked.
+
+______________________________________________________________________
+
+## `pipeline.sh` Before the Next Batch (2026-09-08)
+
+Assessed 2026-09-08 against everything that shipped since the first batch ran. Two defects
+are fixed here; two changes need a decision first and are not made.
+
+- [x] **The closing hint taught the invocation that under-reports.** DONE 2026-09-08. It
+      printed `canonizer verify --ruleset PATH` with no `--source`, and omitting `--source`
+      is not a smaller check but a different one: the anchor gates are replaced by an
+      advisory, and on the first batch the blocking count fell **17 → 5, 15 → 3 and 8 → 2**.
+      The shorter invocation reads as a better result while having examined less, and
+      `--sign-off` refuses outright without it. The hint now names `--source` and, beside it,
+      the `canonizer fmt` line for a ruleset reported non-canonical.
+- [x] **The prompt's own worked examples were non-canonical, which is why 5 of 8 rulesets
+      were.** DONE 2026-09-08. Two of four examples put **three** spaces after the level tag
+      where `Render` emits two, and every example wrapped its rationale across lines where
+      `Render` joins them. Verified by round-tripping the example block through
+      `Parse`/`Render`: it did not match itself, and now does.
+      **This is the root cause, not `fmt`'s absence.** Agents copy the worked example, so
+      the format the prompt teaches was the format `Canonical` rejects. Fixing the example is
+      better than running `fmt` over the output afterwards, because a formatter would hide
+      that the prompt and the checker disagreed.
+- [x] **A re-run silently overwrites the untracked corpus, and that is the largest risk
+      before the next batch.** `RULES_DIR` is `distilled/${D}`, so `./pipeline.sh
+      benbjohnson` writes over the eight rulesets already there. Those files have **zero
+      commits** — the `rulesets` repository has no commit at all — and every measurement in
+      this backlog references them.
+      **The fix is to commit the corpus, which is the item above, not to patch the script
+      around an uncommitted repository.** A guard here would be protecting evidence that
+      should not have been unprotected.
+      **Resolved by deletion 2026-09-08, deliberately, and the consequence is worth writing
+      down.** The eight rulesets were removed to prepare a clean re-run, which was the prior
+      procedure. So the numbers this backlog cites — 63 of 147 flagged, 11%–78% symbol rates,
+      26 absent anchors, five of eight non-canonical — now survive as **records rather than
+      re-checkable measurements**. That is the third artifact in this family lost while
+      untracked, and the argument for committing the next batch does not depend on the first
+      one having been kept.
+      **Deleting was nonetheless the right call here**, because the prompt fix above changes
+      what a distillation produces: the five-of-eight non-canonical finding is precisely what
+      a fresh run tests, and stale output could not test it.
+- [x] **Distilling one source twice needs a run label, and nothing supports it.**
+      DONE 2026-09-08 as an optional second argument: `./pipeline.sh SUBDIR [LABEL]` writes
+      to `prompts/SUBDIR-LABEL` and `distilled/SUBDIR-LABEL`, so a second run keeps the
+      first. No label reproduces the old paths exactly.
+      **The reason first given for not building it was weak and is recorded as such.** It
+      said the shape depended on whether the comparison wanted a whole subdirectory or one
+      named source. A label is a string, so it serves both — and distilling the whole
+      subdirectory twice gives **eight paired comparisons instead of one**, which is strictly
+      better evidence for the same marginal cost of one extra run.
+      **The prompts directory is suffixed too, and that is load-bearing rather than tidy.**
+      Each prompt names the file its agent must write, so a prompt built for one label points
+      at that label's rules directory. One shared prompts directory would send both runs to
+      the same destination and measure nothing.
+      **The label is validated as a single path segment** — letters, digits, dot, underscore,
+      dash, and no leading dot or dash — because it is interpolated into two directories that
+      then get created, and a label out of a shell history could otherwise walk out of the
+      output tree.
+      **A residual confound, stated rather than left to be found.** The two runs' prompts are
+      not byte-identical: each names its own destination, so one line differs. For measuring
+      backtick adherence that is immaterial — the destination is a path at the end of the
+      prompt, not guidance about how to write rules — but it is a difference, and the
+      comparison is therefore *near*-controlled rather than controlled. The stricter
+      alternative is to run twice into the same directory and archive between runs, which
+      keeps the prompt identical at the cost of a half-moved tree if a run dies partway.
+      Not taken, and available if the destination line is ever suspected of mattering.
+
+______________________________________________________________________
+
+## The Second Batch, Measured (2026-09-08)
+
+Eight rulesets, **137 enforced rules of 153**, all eight parsing. The first batch to run
+against the corrected prompt, so it is the test of those corrections rather than a repeat.
+
+- [x] **The prompt taught a non-canonical form, and fixing it worked.** DONE — measured
+      **6 of 8 canonical, from 3 of 8**. `non-canonical` fell from five rulesets to two, and
+      each remaining case has exactly one isolated cause: `crud` has 2 swapped `✗`/`✓` pairs
+      and nothing else, `failure_is_your_domain` has 14 three-space headers and nothing else.
+      `canonizer fmt` clears both.
+- [x] **Two more conventions were unstated, and this run found them by having them
+      violated.** DONE 2026-09-08 — checklist item 7 now states them exactly.
+      **`Render` emits `✗` before `✓`, and the prompt never said so.** Its examples all show
+      that order, and one agent wrote the good example first in two rules — semantically
+      identical, byte-wise non-canonical. Same class of defect as the unstated backtick
+      convention: a convention the format enforces and the prompt leaves to be inferred.
+      **Nor did it state the tag spacing.** All four worked examples now use two spaces, and
+      one agent still produced three in 14 headers, so this is model habit rather than a
+      copied example — which is exactly why the rule has to be written down instead of
+      demonstrated.
+      Item 7 now names all three: two spaces after the tag, six-space indent, one unwrapped
+      line per rationale, and `✗` before `✓`.
+- [x] **`sectionOnly` fired for the first time, and it fired on a paraphrase rather than a
+      bare section reference.** The anchor is
+      `` ↦ §3 `NewTestDB` opening a real Bolt database, contrasted with §4 `TestYoClient` ``.
+      It carries no colon, so `sectionOnly`'s colon rule reads everything after `§` as one
+      long section name and reports it advisory.
+      **That is a hole in the colon rule, and it matters because of what the rule was chosen
+      to protect.** The colon test was picked over "does it carry a quotation" precisely so
+      that **paraphrase** anchors would keep failing as defects instead of becoming
+      advisories — the entry that shipped it says keying on quote marks *"would have turned
+      all eight paraphrase anchors into advisories and buried a real finding"*. A paraphrase
+      written without a colon now gets exactly that treatment.
+      **So the check is no longer idle, and its first real instance is a false advisory.**
+      **DONE 2026-09-08, and no threshold was needed.** `sectionOnly` gained a conjunct: an
+      anchor holding a quotable span — double-quoted or backticked — has something to search
+      for whatever its punctuation, so it is not section-only regardless of the colon.
+      **A conjunct, not a replacement, and that distinction is why it is safe.** The
+      predicate rejected when this check shipped was *"section-only means it carries no
+      quotation"*, which would have made every colon-bearing paraphrase advisory. Asking both
+      questions is strictly narrower than today, so nothing reported as a defect became
+      advisory — a test pins `§Errors: every method takes ctx first` still failing as absent.
+      **It reuses `firstDelimited`**, extracted for the backtick-anchor fix, so the earlier
+      refactor paid for this one and there is no third spelling of "is there a span".
+      **Measured: the false advisory is gone and the anchor is now searched *and found*.**
+      `anchor-section-only` falls 1 → 0 while `anchor-absent` stays at 2, so the anchor
+      verifies rather than merely being reclassified. Every other category on all eight
+      rulesets is unchanged.
+      **The honest consequence: `sectionOnly` is idle again.** Of 157 anchors, 155 are
+      `§name: content`, one is the quoted case above, and **zero** are colonless and
+      quotation-free — so the corpus holds no bare section reference even though the prompt
+      now permits one. It is *correctly* idle rather than falsely firing, which was the whole
+      defect.
+      **The residual, named rather than closed:** a paraphrase both colonless and
+      quotation-free would still read as a section name. Zero instances, so no length bound
+      is guessed — the reasoning that refused a threshold stands, and the measurement now
+      supports it rather than merely asserting it.
+
+______________________________________________________________________
+
+## What Batch 2 Still Holds Without Another Run (2026-09-08)
+
+Asked whether further measurement rounds are called for, and analysed the batch already in
+hand before answering. Batch 2's 157 anchors:
+
+| class                          |      n |
+| ------------------------------ | -----: |
+| present                        |    103 |
+| ellipsis, every fragment found |     20 |
+| **absent: near-miss ≥0.85**    | **18** |
+| ellipsis, some fragment absent |      8 |
+| absent: loose 0.6–0.85         |      6 |
+| absent: unrelated <0.6         |      2 |
+
+Diffing the 18 near-misses against their closest source window, the commonest single
+substitution is **a backtick in the anchor where the source has none, 12 times**.
+
+- [x] **Checklist item 8 corrupts item 9, and that is a fourth prompt contradiction of the
+      same family.** CLOSED 2026-09-08 as **moot, not fixed**, and the distinction matters.
+      The fix was measured at +8 anchors *on batch 2*. Batches 3 and 4 have **zero absent
+      anchors**, so there is nothing left for it to rescue: the verbatim-quotation
+      instruction and the three checker fixes closed the class the +8 was drawn from.
+      **The contradiction itself is real and unfixed** — an agent backticking inside a
+      quotation still makes it non-verbatim. It simply stopped costing anything measurable,
+      so building the fold would be code justified by a number that no longer reproduces.
+      Reopen if absent anchors return. Original entry: Item 8 says *"Backtick every identifier"*; item 9 says a `↦` quotation
+      must be *"the source's own words, character for character"*. An agent backticking an
+      identifier **inside** a quoted span makes the quotation non-verbatim, so the anchor
+      cannot be found — and the two instructions cannot both be obeyed on the same span.
+      **Measured: folding backticks before comparison takes batch 2 from 34 absent anchors to
+      26, +8** — larger than the backtick-span fix (+3) and comparable to emphasis (+10).
+      Stripping code-comment markers (`//`) adds 2 more, from anchors quoting a comment's
+      text without its marker.
+      **Two fixes and they are not alternatives.** The prompt should say *do not add
+      backticks inside a `↦` quotation; quote the source's punctuation too* — item 8's scope
+      is the rule statement, not the anchor. And `unemphasize`'s fold should extend to
+      backticks, on the same ground it folds `__bold__`: it is markdown markup that differs
+      between what a reader sees and what is stored. The prompt stops new cases; the fold
+      rescues the ones already written.
+      **Not bundled with anything, so the +8 stays attributable** — the discipline that kept
+      elision, backtick-spans and emphasis separable.
+- [x] **The single-underscore residual is now priced.** CLOSED 2026-09-08 on the same
+      ground as the entry above: the +2 was measured against batch 2's absent anchors, and
+      batches 3 and 4 have none. The price is recorded and the trade is settled rather than
+      pending. Original entry: Folding single `_..._` would add 2
+      more anchors, and it was refused because it matches across `snake_case` — measured
+      then at **three anchors worse** overall. Both numbers are small and the refusal still
+      holds; recorded so the trade is a number rather than a memory.
+- [x] **The marker-order and spacing statements are untested, and one round would test
+      them.** CLOSED 2026-09-08, tested twice. Batches 3 and 4 both carry **zero** three-space
+      headers and **zero** swapped `✗`/`✓` pairs, against 14 and 2 in batch 2. Stating a
+      convention did what demonstrating it had not.
+      **The prediction filed with it was 8 of 8 canonical.** It failed in batch 3 for an
+      unrelated reason — the version block a `Limitations:` header implies — and held in
+      batch 4 once that was fixed. Original entry: Checklist item 7 gained three exact conventions *after* batch 2 ran, so nothing
+      has measured them. The prediction is falsifiable and worth stating before the run:
+      **8 of 8 canonical**, since the two failures in batch 2 were exactly 2 swapped `✗`/`✓`
+      pairs and 14 three-space headers.
+- [x] **`Unquantified` rests on one corpus and should be re-measured, not re-designed.**
+      CLOSED 2026-09-08 with two more corpora and no re-design. Batch 2: **5 of 137**
+      enforced rules. Batch 3: **3**. Batch 4: **3 of 122**. So 3.6%, then ~2.5%, then 2.5% —
+      the rate is low and steady rather than swinging like the symbol rate does, which is the
+      question the entry asked.
+      **The batch-1 figure of 12 remains the outlier and is still unexplained**, and it was
+      measured on a corpus that no longer exists. Treat 3 of 122 as the calibration.
+      Original entry: It
+      is 5 of 137 on batch 2, and the 12 of 147 recorded on batch 1 did not reproduce. A
+      third batch says whether 5 is typical or whether this check's rate swings as widely as
+      the symbol rate does (10.1 points mean absolute change). No design change should be
+      made before that number exists.
+
+______________________________________________________________________
+
+## Batch 3, and a Prediction That Failed (2026-09-08)
+
+The corpus is committed at last (`rulesets` `861a072`, 131 files), so batch 2 is preserved in
+git while batch 3 sits in the working tree — the first properly paired before-and-after this
+family has had. 133 enforced rules, 150 anchors.
+
+- [x] **The prediction was 8 of 8 canonical. The result was 0 of 8, and the reason was mine
+      to have foreseen.** Recorded as a failed prediction rather than quietly corrected.
+      **What I got right**: checklist item 7's three conventions worked exactly. **Zero**
+      three-space headers and **zero** swapped `✗`/`✓` pairs across all eight, against 14 and
+      2 in batch 2. Stating a convention does what demonstrating it did not.
+      **What I missed**: the `Limitations:` instruction had never actually been exercised.
+      Every batch-2 ruleset carried `unbounded`, meaning none declared the header, so batch 3
+      is the **first** to carry it — and a document declaring `Limitations:` is a version-3
+      document, which `Render` writes with a `---`/`format: 3`/`---` block. The prompt asked
+      for the header and never asked for the block, so all eight declare a version they do
+      not match.
+      **One defect, not eight**: prepending the block makes **all eight canonical** with no
+      other change. Verified by probe before the fix was written.
+      **Fixed as the fifth contradiction of the same family** — the prompt teaching a form
+      `Canonical` rejects. The metadata section now shows the block, the allowed-line list
+      admits it, and checklist item 7 requires it.
+- [x] **`unbounded` is gone: 8 of 8 rulesets now declare `Limitations:`.** The check that
+      fired on every document it had ever seen now fires on none, and it took a prompt change
+      rather than a code change — which is what that entry argued.
+- [x] **`anchor-absent` is zero.** 59 in batch 1 before any fix, 32 in batch 2, **0** in
+      batch 3 across 150 anchors. The three checker fixes — elision, backtick spans, emphasis
+      folding — and the verbatim-quotation instruction together closed the whole class.
+      **The backtick-in-quotation contradiction filed above may now be moot**, since nothing
+      is absent to rescue. Do not implement the fold on that filing's +8: it was measured on
+      batch 2 and batch 3 has no absent anchors at all. Re-measure before building.
+- [x] **Agents now use the section-reference permission: 9 colonless anchors, 8 reported
+      `anchor-section-only`.** CLOSED 2026-09-08, measured in batch 4: **8 of 9 name a real
+      heading exactly**, and the ninth writes `§3. Use a shared mock subpackage` where the
+      source has `## #3. …` — a dropped character, not a paraphrase.
+      **So the permission is working and the colon hole is not widening**, which was the
+      question. What it exposed instead is that nothing verifies the name at all, filed
+      separately below. Original entry: The permission was added because forcing a quotation invites
+      fabrication; it is being taken up, and `sectionOnly` has gone from idle to the third
+      most common finding in one batch.
+      **That makes the residual worth re-examining rather than assuming.** Of the 9, one
+      carries a quotation and is searched; the other 8 are advisory. Whether they are honest
+      section references or paraphrases-without-colons is unmeasured, and the difference
+      decides whether this is the permission working or the colon hole widening.
+      **Also unmeasured: whether `unbounded` going quiet cost anything.** A `Limitations:`
+      line that says little satisfies the check by construction, which `verify.Limitations`
+      already warns of — *"`Limitations: none` satisfies the field and states nothing"*. Read
+      the eight before trusting the zero.
+
+______________________________________________________________________
+
+## Batch 4: the Gates Went Quiet, and the Quiet Was Checked (2026-09-08)
+
+The version-block fix landed and the prediction held: **8 of 8 canonical**, against 0 of 8
+in batch 3. 122 enforced rules, 150-odd anchors. `unbounded`, `anchor-absent` and
+`non-canonical` are all **zero**.
+
+Three gates reporting nothing is the state worth distrusting, so each zero was checked
+rather than accepted.
+
+- [x] **`unbounded` is zero because the headers are real, not because the check is
+      satisfiable by a stub.** `verify.Limitations` accepts any non-empty string and its own
+      doc warns that *"`Limitations: none` satisfies the field and states nothing"*. Measured:
+      the eight run **841 to 1406 characters**, and the content is specific — *"Predates Go
+      1.13, so it says nothing about `errors.Is`, `errors.As`, `%w` wrapping"*, *"Covers only
+      the read side of a service implementation — `FindXByID` and `FindXs`"*. The prompt's
+      instruction not to write `none` is holding.
+- [x] **`anchor-absent` is zero across three batches of improvement**: 59 → 32 → 0. Every
+      quoted anchor is now found in its source.
+- [x] **A check of mine reported fabrication that was not there, and the bug was in the
+      check.** Two section references read NOT FOUND against their source's headings. The
+      source writes `## 2\. Use the "underscore test" package` — a **backslash-escaped
+      period** — and the normaliser did not strip markdown escapes. Corrected before the
+      claim was made; recorded because a false fabrication report is the most expensive kind
+      of wrong answer this repository can give.
+- [x] **A section reference is a checkable claim and nothing checks it.** Nine anchors name a
+      section and quote nothing, which `sectionOnly` reports advisory and leaves unsearched.
+      But a source's headings are enumerable, so *does this section exist* is answerable —
+      and the batch already shows the answer drifting: **8 of 9 name a heading exactly, and
+      one writes `§3. Use a shared mock subpackage` where the source has `## #3. Use a shared
+      mock subpackage`**, dropping the `#`.
+      **That one is a transcription slip rather than an invention**, and it is invisible
+      precisely because nothing looks. The permission was granted so a rule drawn from a
+      whole passage has an honest answer; it should not also be a channel where a name can be
+      wrong without anyone noticing.
+      **The check is cheap and its shape is already here**: parse the source's `#` headings,
+      normalise markdown escapes and smart quotes the way `textnorm.Fold` normalises
+      typography, and report a section reference naming no heading. Advisory or blocking is a
+      separate decision — the honest default is advisory, matching the anchor's own severity.
+      **Do not reuse the "not found" wording of `anchor-absent`.** *Named a section that does
+      not exist* and *quoted text not in the source* are different defects, and this family
+      has spent four entries separating exactly that kind of pair.
+      **DONE 2026-09-08 as `verify.sectionNamed` + `CategoryAnchorSectionUnknown`.**
+      Measured: **1 of 9 flagged**, the `§3. Use a shared mock subpackage` slip, with every
+      other category on all eight rulesets unchanged.
+      **The headings come from `markdown.Sections`, not a scan for `#` lines.** A second
+      parser would disagree with the kernel's on setext headings and on `#` inside fenced
+      code, and canonizer would then report a fabrication skillet's own reader does not see.
+      A test pins the fenced-code case.
+      **The normalisation is the check, and its specification is a bug I made.** `Title` is
+      raw source text, so it keeps `2\.` and curly quotes; the one-off version of this
+      comparison reported two anchors as fabricated for want of stripping that backslash.
+      `headingKey` resolves escapes, then `textnorm.Fold`, then case — and the escaped-period
+      heading is a regression test.
+      **Numbering is kept deliberately.** Normalising a leading `#3.` away would excuse the
+      one real slip, and would also let an anchor citing section 2 match a heading numbered
+      3 — a worse error than the one excused.
+      **Advisory, though parity with `anchor-absent` argues for blocking, and the expiry is
+      written down**: make it blocking once this normalisation has met a second corpus with
+      no false positive. Blocking on a comparison whose failure mode is *silently wrong on
+      unusual markdown* would fail a ruleset for the checker's bug — which already happened
+      once.
+      **`sectionName` was factored out mid-implementation**, because `sectionOnly` cuts a
+      name at the colon and the first version of `sectionNamed` did not, so `§Errors:`
+      reported a heading that exists as missing. Two spellings of one question, caught by a
+      test.
+- [x] **`unexecutable` is now the dominant finding at 18 of 122 enforced rules, 14%, and it
+      is accurate.** Sampled: the flagged rules genuinely carry a statement and a rationale
+      with no `✗`/`✓` pair at all — the check is not miscounting. Every one sampled is a
+      `[SHOULD]`, which suggests agents treat the pair as optional at lower severity while
+      the format requires it of every enforced rule.
+      **Read 2026-09-08, and the guess in this entry was wrong.** It supposed agents treat
+      the pair as optional at `[SHOULD]`. By severity it is 16 `[SHOULD]` and **2 `[MUST]`**,
+      so severity is not the axis. By level it is:
+
+| level    | unexecutable | enforced |    rate |
+| -------- | -----------: | -------: | ------: |
+| `METHOD` |            7 |       13 | **54%** |
+| `CODE`   |            7 |       51 |     14% |
+| `ARCH`   |            4 |       58 |      7% |
+
+**`METHOD` is four to eight times the others, and the cause is structural**: a `✗`/`✓` pair
+is a code-example format, and a process rule has no natural code counterexample.
+
+**And the prompt's three worked examples formed a descending gradient nothing in its prose
+licensed** — `[MUST][CODE]` carried both marks, `[MUST][ARCH]` omitted the anchor, and
+`[SHOULD][METHOD]` omitted both. The `[ARCH]` example contradicted a stated rule outright,
+since the format section requires a `↦` line on every enforced rule. Agents were copying a
+gradient, which is the sixth instance of this family: the prose says one thing and the
+example teaches another.
+
+- [x] **DONE 2026-09-08, in the prompt only.** All three examples now carry a pair and an
+      anchor, and the requirement is stated beside the anchor requirement rather than left
+      to be inferred.
+      **The `METHOD` example shows a *process* pair**, and that is the part that matters.
+      Demanding a pair everywhere without showing a non-code one would push agents to
+      manufacture code for process rules — the same failure as demanding a quotation where
+      none exists, which this corpus already showed produces cherry-picked text. The prompt
+      now says the pair does not have to be code and demonstrates the alternative.
+      **No code change: `Executable` was right.** It reported a real absence, and the absence
+      was the prompt's.
+
+______________________________________________________________________
+
+## The Pipeline Runs to a Refined Artifact (2026-09-08)
+
+`pipeline.sh` now carries a run past distillation: synthesize, then a bounded refine loop of
+verify → critic → decide → rework, then the gate. It is the driver `canonizer loop`'s own
+doc describes as needed — *"canonizer calls no model, the critic and the rework are the
+agent's steps"* — and the attempt counter lives in the script.
+
+Nothing is overwritten: every findings file, critic prompt, rework prompt and candidate
+carries its attempt number, so a run leaves its whole history rather than the last state of
+one file. Exercised with stubs on all three paths — ship first time, ship after two reworks,
+and blocked with a non-zero exit.
+
+- [x] **`synthesize` has no `--rulesout`, so the pipeline appends the destination itself.**
+      DONE 2026-09-09 as `synthesize --rulesout DIR`, mirroring `distill` exactly. The
+      template gained a `{{DESTINATION_CONTENT}}` placeholder — verified safe first, since
+      skillet's `synthesize.FillTemplate` requires only `{{RULESETS}}` and ignores other
+      markers, so no kernel change and no release.
+      **The filename comes from `naming.RulesFilename`, and testing caught that it preserves
+      an extension rather than adding one**: a bare directory name came back as
+      `benbjohnson_rules` with no suffix. `distillgen` feeds it a source filename, so the
+      base is now suffixed before the call.
+      **An empty `--rulesout` states today's behaviour rather than leaving a hole** — it
+      fills with an instruction to print the ruleset, because replacing the marker with
+      nothing leaves a heading over an empty section and leaving the marker puts a raw
+      placeholder in front of an agent.
+      **`pipeline.sh` now discovers the candidate rather than re-deriving its name**, by
+      globbing the output directory. Spelling the naming rule out again in shell is how the
+      two would disagree — the label form `benbjohnson-run2` already normalises differently
+      than a shell substitution would. Original entry:
+      `distill --rulesout` writes the target path into every prompt it generates, which is
+      how each distill agent knows the file to create. `synthesize` has no equivalent, so its
+      prompt names no destination and an agent given it prints the merged ruleset instead of
+      writing one — the failure that produced eight files of plan prose on the first run.
+      **The script appends a `<destination>` block to the generated prompt as a stopgap**,
+      and that is the same knowledge in two places: the distill path gets it from a flag and
+      the synthesis path from a heredoc. The fix is `synthesize --rulesout DIR`, matching
+      `distill` exactly, after which the append comes out.
+- [x] **The rework instruction lives in a shell heredoc and belongs in a template.**
+      DONE 2026-09-09 as `internal/prompt/rework_prompt.md` behind `canonizer rework`.
+      **`prompt_test.go`'s two tables gained it, which was the point.**
+      `TestTemplatesSpecifyCanonicalForm` immediately failed — the template described the
+      form but never showed a `§` header — so the guard earned its keep before the commit
+      that added it. That is the defect a heredoc keeps by construction.
+      **`--findings` is repeatable** because a round produces two documents and an agent
+      reworking against one resolves half the round; each is embedded labelled with its
+      path, since a deterministic check and a grader's judgement are not interchangeable.
+      **The text gained a section a heredoc had not**: what *not* to change. Leaving
+      untouched rules and their numbering is what lets one round's findings be compared with
+      the next, and renumbering to close a gap makes every `path` refer to a different rule.
+      Original entry:
+      `distill`, `synthesize` and `critic` each have a template under `internal/prompt` with
+      a test that reads it. Rework has none, so the text deciding what an agent does to a
+      candidate ruleset — including "do not delete a rule to silence a finding" and the
+      canonical-form reminders — is unversioned, untested, and invisible to
+      `prompt_test.go`.
+      **It is also the prompt with the most leverage in the whole pipeline**, since it is the
+      only one that edits an artifact rather than producing one. It should be
+      `internal/prompt/rework_prompt.md` behind a `canonizer rework` command taking the
+      candidate and both findings files, on the shape `critic` already uses.
+- [x] **The multi-source `--source` problem is answered by a union, and the answer deserves
+      a better one.**
+      **MIS-FILED AS BLOCKED, and corrected 2026-09-09.** This entry said the real fix was
+      *"blocked on the format, not on a flag"*. That is true of matching each anchor against
+      **its own** source, which needs a rule to record where it came from. It is false of
+      matching an anchor against **any** source, which needed only a repeatable flag —
+      `ff/v4` has `StringListVar` and always did.
+      DONE: `--source` is repeatable on `verify`, `critic` and `loop`, and the checks
+      **iterate rather than concatenate**.
+      **Iterating is not tidiness, it removes a false positive.** `textnorm.Fold` collapses
+      whitespace, so a union let an anchor match text spanning the seam between two
+      documents — a quotation no source contains. A test pins that case. It also keeps each
+      source hashable on its own, which `--proof` and `--against-proof` depend on: a
+      concatenation's digest changes when an unrelated file joins the tree.
+      **`sourceState` now folds many digests into one verdict**, and any source changing
+      makes the set changed. Reporting unchanged because seven of eight matched would be the
+      fail-open reading.
+      **A slice, not a variadic**, so *no sources* is something a caller passes on purpose —
+      that state is what `Unverifiable` exists to report.
+      **Regression-checked: all eight rulesets report byte-identical categories under a
+      single `--source`.** Original entry: `verify` and `critic` each take one `--source`; a synthesized ruleset
+      derives from all of them. The script concatenates the source tree into
+      `work/<D>/<D>_union_source.md` and passes that, so an anchor from any source is
+      findable.
+      **It is the honest choice and not a correct one.** A union lets an anchor match text
+      from a sibling source, which overstates provenance for that rule. Omitting `--source`
+      is measurably worse — it replaces the anchor gates with an advisory, and on an earlier
+      batch dropped the blocking count from 17 to 5, 15 to 3 and 8 to 2 — so the union is
+      the better of two wrong answers.
+      **What would make it right is `verify --source A --source B`**, matching each anchor
+      against the source its rule came from. That needs a rule to know which source it came
+      from, which the canonical form does not record — so this is blocked on the format, not
+      on the flag.
+
+______________________________________________________________________
+
+## The Destination Gap Had a Third Instance (2026-09-09)
+
+- [x] **`critic` had no destination flag, and I closed the same item twice without noticing.**
+      DONE 2026-09-09 as `critic --findingsout FILE`.
+      **The pattern was visible and I fixed two thirds of it.** `distill --rulesout` and
+      `synthesize --rulesout` each tell the agent where its artifact goes; `critic` did not,
+      so `pipeline.sh` appended a `<destination>` block with a heredoc — the same stopgap the
+      synthesize entry called out as belonging in the command. Closing that entry with *"the
+      fix belongs in the command"* and leaving the identical case one stage later in the same
+      file is the miss worth recording.
+      **Found by a question, not by a check.** Asked whether the heredocs I had mentioned
+      were Python, a grep found no Python anywhere in canonizer and exactly one heredoc left.
+      *"The cleanup is done"* was an assertion; *"no heredoc remains in `pipeline.sh`"* is
+      checkable, and it is now 0.
+      **Filled in `FillPrompt`, not in the command**, unlike synthesize's. That one fills
+      outside `sksynth.FillTemplate` because the kernel owns it; `internal/critic.FillPrompt`
+      is canonizer's own and already validates `{{SOURCE}}` and `{{RULESET}}`, so extending
+      it keeps one authority for what the critic template must contain and gets the
+      missing-marker guard free.
+      **A custom `--template` predating the marker now fails, deliberately.** The other two
+      markers already imposed that contract, so a template without the third is as
+      incomplete as one without `{{RULESET}}`.
+      **It names a file where its siblings name a directory.** Those derive each artifact's
+      name from its source; a critic run's findings belong to one candidate at one *attempt*,
+      and the attempt number is the driver's knowledge — canonizer holds no counter — so the
+      caller supplies the name. A stub run confirms `critic_findings_1.json` reaches the
+      prompt.
+- [x] **The corpus is clean, and the README claimed the opposite.** Measured 2026-09-09:
+      **0 blocking findings across all eight rulesets, and 8 of 8 canonical** — so every one
+      is now signable, and one signed on a copy to prove the chain closes (`format: 4` with
+      a `verified` event).
+      **The README said *"Every ruleset in the current corpus is refused, each carrying 3–17
+      blocking findings; that is the gate working, not a defect."*** True when written and
+      false now, which is the hazard of putting a measurement in prose that nothing
+      re-checks. Removed rather than updated: the number will move again, and the README is
+      not where a corpus measurement belongs.
+      **The arc, for the record**: `unbounded` 8-of-8 → 0, `anchor-absent` 59 → 32 → 0,
+      `non-canonical` 5-of-8 → 0, `unexecutable` 18 → 0, canonical 3-of-8 → 8-of-8. Six
+      prompt contradictions found and fixed, each by measuring the corpus and finding the
+      prose and the worked example disagreeing.
+
+______________________________________________________________________
+
+## `pipeline.sh` Is No Longer Tied to One Workspace (2026-09-09)
+
+- [x] **Two absolute paths named one machine, and nothing else could run the script.**
+      DONE 2026-09-09: `--src-dir`, `--out-root` and `--max-attempts`, each also readable
+      from `CANONIZER_SRC_DIR`, `CANONIZER_OUT_ROOT` and `CANONIZER_MAX_ATTEMPTS`. A flag
+      wins over the environment, which wins over the default — adh's order, and the one a
+      caller expects.
+      **The environment names are prefixed and the bare ones are not read.** `SRC_DIR` is a
+      name a CI job or a sourced profile may already hold, and a script silently picking up
+      someone else's variable is worse than one ignoring it. `MAX_ATTEMPTS` was the
+      exception already in the file, so it gained the prefix **and still honours the bare
+      name**: it was the only name until now, and silently ignoring an existing
+      `MAX_ATTEMPTS=1` would change a run without saying so.
+      **The defaults stay the current paths, which is a compromise rather than an
+      oversight.** A relative default (`./sources`, `./rulesets`) would be more portable and
+      would break the only invocation anyone actually types. The goal was reuse by others,
+      not portability for its own sake, so the paths remain and the header says plainly that
+      they describe one workspace rather than a convention.
+      **Both directories are now validated up front, each message naming the flag that set
+      the value.** A mistyped `--out-root` used to surface much later as a `mkdir` failure
+      deep in the run, and "no such directory" without the flag name is a hunt.
+      **It closed a real testing wart.** Every previous stub run rewrote the script with
+      `sed` to redirect its paths, so a bug in that rewrite could have masked a bug in the
+      script. The run now goes through the flags, unmodified.
+      Checked: precedence in all three directions, both `--flag value` and `--flag=value`,
+      `--` terminator, `--help` exiting 0 where a usage error exits 2, an unknown flag
+      refused rather than taken as `SUBDIR`, and the full ship-after-rework path.
+- [ ] **`bin/distill.sh` and `bin/pipeline.sh` are dead identical duplicates.** Recommended
+      for deletion twice and still present: 444 and 445 bytes, differing by one blank line,
+      referenced nowhere, superseded by the root `pipeline.sh`. They hardcode paths, predate
+      `--rulesout`, know nothing of labels, and never invoke an agent — so anyone finding
+      them gets a distillation that writes prompts and no rulesets.
+      Left in place because deleting files nobody asked me to delete is not mine to decide;
+      recorded so the recommendation is not made a third time from memory.

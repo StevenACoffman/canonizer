@@ -1,6 +1,7 @@
 package verify_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/StevenACoffman/canonizer/internal/verify"
@@ -37,7 +38,7 @@ func TestExecutableFlagsMissingAndNonDiscriminating(t *testing.T) {
 		rule("1.3", ruleset.SHOULD, "a := h(); b := k()", "a := h()", ""), // ✓ ⊆ ✗ → flag
 		rule("1.4", ruleset.CONSIDER, "", "", ""),                         // advisory → exempt
 	}}
-	diags, err := verify.Executable(rs)
+	diags, err := verify.Executable(&rs)
 	if err != nil {
 		t.Fatalf("Executable: %v", err)
 	}
@@ -56,7 +57,7 @@ func TestProvenanceFlagsMissingAndAbsentAnchors(t *testing.T) {
 		rule("1.3", ruleset.SHOULD, "b", "g", ""),                          // no anchor → flag
 		rule("1.4", ruleset.CONSIDER, "b", "g", "irrelevant"),              // advisory → exempt
 	}}
-	diags := verify.Provenance(rs, source)
+	diags := verify.Provenance(&rs, []string{source})
 	if len(diags) != 2 {
 		t.Fatalf("got %d findings, want 2 (§1.2 absent, §1.3 no-anchor)", len(diags))
 	}
@@ -69,73 +70,73 @@ func TestProvenanceMatchesAcrossRewrappedWhitespace(t *testing.T) {
 	rs := ruleset.Ruleset{Rules: []ruleset.Rule{
 		rule("1.1", ruleset.MUST, "b", "g", "close the connection"),
 	}}
-	if diags := verify.Provenance(rs, source); len(diags) != 0 {
+	if diags := verify.Provenance(&rs, []string{source}); len(diags) != 0 {
 		t.Errorf("whitespace-normalized anchor should match; got %+v", diags)
 	}
 }
 
-// stated builds a rule carrying a specific Statement, which is what Specificity reads.
+// stated builds a rule carrying a specific Statement, which is what Softening reads.
 func stated(section string, sev ruleset.Severity, statement string) ruleset.Rule {
 	r := rule(section, sev, "bad", "good", "anchor")
 	r.Statement = statement
 	return r
 }
 
-func TestSpecificityFlagsGeneralAdvice(t *testing.T) {
+func TestSofteningFlagsHedgingOnly(t *testing.T) {
 	t.Parallel()
 	cases := map[string]struct {
 		statement string
 		wantFlag  bool
-		wantCat   string
 	}{
 		"names a symbol in backticks": {
 			statement: "Call `ctx.Done()` before returning from the handler.", wantFlag: false,
 		},
 		"hedged even though it names a tool": {
-			statement: "Use `errgroup` as appropriate for concurrent fetches.",
-			wantFlag:  true, wantCat: "softening",
+			statement: "Use `errgroup` as appropriate for concurrent fetches.", wantFlag: true,
 		},
-		"pure prose names nothing actionable": {
-			statement: "Decompose the work into smaller steps.",
-			wantFlag:  true, wantCat: "unspecific",
+		// Was flagged `unspecific` until 2026-09-08 and is silent now: naming no symbol is
+		// a property of the document, counted in Scope.Symbolic, and the per-rule question
+		// belongs to the cold critic. This case is kept precisely to pin the silence.
+		"prose naming no symbol is not this check's business": {
+			statement: "Decompose the work into smaller steps.", wantFlag: false,
 		},
-		"a link counts as concrete": {
+		"a link is not a hedge either": {
 			statement: "Follow [the retry policy](docs/retry.md) on every write.", wantFlag: false,
 		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got := verify.Specificity(ruleset.Ruleset{
+			got := verify.Softening(&ruleset.Ruleset{
 				Rules: []ruleset.Rule{stated("1", ruleset.MUST, tc.statement)},
 			})
 			if !tc.wantFlag {
 				if len(got) != 0 {
-					t.Errorf("flagged a specific rule: %+v", got)
+					t.Errorf("flagged a statement that does not hedge: %+v", got)
 				}
 				return
 			}
 			if len(got) != 1 {
 				t.Fatalf("want one finding, got %+v", got)
 			}
-			if got[0].Category != tc.wantCat {
-				t.Errorf("category = %q, want %q", got[0].Category, tc.wantCat)
+			if got[0].Category != "softening" {
+				t.Errorf("category = %q, want softening", got[0].Category)
 			}
 		})
 	}
 }
 
-func TestSpecificityIsNeverBlocking(t *testing.T) {
+func TestSofteningIsNeverBlocking(t *testing.T) {
 	t.Parallel()
 	// The constraint lives in the code, not in a convention about how to call it:
 	// Executable and Provenance are the only checks that stop a ship, and this must not
 	// be able to join them however it is invoked.
 	rs := ruleset.Ruleset{Rules: []ruleset.Rule{
-		stated("1", ruleset.MUST, "Handle errors carefully."),
-		stated("2", ruleset.SHOULD, "Be careful with dangerous operations."),
+		stated("1", ruleset.MUST, "Handle errors as appropriate."),
+		stated("2", ruleset.SHOULD, "Retry it at your discretion."),
 		stated("3", ruleset.MUST, "Use it as appropriate."),
 	}}
-	got := verify.Specificity(rs)
+	got := verify.Softening(&rs)
 	if len(got) == 0 {
 		t.Fatal("expected these three to be flagged; the test proves nothing otherwise")
 	}
@@ -149,26 +150,170 @@ func TestSpecificityIsNeverBlocking(t *testing.T) {
 	}
 }
 
-func TestSpecificityIgnoresUnenforcedRules(t *testing.T) {
+func TestSofteningIgnoresUnenforcedRules(t *testing.T) {
 	t.Parallel()
 	// An advisory note on a rule nobody enforces is noise, and the other two checks
 	// skip CONSIDER for the same reason.
-	got := verify.Specificity(ruleset.Ruleset{
-		Rules: []ruleset.Rule{stated("1", ruleset.CONSIDER, "Be careful out there.")},
+	got := verify.Softening(&ruleset.Ruleset{
+		Rules: []ruleset.Rule{stated("1", ruleset.CONSIDER, "Handle it as appropriate.")},
 	})
 	if len(got) != 0 {
 		t.Errorf("flagged an unenforced rule: %+v", got)
 	}
 }
 
-func TestSpecificityReportsOneFindingPerRule(t *testing.T) {
+func TestSofteningReportsOneFindingPerRule(t *testing.T) {
 	t.Parallel()
-	// A statement that both hedges and names nothing gets one note, not two: the
-	// reader's action is the same either way, and doubling it inflates rework budget.
-	got := verify.Specificity(ruleset.Ruleset{
-		Rules: []ruleset.Rule{stated("1", ruleset.MUST, "Handle it as appropriate.")},
+	// One note per rule however many hedges it carries: the reader's action is the same
+	// either way, and doubling it inflates rework budget.
+	got := verify.Softening(&ruleset.Ruleset{
+		Rules: []ruleset.Rule{stated("1", ruleset.MUST,
+			"Handle it as appropriate, at your discretion.")},
 	})
 	if len(got) != 1 {
 		t.Errorf("want a single finding for one rule, got %+v", got)
+	}
+}
+
+// TestCategoryValuesAreTheWireContract pins each category's string, which the constants
+// deliberately do not.
+//
+// The behavioural tests above assert literals for the same reason: a test that compares
+// the constant against itself passes however the value is edited, so the one thing it
+// cannot catch is the change that matters. These strings are read by `gate` and by
+// anything consuming the findings JSON, so renaming one is a breaking change and should
+// fail here rather than downstream.
+func TestCategoryValuesAreTheWireContract(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct{ got, want string }{
+		"unexecutable":        {verify.CategoryUnexecutable, "unexecutable"},
+		"non-discriminating":  {verify.CategoryNonDiscriminating, "non-discriminating"},
+		"no-anchor":           {verify.CategoryNoAnchor, "no-anchor"},
+		"anchor-absent":       {verify.CategoryAnchorAbsent, "anchor-absent"},
+		"nothing-examined":    {verify.CategoryNothingExamined, "nothing-examined"},
+		"non-canonical":       {verify.CategoryNonCanonical, "non-canonical"},
+		"anchor-drift":        {verify.CategoryAnchorDrift, "anchor-drift"},
+		"anchor-stale":        {verify.CategoryAnchorStale, "anchor-stale"},
+		"anchor-fabricated":   {verify.CategoryAnchorFabricated, "anchor-fabricated"},
+		"unbounded":           {verify.CategoryUnbounded, "unbounded"},
+		"warrant-incomplete":  {verify.CategoryWarrantIncomplete, "warrant-incomplete"},
+		"anchor-unverifiable": {verify.CategoryAnchorUnverifiable, "anchor-unverifiable"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if tc.got != tc.want {
+				t.Errorf(
+					"category = %q, want %q; renaming it breaks every consumer",
+					tc.got,
+					tc.want,
+				)
+			}
+		})
+	}
+}
+
+func TestRulesCountsWhatTheGatesExamine(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		severities   []ruleset.Severity
+		wantEnforced int
+		wantTotal    int
+		wantAdvisory bool
+	}{
+		"all enforced": {
+			severities:   []ruleset.Severity{ruleset.MUST, ruleset.SHOULD},
+			wantEnforced: 2, wantTotal: 2, wantAdvisory: false,
+		},
+		"mixed": {
+			severities:   []ruleset.Severity{ruleset.MUST, ruleset.CONSIDER, ruleset.SHOULD},
+			wantEnforced: 2, wantTotal: 3, wantAdvisory: false,
+		},
+		// The shape the whole item exists for: rules present, none examined, zero
+		// diagnostics -- indistinguishable from a clean pass until this reports it.
+		"none enforced is advisory": {
+			severities:   []ruleset.Severity{ruleset.CONSIDER, ruleset.CONSIDER},
+			wantEnforced: 0, wantTotal: 2, wantAdvisory: true,
+		},
+		// An empty ruleset examines nothing but misleads nobody, so it is not the
+		// advisory case.
+		"empty ruleset is not advisory": {
+			severities:   nil,
+			wantEnforced: 0, wantTotal: 0, wantAdvisory: false,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			rs := ruleset.Ruleset{}
+			for i, sev := range tc.severities {
+				rs.Rules = append(rs.Rules, rule(string(rune('a'+i)), sev, "b", "g", "a"))
+			}
+			got := verify.Rules(&rs)
+			if got.Enforced != tc.wantEnforced || got.Total != tc.wantTotal {
+				t.Errorf("Rules = %+v, want {Enforced:%d Total:%d}",
+					got, tc.wantEnforced, tc.wantTotal)
+			}
+			if got.Advisory() != tc.wantAdvisory {
+				t.Errorf("Advisory() = %t, want %t", got.Advisory(), tc.wantAdvisory)
+			}
+		})
+	}
+}
+
+func TestCanonical(t *testing.T) {
+	t.Parallel()
+	const canonical = "Source: demo\nScope:  Go\n\n" +
+		"§1.1  [MUST][CODE]  Always close the connection.\n" +
+		"      Leaked connections exhaust the pool.\n" +
+		"      ✗  // connection is never closed\n" +
+		"      ✓  defer conn.Close()\n" +
+		"      ↦  ANCHOR-SENTINEL always release the connection\n"
+	cases := map[string]struct {
+		raw      string
+		wantDiag bool
+	}{
+		// A format-1 ruleset declares no version and must still round-trip; guarding on
+		// the version made this check decline on every file in the corpus.
+		"canonical form round-trips": {raw: canonical, wantDiag: false},
+		// Two spaces after Scope: is the canonical spelling; one is parseable and not
+		// canonical, which is exactly the drift nothing detected before.
+		"a reformatted header is not canonical": {
+			raw:      strings.Replace(canonical, "Scope:  Go", "Scope: Go", 1),
+			wantDiag: true,
+		},
+		"a reindented rationale is not canonical": {
+			raw:      strings.Replace(canonical, "      Leaked", "   Leaked", 1),
+			wantDiag: true,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			rs, err := ruleset.Parse(tc.raw)
+			if err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+			assertCanonical(t, verify.Canonical(tc.raw, &rs), tc.wantDiag)
+		})
+	}
+}
+
+// assertCanonical checks the diagnostic count and, when one is expected, that it blocks.
+// Extracted to keep TestCanonical's table flat: three assertions inside a subtest are what
+// push it over the complexity cap.
+func assertCanonical(t *testing.T, got []finding.Diagnostic, wantDiag bool) {
+	t.Helper()
+	if !wantDiag {
+		if len(got) != 0 {
+			t.Fatalf("Canonical = %+v, want none", got)
+		}
+		return
+	}
+	if len(got) != 1 {
+		t.Fatalf("Canonical = %+v, want one diagnostic", got)
+	}
+	if !got[0].Severity.Blocking() {
+		t.Errorf("severity = %q, want a blocking one", got[0].Severity)
 	}
 }

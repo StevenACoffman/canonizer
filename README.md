@@ -83,60 +83,110 @@ source anchor the provenance check looks for.
 ## The Pipeline
 
 ```text
-distill ─▶ [agent writes rules] ─▶ synthesize ─▶ [agent merges] ─▶ verify ─┐
+distill ─▶ [agent writes rules] ─▶ synthesize ─▶ [agent merges] ─▶ fmt ─▶ verify ─┐
                                                              critic ─▶ [agent grades] ─┤
                                                                                        ▼
                                                                         gate / loop / budget
+                                                                                       │
+                                              rework ─▶ [agent revises] ◀──────────────┘
 ```
+
+`pipeline.sh` is that whole loop as one command, holding the attempt counter and keeping
+every round's artifacts. Its paths are flags — `--src-dir`, `--out-root`, `--max-attempts`,
+each also settable as `CANONIZER_*` — so it is not tied to one workspace; run it with
+`--help` for the defaults. canonizer itself calls no model: the four `[agent …]` steps are
+where a model runs, and every command below is deterministic.
 
 A worked run:
 
 ```sh
 # 1. Distill each source document into a per-source prompt the agent runs to write rules.
-canonizer distill --source ./docs --out ./prompts
-#    the agent runs each *_prompt.md and writes a canonical *_rules.md
+canonizer distill --source ./docs --out ./prompts --rulesout ./rulesets
+#    Run each prompt from its own directory -- every link inside it is relative to that
+#    directory, and a Markdown link carries no anchor, so an agent started anywhere else
+#    resolves the "../" from the wrong place:
+for p in ./prompts/*_prompt.md; do
+  ( cd "$(dirname "$p")" && claude -p < "$(basename "$p")" )
+done
+#    The agent writes each *_rules.md into --rulesout. Do not capture its stdout as the
+#    artifact: the reply is a report about the work, and the ruleset is the file.
 
 # 2. Merge the per-source rulesets into one synthesis prompt; the agent produces the
 #    single candidate ruleset R.
-canonizer synthesize --rulesets ./rulesets --out ./synthesize_prompt.md
+canonizer synthesize --rulesets ./rulesets --rulesout ./synthesis --out ./synthesize_prompt.md
 
 # 3. Deterministic checks: executability (the ✗/✓ pair) and, with --source, provenance.
 canonizer verify --ruleset R.md --source S.md --out findings.json
+#    --source is repeatable. A synthesized ruleset derives from every source it was merged
+#    from, so pass them all: an anchor is present when any source contains it. Sources are
+#    iterated, never joined, so no anchor can match text spanning two documents.
 
 # 4. Cold critic: emit a prompt giving a fresh grader only S and R; the agent runs it and
 #    writes its findings JSON.
-canonizer critic --source S.md --ruleset R.md --out critic_prompt.md
-#    the agent runs critic_prompt.md and writes critic_findings.json
+canonizer critic --source S.md --ruleset R.md \
+  --findingsout critic_findings.json --out critic_prompt.md
+#    --findingsout is the file the prompt tells the grader to write. Without it the prompt
+#    names no destination and the grader prints its JSON into a transcript.
 
 # 5. Gate on the findings: exit non-zero while anything blocks.
 canonizer gate --findings findings.json
+
+# 6. If anything blocks and attempts remain, emit the revision prompt and let the agent
+#    revise R in place, then repeat from 3. pipeline.sh is that driver: it holds the
+#    attempt counter and keeps every round's artifacts.
+canonizer rework --ruleset R.md --findings findings.json --findings critic_findings.json \
+  --out rework_prompt.md
 ```
+
+Every command that hands work to an agent names the file the agent must write —
+`distill --rulesout`, `synthesize --rulesout`, `critic --findingsout`. The reply is a report
+about the work; the artifact is the file.
 
 ## Commands
 
-- **`distill --source DIR --out DIR`** — Fill a distillation prompt for every source in a
-  tree.
-- **`synthesize --rulesets DIR [--out FILE]`** — Assemble one synthesis prompt from
-  distilled rulesets.
-- **`verify --ruleset PATH [--source PATH] [--proof PATH] [--out FILE]`** — Check
-  executability and provenance, then emit findings JSON. `--proof` writes a packet binding
-  the ruleset (and source) to their exact bytes. It also reports rule *specificity* — a
-  rule that is softening-only or names no domain object, tool or API — as a **warning that
-  never blocks**: a general rule is sometimes correct and a deterministic check cannot tell
-  which, so this reports and does not decide.
-- **`critic --source PATH --ruleset PATH [--out FILE]`** — Emit a cold-critic prompt for a
-  fresh grader.
-- **`gate [--findings FILE] [--selftest]`** — Block (exit 1) while any finding is blocking.
-  `--selftest` runs a planted-defect control.
-- **`budget [--findings FILE] --attempt K --max N`** — Decide ship / rework / needs-human,
-  exiting 0 / 2 / 1.
-- **`loop --source PATH --ruleset PATH [--findings FILE] --attempt K --max N`** — One
-  deterministic rework round: verify, merge critic findings, and decide.
-- **`calibrate --samples PATH`** — Report the critic's calibration (ECE/MCE/Brier) from a
-  review log.
-- **`version [--json]`** — Print version information.
+Every command is deterministic — canonizer calls no model. `--help` on any of them carries
+the reasoning; this list is for finding the right one.
 
-Run `canonizer <command> --help` for the full flag surface of any command.
+**Producing prompts an agent runs.** Each names the file the agent must write, because the
+reply is a report about the work and the artifact is the file.
+
+- **`distill --source DIR --out DIR [--rulesout DIR]`** — one distillation prompt per
+  source in a tree; `--rulesout` is where each agent writes its ruleset.
+- **`synthesize --rulesets DIR [--rulesout DIR] [--out FILE]`** — one prompt merging the
+  distilled rulesets into a single candidate.
+- **`critic --source PATH... --ruleset PATH [--findingsout FILE] [--out FILE]`** — a
+  cold-critic prompt for a fresh grader, which sees only the sources and the ruleset.
+- **`rework --ruleset PATH --findings FILE... [--out FILE]`** — the prompt an agent runs to
+  revise a ruleset against its findings. The only one that asks an agent to *edit* an
+  artifact rather than produce one.
+
+**Checking a ruleset.**
+
+- **`verify --ruleset PATH [--source PATH]... [--proof PATH] [--out FILE] [--sign-off]`** —
+  executability and provenance, as findings JSON. Reports hedging and unquantified
+  thresholds as warnings that never block, and two per-document proportions: how many rules
+  name a symbol a checker can see, and how many anchors name a section only.
+  `--sign-off` appends a verification event to the ruleset, attributed to `identity.actor`
+  in `--config` and never to a flag. It is refused on a run with blocking findings, on a run
+  given no `--source`, and when no actor is configured.
+- **`fmt --ruleset PATH [--check]`** — rewrite a ruleset into canonical form, which is what
+  `verify`'s `non-canonical` finding measures against. `--check` reports and exits 1 without
+  writing. No text is lost; wrapping moves.
+- **`gate [--findings FILE] [--selftest]`** — exit 1 while any finding blocks. `--selftest`
+  runs a planted-defect control first.
+
+**Deciding what happens next.**
+
+- **`budget [--findings FILE] --attempt K --max N`** — ship / rework / needs-human, exiting
+  0 / 2 / 1.
+- **`loop --source PATH... --ruleset PATH [--findings FILE] --attempt K --max N`** — one
+  round: verify, merge the critic's findings, decide.
+- **`calibrate --samples PATH`** — the critic's calibration (ECE/MCE/Brier) from a review log.
+- **`version [--json]`** — version information.
+
+`--source` is repeatable on `verify`, `critic` and `loop`: a synthesized ruleset derives from
+every document it was merged from, so an anchor is present when any source contains it.
+Sources are iterated, never joined, so no anchor can match text spanning two documents.
 
 ## The Rework Loop
 
@@ -148,13 +198,16 @@ thin driver wraps it and supplies the agent's steps between rounds:
 ```sh
 K=1; MAX=3
 while true; do
-  canonizer critic --source S.md --ruleset R.md --out critic_prompt.md
-  # agent runs critic_prompt.md -> critic_findings.json, and reworks R.md if asked
-  canonizer loop --source S.md --ruleset R.md --findings critic_findings.json \
+  canonizer critic --source S.md --ruleset R.md \
+    --findingsout "critic_findings_$K.json" --out "critic_prompt_$K.md"
+  # agent runs critic_prompt_$K.md and writes critic_findings_$K.json
+  canonizer loop --source S.md --ruleset R.md --findings "critic_findings_$K.json" \
     --attempt "$K" --max "$MAX"
   case $? in
     0) echo "ship"; break ;;                 # adopt R.md
-    2) K=$((K+1)) ;;                          # rework and retry
+    2) canonizer rework --ruleset R.md --findings "critic_findings_$K.json" \
+         --out "rework_prompt_$K.md"          # agent revises R.md, then retry
+       K=$((K+1)) ;;
     1) echo "needs human"; break ;;           # budget spent, blocked
   esac
 done
@@ -175,6 +228,30 @@ test-enforced: the decision's only inputs are the blocking state and the attempt
 confidence matched how its flags held up on review (ECE/MCE/Brier over a
 `{confidence, correct}` log). It surfaces an over- or under-confident critic. It never
 blocks adoption, because the ship gate stays findings-based.
+
+**What a clean gate does and does not license (documentation, not a mechanism).** A run
+where `verify` reports nothing blocking and `gate` exits zero means exactly this: *no
+deterministic check objected, and one cold critic did not object either.* It is worth
+stating what that is not, because the short way to say it — "the ruleset is verified" —
+claims all four of the following, and the pipeline supports none of them.
+
+- **Not "the rules are correct."** The deterministic checks are structural: a rule carries a
+  discriminating ✗/✓ pair, cites an anchor that appears in the source, and the file
+  round-trips through the canonical form. None of them reads the rule for truth.
+- **Not "the anchor supports the claim."** `Provenance` finds the quoted text in the source.
+  Whether the passage *says what the rule says it says* is the critic's `unsupported`
+  judgment, and the critic is one grader running one prompt.
+- **Not "the ruleset covers its scope."** Every rule can be individually sound while the set
+  omits most of what the `Scope:` line promises. That is the `coverage` category, and it is
+  a judgment rather than a check.
+- **Not "nothing was flagged."** `Specificity` and `Conflicts` are advisory by design and a
+  clean gate may still carry them; so may a critic's coverage record naming what it did not
+  examine. A zero exit means *nothing blocking*, not *nothing found*.
+
+The reason to write this down is that the failure is silent. A gate that blocks says why; a
+gate that passes says nothing, and the word chosen for that silence in a commit message or a
+PR description is where the overclaim enters. Prefer "passed canonizer's structural gate"
+over "verified".
 
 ## Development
 

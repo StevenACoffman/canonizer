@@ -26,20 +26,48 @@ ______________________________________________________________________
 ## Output Format
 
 The output is parsed mechanically. It must contain **only** a two-line metadata block
-followed by rule blocks — nothing else. Any line that is not `Source:`, `Scope:`, a
-`§` rule header, a rationale line, a `✗` line, a `✓` line, or a `↦` source-anchor line
-will corrupt the parse. Do not emit Markdown headings, tables, prose, blank rules, or
+followed by rule blocks — nothing else. Any line that is not one of the three version-block
+lines, `Source:`, `Scope:`, `Limitations:`, a `§` rule header, a rationale line, a `✗` line,
+a `✓` line, or a `↦` source-anchor line will corrupt the parse. Do not emit Markdown headings, tables, prose, blank rules, or
 commentary.
 
-Every `[MUST]` and `[SHOULD]` rule must end with a `↦` line: a short quote or section
-reference from the source that this rule derives from, so its provenance is auditable.
+Every `[MUST]` and `[SHOULD]` rule must carry **both** a `✗`/`✓` pair and a `↦` line — no
+exceptions, at any level, at either severity.
 
-Begin with the metadata block:
+The `✗`/`✓` pair is what makes a rule checkable: the `✗` shows something the rule forbids
+and the `✓` the thing it asks for instead, and they must differ in the way the rule is about.
+A rule with no pair states a preference nothing can test.
+
+**The pair does not have to be code.** For an `[ARCH]` or `[METHOD]` rule it is a contrast
+between two designs or two ways of working, written as prose — see the second and third
+worked examples below. Do not manufacture a code snippet for a rule that is not about code;
+write the contrast the rule actually draws.
+
+The `↦` line is a short quote or section reference from the source that this rule derives
+from, so its provenance is auditable.
+
+Begin with the version block and then the metadata block, exactly like this:
 
 ```text
+---
+format: 3
+---
 Source: [title and author, or "unknown" if not stated]
 Scope:  [language(s), paradigm(s), domain(s), and architectural context — derived from the source, not assumed]
+Limitations: [what these rules do not cover — subjects the source omits, contexts where its advice does not hold, and decisions it leaves open]
 ```
+
+The `format: 3` block is required and is not decoration: a document declaring
+`Limitations:` **is** a version-3 document, and one written without the block declares a
+version it does not match. Emit it verbatim — three dashes, the line `format: 3`, three
+dashes — as the first three lines of the file, before `Source:`.
+
+`Limitations:` is the counterpart to `Scope:` and is required. A ruleset distilled from one
+source and presented without that source's bounds reads as rules for the whole subject.
+State what a reader would wrongly assume is covered: adjacent concerns the source never
+addresses, the scale or domain its advice assumes, and any question it raises and leaves
+unanswered. Do not write `none` — a source with no limits does not exist, and an empty
+answer passes the format while telling a reader nothing.
 
 Then a flat sequence of rule blocks. Grouping is carried by the section number in each
 `§N.M` header, not by headings: rules that share a concern share the leading `N`
@@ -51,23 +79,23 @@ applied belongs before the rules it constrains. Within a section, order `[MUST]`
 ### Rule Format
 
 ```text
-§2.3  [MUST][CODE]   Never discard an error return without an explicit decision.
-      Silently dropping errors removes the caller's only signal that an
-      operation failed; bugs become invisible until they corrupt state downstream.
+§2.3  [MUST][CODE]  Never discard an error return without an explicit decision.
+      Silently dropping errors removes the caller's only signal that an operation failed; bugs become invisible until they corrupt state downstream.
       ✗  result, _ = db.Exec(query)
       ✓  result, err = db.Exec(query); if err != nil { return fmt.Errorf(...) }
       ↦  §Errors: "never ignore the value returned by a function"
 
-§5.1  [MUST][ARCH]   Keep business logic out of the persistence layer.
-      Embedding domain rules in stored procedures or ORM hooks couples
-      correctness to a specific database technology; unit-testing the logic
-      or migrating the database then requires the full database stack.
+§5.1  [MUST][ARCH]  Keep business logic out of the persistence layer.
+      Embedding domain rules in stored procedures or ORM hooks couples correctness to a specific database technology; unit-testing the logic or migrating the database then requires the full database stack.
       ✗  Validation trigger in PostgreSQL enforces a domain invariant
       ✓  Domain service validates the invariant before calling the repository
+      ↦  §Layers: "business rules belong above the store, never inside it"
 
 §7.2  [SHOULD][METHOD]  Deploy each change independently rather than batching releases.
-      Batched deployments make it impossible to attribute a production incident
-      to a specific change and force full rollback when only one change is defective.
+      Batched deployments make it impossible to attribute a production incident to a specific change and force full rollback when only one change is defective.
+      ✗  Hold Monday's, Tuesday's and Wednesday's changes and release the three together on Thursday
+      ✓  Release each change when it is ready, so a bad one can be reverted without reverting the others
+      ↦  §Releases: "one change per deploy is the only way to know which one broke it"
 ```
 
 Within each section, order rules `[MUST]` first, then `[SHOULD]`, then
@@ -263,8 +291,32 @@ Before submitting, confirm each rule satisfies all of the following:
    not a description of what good developers do.
 6. **Source fidelity:** No rule asserts more than the source supports. Where the
    source hedges, the rule hedges or assigns lower severity.
-7. **Format purity:** The document contains only the `Source:`/`Scope:` lines and
-   `§` rule blocks — no headings, tables, or lines outside a rule block.
+7. **Format purity:** The document begins with the three-line `format: 3` block, and then
+   contains only the `Source:`/`Scope:`/`Limitations:` lines and `§` rule blocks — no headings, tables, or lines outside a rule block.
+   Three spacing conventions are exact, because the stored form is compared byte for byte
+   against a canonical rendering: **two spaces** after the `[LEVEL]` tag (not three), **six
+   spaces** of indent on every rationale, `✗`, `✓`, `⊨` and `↦` line, and each rationale on
+   **one line however long** — do not wrap it. Emit `✗` **before** `✓`, always; a rule that
+   shows the good example first says the same thing and still reads as non-canonical.
+8. **Backtick every identifier:** Wrap each package, type, function, method,
+   field, file name and flag in backticks — `database/sql`, `*sql.DB`,
+   `Open()`, `ctx context.Context`. A rule naming a real symbol in plain prose
+   reads to a checker as a rule naming nothing, so the same rule scores as
+   vague or concrete depending on typography alone. Backtick the identifier,
+   not the sentence around it.
+9. **Quote anchors verbatim, or name a section instead:** A `↦` line's quotation must be
+   the source's own words, character for character — not a paraphrase or a summary of the
+   passage. The anchor exists so a reader can find the sentence the rule came from; a
+   paraphrase cannot be found, and a checker cannot tell a paraphrase from an invention.
+   Where a faithful quotation needs to skip words, mark the gap with `...` **followed by a
+   space** — `"the first part ... the last part"` — and make each side of the gap verbatim
+   on its own. Never use `...` to stand in for words you did not check.
+   **When a rule comes from a whole passage rather than one sentence, name the section and
+   quote nothing** — `↦  §Transactional boundaries`. That is the honest answer and it is
+   permitted: a rule derived from an argument spread over paragraphs has no sentence to
+   quote, and picking one anyway produces something that *looks* verbatim while being worse
+   provenance than naming where it came from. Such an anchor is reported as provenance not
+   searched, which is accurate — it is not counted against the ruleset.
 
 Revise or drop any rule that fails. Do not pad the ruleset to appear
 comprehensive.

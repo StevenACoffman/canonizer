@@ -5,7 +5,6 @@ package gate
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,6 +13,7 @@ import (
 	"github.com/peterbourgon/ff/v4"
 
 	"github.com/StevenACoffman/canonizer/cmd/root"
+	"github.com/StevenACoffman/canonizer/internal/critic"
 	gatelib "github.com/StevenACoffman/canonizer/internal/gate"
 	"github.com/StevenACoffman/skillet/finding"
 	errors "github.com/StevenACoffman/toerr/errors"
@@ -81,7 +81,9 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 			d.Message,
 		)
 	}
-	if blocking := gatelib.Blocking(result); len(blocking) > 0 {
+	blocking := gatelib.Blocking(result)
+	cfg.renderUnexamined(result.Unexamined)
+	if len(blocking) > 0 {
 		_, _ = fmt.Fprintf(cfg.Stderr, "gate: blocked by %d finding(s)\n", len(blocking))
 		return root.ExitError(1)
 	}
@@ -90,7 +92,35 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 		"gate: clean (%d finding(s), 0 blocking)\n",
 		len(result.Diagnostics),
 	)
+	// Stated on the clean path and only there. A blocked run is in no danger of being
+	// overclaimed; the sentence someone quotes into a commit message is this one.
+	_, _ = fmt.Fprintln(cfg.Stderr,
+		"gate: clean means no deterministic check objected and one cold critic did not "+
+			"either -- not that the rules are correct or that the set covers its scope")
 	return nil
+}
+
+// renderUnexamined prints what the critic said it did not look at, below the findings and
+// clearly separated from them.
+//
+// It is printed after the blocking decision has already been made, and nothing here can
+// change it. That ordering is the guarantee, not a formality: a critic able to affect the
+// outcome by declaring a gap learns to declare none, which costs the gap and the finding it
+// would have come with. Separated in the output for the same reason -- a reader scanning
+// for what is wrong must not meet these among the defects, because they are not defects.
+//
+// A reply that named no gaps is left silent rather than announced. Saying "no gaps
+// declared" would read as a positive fact about coverage, and it is the absence of one.
+func (cfg *Config) renderUnexamined(entries []finding.Unexamined) {
+	if len(entries) == 0 {
+		return
+	}
+	_, _ = fmt.Fprintf(cfg.Stdout,
+		"\ngate: the critic reported %d angle(s) it did not examine "+
+			"(recorded, never blocking):\n", len(entries))
+	for _, u := range entries {
+		_, _ = fmt.Fprintf(cfg.Stdout, "  - %s — %s\n", u.Aspect, u.Reason)
+	}
 }
 
 // readFindings reads the findings JSON from --findings, or stdin when it is empty,
@@ -108,9 +138,11 @@ func (cfg *Config) readFindings() (finding.Result, error) {
 		return finding.Result{}, errors.WrapWithMessage(err, "gate: read findings",
 			slog.String("path", cfg.Findings))
 	}
-	var result finding.Result
-	if err := json.Unmarshal(data, &result); err != nil {
-		return finding.Result{}, errors.WrapWithMessage(err, "gate: parse findings")
+	result, err := critic.ParseReply(data)
+	if err != nil {
+		// critic already prefixes; a reply rejected for a malformed coverage record is
+		// reported as such rather than reduced to "bad JSON", which it is not.
+		return finding.Result{}, errors.Wrap(err)
 	}
 	return result, nil
 }

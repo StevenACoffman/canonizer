@@ -1,6 +1,7 @@
 // Package prompt is the source of canonizer's prompt templates: it embeds the
-// default distill and synthesis templates and resolves a caller-supplied path
-// against them, so no template lives at a hardcoded filesystem location. A caller
+// default distill, synthesis, critic and rework templates and resolves a
+// caller-supplied path against them, so no template lives at a hardcoded
+// filesystem location. A caller
 // asks for a template by passing an override path (empty means "use the default")
 // and never touches the embed machinery or the file read itself.
 package prompt
@@ -31,6 +32,18 @@ var Synthesize string
 //
 //go:embed critic_prompt.md
 var Critic string
+
+// Rework is the default revision template. Its {{RULESET}} and {{FINDINGS}}
+// markers are filled by internal/rework with the candidate and the findings
+// raised against it.
+//
+// It is the only template that asks an agent to *edit* an artifact rather than
+// produce one, which is why it is the one that says what not to change: leaving
+// untouched rules and their numbering is what lets one round's findings be
+// compared with the next.
+//
+//go:embed rework_prompt.md
+var Rework string
 
 // Resolve returns the template to use: the contents of the file at path when path
 // is non-empty, otherwise the compiled-in fallback. It is the single home for the

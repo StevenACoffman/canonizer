@@ -46,6 +46,16 @@ func TestEmbeddedDefaultsCarryPlaceholders(t *testing.T) {
 	if !strings.Contains(prompt.Synthesize, "{{RULESETS}}") {
 		t.Error("Synthesize default is missing the {{RULESETS}} marker")
 	}
+	// Synthesize gained a destination in 2026-09: without it the prompt names no output
+	// path and an agent prints the merged ruleset instead of writing one.
+	if !strings.Contains(prompt.Synthesize, "{{DESTINATION_CONTENT}}") {
+		t.Error("Synthesize default is missing the {{DESTINATION_CONTENT}} marker")
+	}
+	for _, want := range []string{"{{RULESET}}", "{{FINDINGS}}"} {
+		if !strings.Contains(prompt.Rework, want) {
+			t.Errorf("Rework default is missing %s", want)
+		}
+	}
 }
 
 // TestTemplatesSpecifyCanonicalForm guards against a template edit that silently
@@ -54,7 +64,12 @@ func TestEmbeddedDefaultsCarryPlaceholders(t *testing.T) {
 // (skillet tests that); it only catches gross drift.
 func TestTemplatesSpecifyCanonicalForm(t *testing.T) {
 	t.Parallel()
-	templates := map[string]string{"Distill": prompt.Distill, "Synthesize": prompt.Synthesize}
+	// Rework is included because it is the template that writes a ruleset *back*: an edit
+	// dropping the form from it would produce a revision that fails Canonical on every
+	// round, which is the defect this table exists to catch one layer earlier.
+	templates := map[string]string{
+		"Distill": prompt.Distill, "Synthesize": prompt.Synthesize, "Rework": prompt.Rework,
+	}
 	for name, tmpl := range templates {
 		for _, tok := range []string{"Source:", "Scope:", "§", "[MUST]", "✗", "✓", "↦"} {
 			if !strings.Contains(tmpl, tok) {

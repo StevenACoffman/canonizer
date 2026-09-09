@@ -319,3 +319,9 @@ Before submitting, confirm:
 6. **Unambiguity:** For every `[MUST]` rule, identify the most plausible
    borderline case. If it is unclear whether the rule applies, add the missing
    condition before submitting.
+
+______________________________________________________________________
+
+## Destination
+
+{{DESTINATION_CONTENT}}

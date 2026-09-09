@@ -5,7 +5,7 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
 #
-# This is a CLI: this release publishes cross-platform binary archives, a
+# This is also a CLI: this release publishes cross-platform binary archives, a
 # reproducible source tarball, an SBOM (syft) for each, a checksum file that
 # covers every artifact, and a keyless cosign signature over that checksum.
 #

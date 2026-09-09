@@ -20,8 +20,10 @@ import (
 	"github.com/StevenACoffman/canonizer/cmd/calibrate"
 	"github.com/StevenACoffman/canonizer/cmd/critic"
 	"github.com/StevenACoffman/canonizer/cmd/distill"
+	"github.com/StevenACoffman/canonizer/cmd/fmtcmd"
 	"github.com/StevenACoffman/canonizer/cmd/gate"
 	"github.com/StevenACoffman/canonizer/cmd/loop"
+	"github.com/StevenACoffman/canonizer/cmd/rework"
 	"github.com/StevenACoffman/canonizer/cmd/root"
 	"github.com/StevenACoffman/canonizer/cmd/synthesize"
 	"github.com/StevenACoffman/canonizer/cmd/verify"
@@ -43,6 +45,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 	synthesize.New(r)
 	critic.New(r)
 	gate.New(r)
+	rework.New(r)
+	fmtcmd.New(r)
 	verify.New(r)
 	budget.New(r)
 	loop.New(r)
