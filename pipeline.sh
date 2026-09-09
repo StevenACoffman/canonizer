@@ -25,6 +25,11 @@
 #   synthesis/         the candidate ruleset, one per attempt
 #   findings/          verify findings, one per attempt
 #   critique/          cold-critic prompts and their findings, one per attempt
+#   attempts/          the candidate as it stood before each rework
+#
+# **Agents are granted only the directories they must read or write**, and attempts/ is not
+# one of them: it is the driver's record of the rounds, and an agent that can add to it can
+# make that record say something the run did not do.
 #
 # **Nothing is overwritten.** Every artifact after synthesis carries its attempt number, so a
 # refine loop leaves the whole history on disk rather than the last state of it.
@@ -171,6 +176,7 @@ SYNTH_PROMPT_DIR="${OUT_ROOT}/synthesis_prompts/${D}${SUFFIX}"
 SYNTH_DIR="${OUT_ROOT}/synthesis/${D}${SUFFIX}"
 FINDINGS_DIR="${OUT_ROOT}/findings/${D}${SUFFIX}"
 CRITIQUE_DIR="${OUT_ROOT}/critique/${D}${SUFFIX}"
+ATTEMPTS_DIR="${OUT_ROOT}/attempts/${D}${SUFFIX}"
 
 for cmd in canonizer claude; do
     if ! has_cmd "$cmd"; then
@@ -200,7 +206,7 @@ if [ ! -d "$OUT_ROOT" ] && [ ! -d "$(dirname "$OUT_ROOT")" ]; then
 fi
 
 mkdir -p "$PROMPT_DIR" "$RULES_DIR" "$SYNTH_PROMPT_DIR" "$SYNTH_DIR" \
-    "$FINDINGS_DIR" "$CRITIQUE_DIR"
+    "$FINDINGS_DIR" "$CRITIQUE_DIR" "$ATTEMPTS_DIR"
 
 # run_agent NAME PROMPT EXTRA_DIR... -- run one prompt from its own directory.
 #
@@ -357,7 +363,18 @@ while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
 
     # Keep this attempt's candidate before the agent edits it, so the loop leaves a history
     # rather than the last state of one file.
-    cp "$CANDIDATE" "${SYNTH_DIR}/${D}_rules.attempt${attempt}.md"
+    #
+    # **Written where no agent is granted, and that is a boundary rather than tidiness.** The
+    # snapshots lived beside the candidate until a rework agent, given that directory so it
+    # could rewrite the candidate, saw attempt1 and attempt2 there and wrote an attempt3 of
+    # its own -- five seconds before the iteration that would have created it began. Harmless
+    # once, and it made the snapshot count useless as a record of rounds, which is the only
+    # thing the snapshots are for.
+    #
+    # Telling the agent not to create files was the alternative. The rework prompt already
+    # says to change nothing it was not asked to, and the agent added a file anyway: where a
+    # grant can express the rule, the grant should.
+    cp "$CANDIDATE" "${ATTEMPTS_DIR}/${D}_rules.attempt${attempt}.md"
 
     # The revision prompt is `canonizer rework`'s, not this script's. It used to be a
     # heredoc here -- unversioned, untested, and invisible to the template tests that guard
@@ -373,11 +390,26 @@ while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
 done
 
 # ---------------------------------------------------------------------------------------
-# Stage 5: the gate has the last word.
+# Stage 5: two conditions, and neither alone is enough.
 #
-# It re-reads the final deterministic findings rather than trusting the loop's verdict: the
-# loop decided under a budget, and the gate asks the one question a budget cannot soften --
-# does anything still block.
+# **This stage exited 0 on a ruleset the grader had blocked.** Measured on the run of
+# 2026-09-09: the deterministic findings were clean, the critic reported four blocking
+# findings, the verdict was needs-human, and the script printed "gate: clean" and exited
+# successfully. A caller checking status would have shipped it. `budget`'s own invariant is
+# that a blocking finding never ships, and the driver broke it.
+#
+# The cause was gating on one half of the evidence. So:
+#
+#   - **`verdict` is the authority on the merged answer.** `loop` merges the deterministic
+#     and the graded findings and returns ship, rework or needs-human; only ship is
+#     shippable. A second merge here would be a second authority on a question loop owns.
+#   - **The final gate stays, because it asks something the verdict cannot.** The verdict was
+#     reached *under a budget*; this re-reads the deterministic findings on the final bytes
+#     and asks whether anything still blocks. What was wrong was making it the only question.
+#
+# `rework` is a terminal verdict as much as `needs-human` is: the loop ends when the attempt
+# counter passes the maximum, so a last iteration returning rework leaves that standing. It
+# means blocked, and only the reason differs.
 # ---------------------------------------------------------------------------------------
 
 final_verify="${FINDINGS_DIR}/verify_final.json"
@@ -391,14 +423,31 @@ printf 'candidate : %s\n' "$CANDIDATE" >&2
 printf 'verdict   : %s after %d attempt(s)\n' "$verdict" "$attempt" >&2
 printf 'findings  : %s\n' "$FINDINGS_DIR" >&2
 printf 'critiques : %s\n' "$CRITIQUE_DIR" >&2
+printf 'attempts  : %s\n' "$ATTEMPTS_DIR" >&2
 
+# The exit code is binary because this script's answer to a caller is one question: is the
+# candidate shippable. loop's 0/2/1 is its contract with *its* driver, and this is that
+# driver -- passing 2 outward would invite a caller to retry a loop whose budget is spent.
+shippable=0
+if [ "$verdict" != "ship" ]; then
+    printf '\nnot shippable: the loop ended with verdict %s.\n' "$verdict" >&2
+    printf 'the graded findings are in %s -- the deterministic checks alone cannot see them.\n' \
+        "$CRITIQUE_DIR" >&2
+    shippable=1
+fi
 if [ "$gate_code" -ne 0 ]; then
-    printf '\ngate: the candidate still has blocking findings; it is not shippable.\n' >&2
-    printf 'every attempt is on disk, so the rounds can be compared rather than re-run.\n' >&2
-    exit "$gate_code"
+    printf '\nnot shippable: the deterministic checks still report a blocking finding.\n' >&2
+    printf 'see %s\n' "$final_verify" >&2
+    shippable=1
+fi
+if [ "$shippable" -ne 0 ]; then
+    printf '\nevery attempt is in %s, so the rounds can be compared rather than re-run.\n' \
+        "$ATTEMPTS_DIR" >&2
+    exit 1
 fi
 
-printf '\ngate: clean. The refined ruleset is %s\n' "$CANDIDATE" >&2
+printf '\nshippable: verdict ship and no blocking finding. The refined ruleset is %s\n' \
+    "$CANDIDATE" >&2
 
 # The per-source rulesets are inputs to the synthesis rather than the deliverable, and this
 # script no longer tells a caller how to verify them by hand -- it verifies the candidate

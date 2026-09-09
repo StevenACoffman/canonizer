@@ -2554,3 +2554,53 @@ ______________________________________________________________________
       them gets a distillation that writes prompts and no rulesets.
       Left in place because deleting files nobody asked me to delete is not mine to decide;
       recorded so the recommendation is not made a third time from memory.
+
+______________________________________________________________________
+
+## Two Defects the First Full Run Exposed (2026-09-09)
+
+The run of 13:19–13:40, committed as `rulesets` `8a95ddc`, was the first to go past
+distillation. Both defects are the driver's, and both are mine.
+
+- [x] **The driver exited 0 on a ruleset the grader had blocked.** DONE 2026-09-09.
+      Measured on that run: deterministic findings **0** blocking, `critic_findings_3`
+      **4** blocking, verdict **needs-human**, exit status **0**, printing *"gate: clean."*
+      A caller checking status would have shipped it, and `budget`'s own invariant is that a
+      blocking finding never ships.
+      **The cause was gating on half the evidence.** Stage 5 re-ran `verify` and gated on
+      that alone, never consulting `verdict` — so the critic's findings were not gated at
+      all, and a loop that ran out of budget while blocked reported success.
+      **Fixed as two conditions with one authority each.** `verdict` is the authority on the
+      merged answer, because `loop` merges deterministic and graded findings and only *ship*
+      is shippable; the final gate stays because it asks what the verdict cannot — the
+      verdict was reached under a budget, and this re-reads the deterministic findings on the
+      final bytes. A second `gate` call on the critic's file was the first draft and is
+      rejected: `gate` takes one file, so it would have made the driver a second authority on
+      what "merged" means.
+      **The exit code is binary.** `loop`'s 0/2/1 is its contract with *its* driver, and this
+      script is that driver; passing 2 outward would invite a caller to retry a loop whose
+      budget is spent.
+      **`rework` is a terminal verdict too**, which the first draft missed: the loop ends
+      when the attempt counter passes the maximum, so a last iteration returning rework
+      leaves that standing. It means blocked and only the reason differs.
+      **Regression-checked against the old script**: `needs-human` with a clean gate exits 0
+      before the fix and 1 after.
+- [x] **A rework agent wrote a file the driver believed it owned.** DONE 2026-09-09 — the
+      snapshots moved to `attempts/<SUBDIR>`, which no agent is granted.
+      `benbjohnson_rules.attempt3.md` existed with no `rework_prompt_3`, which the loop's
+      order makes impossible. The mtimes settled it: the agent wrote the candidate at
+      13:36:35 and `attempt3.md` at 13:36:40, while iteration 3 did not begin until
+      `verify_3` at 13:37:03. It saw `attempt1` and `attempt2` in a directory it had been
+      granted and made the next one.
+      **Harmless once, and it made the snapshot count useless as a record of rounds** —
+      which is the only thing the snapshots are for. My own reading of that run was misled by
+      the file count until the mtimes corrected it.
+      **A boundary rather than an instruction.** The rework prompt already says to change
+      nothing it was not asked to, and the agent added a file anyway; where a grant can
+      express the rule, the grant should. Verified with a stub agent that writes into every
+      directory it is granted: strays landed in `synthesis/`, `distilled/` and `critique/`,
+      and none in `attempts/`.
+      **A residual, stated rather than hidden: `critic` keeps write access it does not need.**
+      It only reads the candidate, but `--add-dir` grants both and there is no read-only
+      form. `$SYNTH_DIR` must stay writable for synthesis and rework, so what moved out is
+      what agents must not touch.
