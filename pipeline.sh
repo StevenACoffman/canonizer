@@ -188,6 +188,17 @@ done
 # Both paths are checked up front, and each message names the flag that set the value.
 # A mistyped --out-root otherwise surfaced much later as a mkdir failure deep in the run,
 # and "no such directory" without the flag name is a hunt rather than a fix.
+# A non-positive or non-numeric maximum would skip the refine loop entirely, leaving the
+# verdict at "unknown" and the per-attempt variables unset -- which under `set -u` fails
+# somewhere far from the flag that caused it.
+case "$MAX_ATTEMPTS" in
+    '' | *[!0-9]* | 0 )
+        printf '%s: --max-attempts must be a positive integer: %s\n' \
+            "$(basename "$0")" "$MAX_ATTEMPTS" >&2
+        exit 2
+        ;;
+esac
+
 if [ ! -d "$SRC_DIR" ]; then
     printf '%s: --src-dir is not a directory: %s\n' "$(basename "$0")" "$SRC_DIR" >&2
     exit 1
@@ -431,8 +442,46 @@ printf 'attempts  : %s\n' "$ATTEMPTS_DIR" >&2
 shippable=0
 if [ "$verdict" != "ship" ]; then
     printf '\nnot shippable: the loop ended with verdict %s.\n' "$verdict" >&2
-    printf 'the graded findings are in %s -- the deterministic checks alone cannot see them.\n' \
-        "$CRITIQUE_DIR" >&2
+
+    # **Show the findings, do not name the directory they are in.** Naming it was this
+    # script's answer until somebody reasonably asked how to get from "needs-human" to the
+    # things a human has to decide. `gate` already renders them, so the driver has no excuse
+    # to make a caller go looking.
+    # gate renders warnings alongside the blocking findings and the angles the grader says
+    # it did not examine, so the heading says "report" rather than "blocking findings": a
+    # label narrower than its output is how a reader stops trusting the labels.
+    printf '\nthe grader'"'"'s report on the final attempt:\n' >&2
+    canonizer gate --findings "$critic_out" >&2 || true
+
+    # Which of them the loop could not shift. An item raised in every round is one the rework
+    # agent has already failed at as many times as the budget allowed, so it is the one that
+    # actually needs a person -- and the rest may simply have run out of attempts.
+    #
+    # Read from `gate`'s own rendering rather than by parsing the JSON, so there is one
+    # authority on what a finding looks like and this stays a shell script.
+    rounds=0
+    keys=""
+    for cf in "${CRITIQUE_DIR}"/critic_findings_*.json; do
+        [ -f "$cf" ] || continue
+        rounds=$((rounds + 1))
+        round_keys=$(canonizer gate --findings "$cf" 2>/dev/null |
+            sed -n 's/^error \(\[[a-z-]*\]\) \([^:]*\):.*/\1 \2/p' | sort -u) || true
+        keys="${keys}${round_keys}
+"
+    done
+    persistent=$(printf '%s' "$keys" | grep -v '^$' | sort | uniq -c |
+        awk -v n="$rounds" '$1 == n { $1 = ""; sub(/^ /, ""); print }')
+    if [ -n "$persistent" ] && [ "$rounds" -gt 1 ]; then
+        printf '\nblocked every one of the %d rounds, so the loop will not fix these:\n' \
+            "$rounds" >&2
+        printf '%s\n' "$persistent" | sed 's/^/  /' >&2
+    fi
+
+    printf '\nto work on them:\n' >&2
+    printf '  canonizer rework --ruleset %s \\\n' "$CANDIDATE" >&2
+    printf '    --findings %s \\\n' "$verify_out" >&2
+    printf '    --findings %s \\\n' "$critic_out" >&2
+    printf '    --out %s/rework_by_hand.md\n' "$CRITIQUE_DIR" >&2
     shippable=1
 fi
 if [ "$gate_code" -ne 0 ]; then

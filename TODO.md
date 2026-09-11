@@ -2604,3 +2604,30 @@ distillation. Both defects are the driver's, and both are mine.
       It only reads the candidate, but `--add-dir` grants both and there is no read-only
       form. `$SYNTH_DIR` must stay writable for synthesis and rework, so what moved out is
       what agents must not touch.
+
+______________________________________________________________________
+
+## `needs-human` Was a Dead End (2026-09-10)
+
+- [x] **The driver named the directory the findings were in instead of showing them.**
+      DONE 2026-09-10, prompted by the reasonable question of how to get from a
+      `needs-human` verdict to the things a human has to decide. There was no good answer:
+      the caller had to know which of three `critic_findings_*.json` was the last one and
+      that `gate` would render it.
+      **`gate` already renders them**, so the driver had no excuse. On a non-ship verdict it
+      now prints the grader's report for the final attempt, and the exact `canonizer rework`
+      invocation for that attempt's two findings files.
+      **It also reports which findings blocked every round**, read from `gate`'s own output
+      rather than by parsing the JSON — one authority on what a finding looks like, and this
+      stays a shell script. That distinction is the useful half: an item raised in every
+      round is one the rework agent has already failed at as many times as the budget
+      allowed, while the rest may simply have run out of attempts. Verified against the
+      ousterhout run's real findings: it isolates `[coverage] ruleset`, which is what a
+      manual read of the three rounds also found.
+      **The heading says "report", not "blocking findings".** `gate` prints warnings and the
+      grader's unexamined angles alongside the blocking items, and a label narrower than its
+      output is how a reader stops trusting the labels.
+      **`--max-attempts` is validated as a positive integer**, found while writing this: a
+      zero or non-numeric value skipped the refine loop entirely, leaving the verdict at
+      `unknown` and the per-attempt variables unset, which under `set -u` fails somewhere far
+      from the flag that caused it.
