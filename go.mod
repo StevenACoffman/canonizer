@@ -7,7 +7,7 @@ require github.com/peterbourgon/ff/v4 v4.0.0-beta.1
 require github.com/StevenACoffman/skillet v0.34.0
 
 require (
-	github.com/StevenACoffman/toerr v0.1.0
+	github.com/StevenACoffman/toerr v0.3.0
 	github.com/goccy/go-yaml v1.19.2
 )
 

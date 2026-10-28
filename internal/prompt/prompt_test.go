@@ -1,12 +1,16 @@
 package prompt_test
 
 import (
+	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/StevenACoffman/canonizer/internal/prompt"
+	errors "github.com/StevenACoffman/toerr/errors"
 )
 
 func TestResolveDefault(t *testing.T) {
@@ -31,8 +35,23 @@ func TestResolveReadsFile(t *testing.T) {
 
 func TestResolveMissingPathIsError(t *testing.T) {
 	t.Parallel()
-	if _, err := prompt.Resolve(filepath.Join(t.TempDir(), "nope.md"), "FALLBACK"); err == nil {
+	path := filepath.Join(t.TempDir(), "nope.md")
+	_, err := prompt.Resolve(path, "FALLBACK")
+	if err == nil {
 		t.Fatal("Resolve of an unreadable path returned nil; want an error, not a silent fallback")
+	}
+	// The read error already names the file; a message that names it again reads as two
+	// files to an operator.
+	if n := strings.Count(err.Error(), path); n != 1 {
+		t.Errorf("error names the path %d times, want once: %v", n, err)
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("error no longer matches fs.ErrNotExist: %v", err)
+	}
+	if !slices.ContainsFunc(errors.Attrs(err), func(a slog.Attr) bool {
+		return a.Key == "path" && a.Value.String() == path
+	}) {
+		t.Errorf("error does not carry the path as an attribute: %v", errors.Attrs(err))
 	}
 }
 
