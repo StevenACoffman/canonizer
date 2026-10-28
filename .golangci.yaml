@@ -289,6 +289,10 @@ linters:
         # preserved) plus a message and trace frame — a genuine wrap, so wrapcheck
         # should treat it like the built-in .Wrap(/.WithMessage( it already allows.
         - .WrapWithMessage(
+        # root.ExitError is a terminal exit code the dispatcher unpacks with
+        # errors.As; wrapping it would add nothing, since the command is already
+        # the outermost frame.
+        - github.com/StevenACoffman/canonizer/cmd/root.ExitError int
 
     # ── depguard ─────────────────────────────────────────────────────────────
     # spec.md: climax uses its own command pattern; no third-party CLI frameworks.
