@@ -8,8 +8,10 @@ package prompt
 
 import (
 	_ "embed"
-	"fmt"
+	"log/slog"
 	"os"
+
+	errors "github.com/StevenACoffman/toerr/errors"
 )
 
 // Distill is the default per-source distillation template. Its
@@ -56,7 +58,9 @@ func Resolve(path, fallback string) (string, error) {
 	}
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return "", fmt.Errorf("read template %s: %w", path, err)
+		// The read error already names the file, so the path goes in an attribute
+		// rather than the message, where it would appear twice.
+		return "", errors.WrapWithMessage(err, "read template", slog.String("path", path))
 	}
 	return string(b), nil
 }
