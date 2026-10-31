@@ -117,18 +117,12 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 	if err != nil {
 		return errors.WrapWithMessage(err, "verify: parse ruleset")
 	}
-	diags, err := vfy.Executable(&rs)
+	// The source-independent checks run before the provenance block rather than inside
+	// it: a run without a source must still report them.
+	diags, err := vfy.Structural(string(raw), &rs)
 	if err != nil {
 		return errors.Wrap(err) // vfy already prefixes "verify:"
 	}
-	// Both are advisory and independent of --source, so they run before the provenance
-	// block rather than inside it: a run without a source must still report them.
-	diags = append(diags, vfy.Softening(&rs)...)
-	diags = append(diags, vfy.Unquantified(&rs)...)
-	diags = append(diags, vfy.Conflicts(&rs)...)
-	diags = append(diags, vfy.Canonical(string(raw), &rs)...)
-	diags = append(diags, vfy.Limitations(&rs)...)
-	diags = append(diags, vfy.Soundness(&rs)...)
 	if len(cfg.Source) > 0 {
 		sources, readErr := cfg.readSources()
 		if readErr != nil {
