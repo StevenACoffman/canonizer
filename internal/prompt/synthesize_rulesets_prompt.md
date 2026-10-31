@@ -225,8 +225,11 @@ For each merged or reconciled rule, choose one illustration (code contrast,
 structural contrast, or counter-example):
 
 - Prefer the illustration from the more domain-specific source.
-- If both illustrations cover different failure modes, combine them into two
-  contrast pairs within the same rule.
+- If both illustrations cover different failure modes, keep both inside the
+  rule's single pair. Each rule has **exactly one** `✗` line, one `✓` line and
+  one `↦` line. The parser refuses a second one rather than keeping it, so where
+  two examples cover different failure modes, join them on one line separated by
+  `; `, or split the rule.
 - If neither input provided an illustration and the rule is non-obvious,
   construct one that represents the most common violation.
 
