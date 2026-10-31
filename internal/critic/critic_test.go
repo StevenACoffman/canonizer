@@ -116,3 +116,26 @@ func TestCriticPromptSaysDeclaringAGapIsFree(t *testing.T) {
 		}
 	}
 }
+
+// TestCriticPromptExemptsAdvisoryRulesFromVague pins the exemption that makes a downgrade to
+// [CONSIDER] meaningful. verify already exempts advisory rules from its enforced checks, and
+// the distill and rework prompts tell an agent to downgrade a rule the source hedges; without
+// this sentence the critic held that downgraded rule to the boundary test anyway, so the step
+// the pipeline prescribes for a hedged source could never clear the finding it was taken for.
+func TestCriticPromptExemptsAdvisoryRulesFromVague(t *testing.T) {
+	t.Parallel()
+	filled, err := critic.FillPrompt(prompt.Critic, "s", "r", "d")
+	if err != nil {
+		t.Fatal(err)
+	}
+	flat := strings.Join(strings.Fields(filled), " ")
+	for _, want := range []string{
+		"The vague test applies to `[MUST]` and `[SHOULD]` rules only.",
+		"Never report a `[CONSIDER]` rule as `vague`",
+		"Every other test still applies to it in full",
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("the critic prompt no longer says %q", want)
+		}
+	}
+}

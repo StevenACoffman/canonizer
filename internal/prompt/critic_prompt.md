@@ -32,6 +32,14 @@ Judge each rule against the source alone. Flag a rule when it fails any of these
   A rule can be well written, well sourced and still fail all three — polish is not
   specificity, and a rule that reads well while failing them is the most common way a
   ruleset becomes unusable.
+
+  **The vague test applies to `[MUST]` and `[SHOULD]` rules only.** A `[CONSIDER]` rule is
+  advisory: it is the form a ruleset is told to use when the source itself hedges or draws
+  no line, so it cannot be held to a line the source does not draw. Never report a
+  `[CONSIDER]` rule as `vague`; if it fails the three questions, record that as a
+  `warning` of kind `advisory-vague`. Every other test still applies to it in full — an
+  advisory rule the source does not support is `unsupported`, and one that restates
+  another is a `duplicate`.
 - **duplicate** — the rule restates another rule without adding a distinct constraint.
 - **coverage** — the *set* does not cover what the `Scope:` line claims. The other three
   categories are properties of one rule; this one is a property of the whole ruleset, and
