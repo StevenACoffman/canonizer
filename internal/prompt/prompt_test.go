@@ -97,3 +97,28 @@ func TestTemplatesSpecifyCanonicalForm(t *testing.T) {
 		}
 	}
 }
+
+// TestTemplatesAskForOnePairPerRule pins the instruction that stopped a ruleset losing text.
+// The synthesize template once said to "combine them into two contrast pairs within the
+// same rule", which the format cannot hold: skillet's parser kept the second pair and fmt
+// deleted the first. The parser now refuses a second ✗, ✓ or ↦ line, so every template
+// that writes rules must say so, or an agent following it writes a ruleset nothing parses.
+func TestTemplatesAskForOnePairPerRule(t *testing.T) {
+	t.Parallel()
+	templates := map[string]string{
+		"Distill": prompt.Distill, "Synthesize": prompt.Synthesize, "Rework": prompt.Rework,
+	}
+	const want = "Each rule has **exactly one** `✗` line, one `✓` line and one `↦` line."
+	for name, tmpl := range templates {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			flat := strings.Join(strings.Fields(tmpl), " ")
+			if !strings.Contains(flat, want) {
+				t.Errorf("%s template no longer says %q", name, want)
+			}
+			if strings.Contains(flat, "two contrast pairs") {
+				t.Errorf("%s template still asks for two contrast pairs", name)
+			}
+		})
+	}
+}

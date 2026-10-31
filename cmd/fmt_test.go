@@ -133,3 +133,31 @@ func TestFmtRequiresARuleset(t *testing.T) {
 		t.Error("fmt accepted a missing --ruleset")
 	}
 }
+
+// TestFmtRefusesARuleWithTwoExamplePairs pins the loss fmt used to cause. A rule with two
+// ✗/✓ pairs parsed with the second pair overwriting the first, so fmt wrote back one pair
+// and deleted the other. fmt must now fail and leave the file exactly as it was.
+func TestFmtRefusesARuleWithTwoExamplePairs(t *testing.T) {
+	t.Parallel()
+	const twoPairs = "Source: s\nScope:  x\n\n" +
+		"§1.1  [MUST][CODE]  Close it.\n" +
+		"      because a leaked handle outlives the request.\n" +
+		"      ✗  f, _ := os.Open(p)\n" +
+		"      ✓  defer f.Close()\n" +
+		"      ✗  rows, _ := db.Query(q)\n" +
+		"      ✓  defer rows.Close()\n"
+	path := filepath.Join(t.TempDir(), "r_rules.md")
+	writeFile(t, path, twoPairs)
+
+	_, err := run(t, "fmt", "--ruleset", path)
+	if err == nil || !strings.Contains(err.Error(), "more than one ✗ line") {
+		t.Errorf("fmt: got %v, want an error naming the repeated ✗", err)
+	}
+	after, readErr := os.ReadFile(path)
+	if readErr != nil {
+		t.Fatalf("ReadFile: %v", readErr)
+	}
+	if string(after) != twoPairs {
+		t.Errorf("fmt changed a file it refused:\n got=%q\nwant=%q", after, twoPairs)
+	}
+}

@@ -34,6 +34,10 @@ commentary.
 Every `[MUST]` and `[SHOULD]` rule must carry **both** a `✗`/`✓` pair and a `↦` line — no
 exceptions, at any level, at either severity.
 
+Each rule has **exactly one** `✗` line, one `✓` line and one `↦` line. The parser refuses a
+second one rather than keeping it, so where two examples cover different failure modes, join
+them on one line separated by `; `, or split the rule.
+
 The `✗`/`✓` pair is what makes a rule checkable: the `✗` shows something the rule forbids
 and the `✓` the thing it asks for instead, and they must differ in the way the rule is about.
 A rule with no pair states a preference nothing can test.

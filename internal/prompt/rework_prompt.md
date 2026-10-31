@@ -49,6 +49,9 @@ canonical rendering:
 - each rationale on **one line however long** — do not wrap it
 - `✗` before `✓`, always
 - every `[MUST]` and `[SHOULD]` rule keeps both its `✗`/`✓` pair and its `↦` anchor
+- Each rule has **exactly one** `✗` line, one `✓` line and one `↦` line. The parser refuses
+  a second one rather than keeping it, so where two examples cover different failure modes,
+  join them on one line separated by `; `, or split the rule.
 
 Report what you changed and why, naming each finding you resolved and each warning you chose
 to leave.
