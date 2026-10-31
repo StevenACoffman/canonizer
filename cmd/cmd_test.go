@@ -372,6 +372,22 @@ func TestLoopReworksWhenBudgetRemaining(t *testing.T) {
 	}
 }
 
+// TestLoopReworksNonCanonicalRuleset pins loop to verify's checks. loop once ran only
+// Executable and Provenance, so it shipped a ruleset verify blocked as non-canonical.
+func TestLoopReworksNonCanonicalRuleset(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	source := filepath.Join(dir, "s.md")
+	rules := filepath.Join(dir, "s_rules.md")
+	writeFile(t, source, cleanSource)
+	writeFile(t, rules, cleanRuleset+"\n\n\n")
+	_, err := run(t, "loop", "--source", source, "--ruleset", rules, "--attempt", "1", "--max", "3")
+	var exit root.ExitError
+	if !errors.As(err, &exit) || int(exit) != 2 {
+		t.Errorf("got %v, want root.ExitError(2) (rework)", err)
+	}
+}
+
 func TestLoopEscalatesWhenBudgetSpent(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

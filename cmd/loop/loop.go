@@ -161,7 +161,7 @@ func (cfg *Config) roundFindings() ([]finding.Diagnostic, error) {
 		}
 		sources = append(sources, string(body))
 	}
-	diags, err := vfy.Executable(&rs)
+	diags, err := vfy.Structural(string(raw), &rs)
 	if err != nil {
 		return nil, errors.Wrap(err) // vfy already prefixes "verify:"
 	}
