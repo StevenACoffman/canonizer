@@ -56,12 +56,17 @@ file is left alone, so running this across a corpus does not touch what it need 
 With --check, report whether the file is canonical and write nothing, exiting 1 if it
 is not. That is the same split exegesis normalize uses.
 
-What this changes, measured across the eight stored rulesets: no text is lost — the
-word sequence is identical before and after — and what moves is line wrapping and
-spacing. A rule header written with three spaces after its level tag becomes two, and a
-rationale a human wrapped across three lines becomes one long line. Stored rulesets
-already carry lines of 265-379 characters, so that is the existing shape of the format
-rather than a new one, but a hand-wrapped document will not come back wrapped.`,
+What moves is line wrapping and spacing. A rule header written with three spaces after
+its level tag becomes two, and a rationale a human wrapped across three lines becomes one
+long line. Stored rulesets already carry lines of 265-379 characters, so that is the
+existing shape of the format rather than a new one, but a hand-wrapped document will not
+come back wrapped.
+
+No text is lost: the word sequence is identical before and after. That holds because
+ruleset.Parse refuses a document it cannot render back whole -- a rule with a second ✗,
+✓, ↦ or ⚖ line is an error, and fmt then writes nothing. Join such lines into one, or
+split the rule. Before skillet refused them, a second line overwrote the first, and fmt
+deleted the pair it could not hold.`,
 		Flags: cfg.Flags,
 		Exec:  cfg.exec,
 	}
