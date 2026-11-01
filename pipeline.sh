@@ -295,6 +295,24 @@ fi
 CANDIDATE="${candidates[0]}"
 printf 'candidate: %s\n' "$CANDIDATE" >&2
 
+# Normalize the candidate whenever an agent has written it: after synthesis, and after each
+# rework.
+#
+# **A whole run was blocked by whitespace.** Measured on the softwaredesign-v2 run of
+# 2026-11-01: the synthesis agent wrote a non-canonical candidate, every one of five verify
+# rounds reported `non-canonical`, no rework agent fixed it, and the final gate blocked on it
+# after the critic had come down to a single finding. The finding's action is `automatic`
+# -- fmt fixes it and loses no text -- so spending agent rounds on it, or a person's
+# attention at the end, buys nothing.
+#
+# A ruleset fmt cannot parse (a second ✗ line, say) stops the run here, as verify's parse
+# error would one step later.
+normalize_candidate() {
+    canonizer fmt --ruleset "$CANDIDATE"
+}
+
+normalize_candidate
+
 # ---------------------------------------------------------------------------------------
 # Stage 3: the sources.
 #
@@ -396,6 +414,7 @@ while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
 
     run_agent "rework (attempt ${attempt})" "$rework_prompt" \
         "${SRC_DIR}/${D}" "$SYNTH_DIR" "$CRITIQUE_DIR" "$FINDINGS_DIR" || exit 1
+    normalize_candidate
 
     attempt=$((attempt + 1))
 done
