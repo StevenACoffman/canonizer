@@ -35,8 +35,8 @@ ______________________________________________________________________
 Output **only** the final canonical ruleset. Run the synthesis pipeline below as
 internal reasoning; do not emit group inventories, per-step output, section headings,
 tables, or commentary. The result is parsed mechanically — any line that is not
-`Source:`, `Scope:`, a `§` rule header, a rationale line, a `✗` line, a `✓` line, or a
-`↦` source-anchor line corrupts it. Carry each input rule's `↦` source anchor through
+`Source:`, `Scope:`, `Limitations:`, a `§` rule header, a rationale line, a `✗` line,
+a `✓` line, or a `↦` source-anchor line corrupts it. Carry each input rule's `↦` source anchor through
 to the merged rule (keep the surviving rule's anchor when merging a group).
 
 Begin with the metadata block:
@@ -44,7 +44,14 @@ Begin with the metadata block:
 ```text
 Source: [the synthesised set — condense the input titles/authors to one line]
 Scope:  [union of all input scopes; note a narrower scope in the rule's own statement where scopes diverge]
+Limitations: [what the combined rules do not cover, merged from the inputs' Limitations: lines]
 ```
+
+`Limitations:` is required. Build it from the inputs' own `Limitations:` lines: keep a limit
+when it holds for the combined ruleset, drop one that another input covers (a gap in one
+source that a second source fills is no longer a gap), and name the source when a limit
+applies to only one of them. Do not invent limits no input states, and do not write `none`.
+A merged ruleset that drops its inputs' bounds reads as rules for the whole subject.
 
 Then a flat sequence of rule blocks, grouped by the section number in each `§N.M`
 header (Step 2 derives the sections); do not add section headings.
