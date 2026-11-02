@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -37,8 +38,12 @@ type Config struct {
 	Against string
 	Out     string
 	SignOff bool
-	Flags   *ff.FlagSet
-	Command *ff.Command
+
+	// Deployed names deployed copies of the ruleset that must be byte-identical to it,
+	// bound to the repeatable --deployed.
+	Deployed []string
+	Flags    *ff.FlagSet
+	Command  *ff.Command
 
 	// ConfigPath is the file the attributed actor is read from, bound to --config.
 	ConfigPath string
@@ -67,6 +72,8 @@ func New(parent *root.Config) *Config {
 		"a proof packet from distill time; splits an absent anchor into fabricated, stale or drift")
 	cfg.Flags.StringVar(&cfg.Out, 0, "out", "",
 		"findings JSON destination (empty writes to stdout)")
+	cfg.Flags.StringListVar(&cfg.Deployed, 0, "deployed",
+		"a deployed copy of the ruleset that must be byte-identical to it (repeatable)")
 	cfg.Flags.BoolVar(&cfg.SignOff, 0, "sign-off",
 		"record a verification event on the ruleset, attributed to the configured actor")
 	cfg.Flags.StringVar(&cfg.ConfigPath, 0, "config", signoff.ConfigName,
@@ -74,13 +81,19 @@ func New(parent *root.Config) *Config {
 	cfg.Now = time.Now
 	cfg.Command = &ff.Command{
 		Name:      "verify",
-		Usage:     "canonizer verify --ruleset PATH [--source PATH] [--proof PATH] [--out FILE]",
+		Usage:     "canonizer verify --ruleset PATH [--source PATH] [--deployed PATH] [--proof PATH] [--out FILE]",
 		ShortHelp: "check a ruleset's executability and provenance, emitting findings",
 		LongHelp: `Parse a canonical ruleset and run canonizer's deterministic checks:
 executability (every enforced rule carries a discriminating ✗/✓ pair) and — with
 --source — provenance (every enforced rule cites a source anchor present in the
 source). The result is a skillet/finding JSON document; pipe it to "gate" to block
 on it. With --proof, also write a proof packet binding the ruleset to the source.
+
+With --deployed (repeatable), also check that each named copy of the ruleset is
+byte-identical to it. A copy that differs at all, or is missing, is a blocking
+deployed-drift finding: a sign-off attests to these bytes, and a copy edited by one
+word is a ruleset nobody verified. The comparison is against the ruleset as read at
+the start of the run, before any --sign-off appends to it.
 
 With --sign-off, append a verification event to the ruleset's frontmatter recording
 who confirmed it. The attribution comes from identity.actor in --config, never from
@@ -141,6 +154,11 @@ func (cfg *Config) exec(_ context.Context, _ []string) error {
 		diags = append(diags, vfy.Unverifiable(&rs)...)
 	}
 	diags = append(diags, cfg.reportScope(&rs)...)
+	deployed, err := cfg.readDeployed()
+	if err != nil {
+		return err
+	}
+	diags = append(diags, vfy.Deployed(raw, deployed)...)
 	finding.Sort(diags)
 	if err := cfg.emit(finding.Result{Diagnostics: diags}); err != nil {
 		return err
@@ -310,6 +328,26 @@ func (cfg *Config) readSources() ([]string, error) {
 				slog.String("path", path))
 		}
 		out = append(out, string(body))
+	}
+	return out, nil
+}
+
+// readDeployed reads every --deployed copy. A copy that does not exist is a finding for
+// Deployed to report, not a failed run; any other read error is, because a copy that
+// could not be read was not compared.
+func (cfg *Config) readDeployed() ([]vfy.DeployedCopy, error) {
+	out := make([]vfy.DeployedCopy, 0, len(cfg.Deployed))
+	for _, path := range cfg.Deployed {
+		body, err := os.ReadFile(path)
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			out = append(out, vfy.DeployedCopy{Path: path, Missing: true})
+		case err != nil:
+			return nil, errors.WrapWithMessage(err, "verify: read deployed copy",
+				slog.String("path", path))
+		default:
+			out = append(out, vfy.DeployedCopy{Path: path, Content: body})
+		}
 	}
 	return out, nil
 }
