@@ -25,6 +25,15 @@ type Scope struct {
 	// Enforced is how many rules the gates examined.
 	Enforced int
 	// Total is how many rules the ruleset holds.
+	//
+	// Context for a large Total, deliberately not a threshold: instruction-following
+	// degrades as the number of simultaneous instructions grows. IFScale (Jaroslawicz et
+	// al., arXiv 2507.11538) measures accuracy falling with instruction density up to 500
+	// instructions, and "Curse of Instructions" (Harada et al.) finds the probability of
+	// following all of them falls roughly as the product of following each. The family's
+	// largest rulesets hold 108 and 72 rules, in the range both papers study. No cap is
+	// set here because neither paper gives a number that transfers to these rulesets and
+	// models, and a guessed cap would be the tuned threshold the gates refuse elsewhere.
 	Total int
 
 	// Symbolic is how many enforced rules name a symbol a checker can see -- a code span,
