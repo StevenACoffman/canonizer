@@ -164,13 +164,16 @@ reply is a report about the work and the artifact is the file.
 
 **Checking a ruleset.**
 
-- **`verify --ruleset PATH [--source PATH]... [--proof PATH] [--out FILE] [--sign-off]`** —
+- **`verify --ruleset PATH [--source PATH]... [--deployed PATH]... [--proof PATH] [--out FILE] [--sign-off]`** —
   executability and provenance, as findings JSON. Reports hedging and unquantified
   thresholds as warnings that never block, and two per-document proportions: how many rules
   name a symbol a checker can see, and how many anchors name a section only.
   `--sign-off` appends a verification event to the ruleset, attributed to `identity.actor`
   in `--config` and never to a flag. It is refused on a run with blocking findings, on a run
   given no `--source`, and when no actor is configured.
+  `--deployed` names a deployed copy that must be byte-identical to the ruleset; a copy that
+  differs at all, or is missing, is a blocking `deployed-drift` finding. Exact identity,
+  never similarity: a copy edited by one word is a ruleset nobody verified.
 - **`fmt --ruleset PATH [--check]`** — rewrite a ruleset into canonical form, which is what
   `verify`'s `non-canonical` finding measures against. `--check` reports and exits 1 without
   writing. No text is lost; wrapping moves.

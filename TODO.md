@@ -2631,3 +2631,16 @@ ______________________________________________________________________
       zero or non-numeric value skipped the refine loop entirely, leaving the verdict at
       `unknown` and the per-attempt variables unset, which under `set -u` fails somewhere far
       from the flag that caused it.
+
+## Deployed Copies and Large Rulesets (2026-11-02)
+
+Recommendations C1 and C2 of `agent-orange/write/stbenjam_improvements.md` (finding F14).
+
+- [x] **C1 — `verify --deployed PATH` (repeatable).** Each named copy must be
+  byte-identical to the ruleset as read at the start of the run, compared by
+  `identity.Hash`. A difference or a missing copy is a blocking `deployed-drift` finding
+  with action `guided`, since a copy edited on purpose may be the side to keep. Pure core
+  in `internal/verify/deployed.go`; never a similarity threshold, for the reason
+  `ruleset/conflict` refuses one. It applies to `summary_rules.md` once that is canonical.
+- [x] **C2 — context beside `Scope.Total`.** IFScale (arXiv 2507.11538) and Curse of
+  Instructions, for the 108- and 72-rule rulesets. No threshold.

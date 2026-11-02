@@ -77,6 +77,9 @@ const (
 	// CategoryAnchorSectionOnly is an anchor that names a section and says nothing else,
 	// so there is no text to search the source for.
 	CategoryAnchorSectionOnly = "anchor-section-only"
+	// CategoryDeployedDrift is a deployed copy of the ruleset whose bytes differ from the
+	// ruleset verified, or that is missing where it was said to be deployed.
+	CategoryDeployedDrift = "deployed-drift"
 )
 
 // elision is the mark a quoter puts where words were skipped, and the trailing space is
