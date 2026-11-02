@@ -267,6 +267,18 @@ if [ "${#rulesets[@]}" -eq 0 ]; then
 fi
 printf '\ndistilled %d ruleset(s)\n' "${#rulesets[@]}" >&2
 
+# Normalize each distilled ruleset as soon as its agent has written it. The distilled files
+# are kept for inspection and fed to synthesis, and normalize_candidate below only covers
+# the merged candidate.
+#
+# **Distill agents write rulesets with no blank lines.** Measured on 2026-11-01: nine of the
+# twelve distilled rulesets under kb/rules/distilled had none, so a Markdown viewer ran every
+# rule into one paragraph and they read as if their line endings had been stripped. fmt
+# fixed all nine and changed nothing but whitespace.
+for r in "${rulesets[@]}"; do
+    canonizer fmt --ruleset "$r"
+done
+
 # ---------------------------------------------------------------------------------------
 # Stage 2: merge the per-source rulesets into one candidate.
 # ---------------------------------------------------------------------------------------
