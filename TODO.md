@@ -2678,10 +2678,42 @@ An advisory firing on 7 of 14 rulesets, mostly over style, fails the precision b
 `Unquantified` set. It would also answer the wrong question: a heading that exists but is
 not the one above the quotation passes.
 
-- [ ] **skillet: expose each `markdown.Section`'s span** (its byte or line range), so
+- [x] **skillet: expose each `markdown.Section`'s span** (its byte or line range), so
       canonizer can ask whether a quotation sits *under* the heading its anchor names,
       without the second parser `sectionNamed` exists to avoid.
-- [ ] **Decide the anchor section-name convention** before building the check: whether
+      DONE in skillet v0.37.0 (skillet #34), which canonizer now requires.
+      `Section.Start` and `Section.End` are the half-open byte range `[Start, End)` in the
+      body, from the heading's line to the next heading of the same or higher level, so
+      sub-sections are included. Nothing in canonizer reads them yet; the check waits on
+      the convention below.
+- [x] **Decide the anchor section-name convention** before building the check: whether
       a name may be a prefix of a colon-bearing heading, whether `A / B` paths are allowed
       and resolve to the last component, and how a heading-less source (a transcript) is
       cited. Then teach the distill prompt that convention, and only then measure again.
+      DECIDED 2026-11-04. Vocabulary: the anchor writes a **section name**, the source has
+      **headings**, a **section** is a heading with the bytes it governs (sub-sections
+      included), and the **quotation** is what `anchorText` returns.
+      - **A. Colon headings.** A section name is a heading's full text, or a prefix of it
+        that ends at one of the heading's own colons (`§Chapter 4` names `Chapter 4: Risk`).
+        With a quotation, any section so named that contains the quotation satisfies the
+        anchor, so a shared prefix is resolved by the quotation. Without one, the name must
+        name exactly one heading in some source, or it is `anchor-section-ambiguous`.
+      - **B. Paths.** `A / B / C`, with spaces around each slash, names C under B under A.
+        Each component need only be an *ancestor* of the next, so levels may be skipped. The
+        whole name is tried as one heading first, because a heading can contain ` / `.
+      - **C. Sources without useful headings** (fewer than two). Quote, and write no `§`.
+        A `§` name that is not a heading of such a source is reported as
+        `anchor-section-headingless` instead of `anchor-section-unknown`, which says what
+        to do about it. A `§` name that *is* its heading is a true citation and is not
+        reported: narrowed from the first draft, which flagged every `§` against such a
+        source and so would have reported true citations.
+      - **D. Specificity.** The cited section may be any section containing the quotation,
+        except one spanning the whole body after its preamble -- in practice the title,
+        which contains everything and so says nothing. Built as its own commit and kept
+        only if measurement shows it is not noise.
+      - **E. Edge cases.** A quotation before the first heading takes no `§`. Every elision
+        fragment must lie in the one cited section. A quotation appearing more than once is
+        placed if any occurrence is in the cited section. Across sources, the anchor is
+        placed if any source places it: a synthesized ruleset's anchors do not record
+        which source they came from.
+      Every category is advisory, with the expiry `anchor-section-unknown` carries.
