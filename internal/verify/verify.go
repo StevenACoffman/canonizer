@@ -391,10 +391,12 @@ func sectionOnly(anchor string) bool {
 // section prefix, is still what most of the corpus writes -- so this widens what matches
 // without narrowing it.
 //
-// Only the first quoted span is taken. The convention places the quotation last and uses
-// the prefix for the section, so a second pair of quotes inside one anchor is a shape
-// nothing in the corpus writes; taking the first keeps the rule stateable in one sentence
-// rather than guessing which of several spans was meant.
+// Only the first quoted span is taken, **counted from the end of the section name**. The
+// convention is `§Name: "quotation"`, and a heading can itself quote a word: learn-go-with-
+// tests cites `§Other activities, such as "big" design: "As this is a behaviour change…"`.
+// Counting from the start took `"big"`, which the source always contains because it is in
+// the heading, so the real quotation was never searched and a fabricated one would have
+// passed. One anchor of 868 in the kb corpus has that shape; it is the one test pinning it.
 //
 // **A backtick span counts as a quotation too, and double quotes win when both are
 // present.** An anchor may quote an identifier rather than prose -- the prompt writes that
@@ -409,11 +411,34 @@ func sectionOnly(anchor string) bool {
 //
 // Ensures: the result is non-empty whenever anchor is; it is pure.
 func anchorText(anchor string) string {
-	if quoted := firstDelimited(anchor, '"'); quoted != "" {
+	quotable := afterSectionName(anchor)
+	if quoted := firstDelimited(quotable, '"'); quoted != "" {
 		return quoted
 	}
-	if quoted := firstDelimited(anchor, '`'); quoted != "" {
+	if quoted := firstDelimited(quotable, '`'); quoted != "" {
 		return quoted
+	}
+	return anchor
+}
+
+// afterSectionName returns the part of a `§Name: "quotation"` anchor from the delimiter
+// opening its quotation on, or the anchor unchanged when it has no such separator.
+//
+// The separator is the colon and space directly before a quote mark, which is what the
+// distill prompt writes. Cutting at the first colon instead would split headings that carry
+// one -- `§Datalog: Recursive Relational Queries: "…"` -- at the wrong place, and looking for
+// the separator rather than the last quotation leaves a quotation that itself holds `": "`
+// intact. Double quotes win over backticks here for the reason they do in anchorText.
+//
+// Ensures: the result is a suffix of anchor; it is pure.
+func afterSectionName(anchor string) string {
+	if !strings.HasPrefix(strings.TrimSpace(anchor), "§") {
+		return anchor
+	}
+	for _, separator := range []string{`: "`, ": `"} {
+		if i := strings.Index(anchor, separator); i >= 0 {
+			return anchor[i+len(": "):]
+		}
 	}
 	return anchor
 }
