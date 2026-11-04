@@ -15,6 +15,12 @@ Synthesis is not concatenation. Rules that address the same concern must be
 merged; rules that are special cases of a general rule must be subsumed. If the
 output has as many rules as the inputs combined, the synthesis failed.
 
+Compression is measured across inputs, never within one. Each input was distilled
+from its source as a set of separate rules, so two rules from the same input are
+that source saying two things, often at two strengths. Merge two rules from one
+input only when they are identical in substance (Case A). With a single input,
+the output may have as many rules as the input does.
+
 Where inputs conflict, the conflict must be resolved — not suppressed — so the
 output is unambiguous on every point where the inputs were.
 
@@ -93,7 +99,9 @@ Group [G]: [one-line description of the shared concern]
   - Ruleset 2 §N.M: [severity][level] [summary]
 ```
 
-A rule that has no counterpart in any other input forms a group of one.
+A rule that has no counterpart in any other input forms a group of one. Two
+rules from the same input share a group only when they are identical in
+substance; otherwise each forms its own group, however closely related.
 
 ### Step 2 — Derive the Section Structure
 
@@ -203,7 +211,10 @@ ______________________________________________________________________
 ### Step 4 — Reconcile Severity
 
 When the same rule appears with different severity tags across inputs, use this
-table:
+table. It reconciles a disagreement between different inputs, and it never
+applies to two rules from the same input: those are one source stating two
+things at two strengths, and raising the weaker to the stronger misstates that
+source. Keep such rules separate, each at its own severity.
 
 | Input severities          | Output severity | Annotation                                              |
 | ------------------------- | --------------- | ------------------------------------------------------- |
@@ -315,8 +326,9 @@ Before submitting, confirm:
 
 1. **Coverage:** The internal coverage accounting has an entry for every rule in
    every input. No rule is silently absent.
-2. **Compression:** The output has fewer rules than the sum of all inputs.
-   If not, re-examine every group resolved as Case C for whether it should have
+2. **Compression:** With two or more inputs, the output has fewer rules than
+   the sum of all inputs. With one input it may have as many, and no two rules
+   of one input were merged unless identical in substance. If not, re-examine every group resolved as Case C for whether it should have
    been Case A or B instead; also re-examine Case E groups for whether their
    concern truly has no counterpart in any other input or whether the Step 1
    grouping was too narrow.
