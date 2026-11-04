@@ -2644,3 +2644,44 @@ Recommendations C1 and C2 of `agent-orange/write/stbenjam_improvements.md` (find
   `ruleset/conflict` refuses one. It applies to `summary_rules.md` once that is canonical.
 - [x] **C2 — context beside `Scope.Total`.** IFScale (arXiv 2507.11538) and Curse of
   Instructions, for the 108- and 72-rule rulesets. No threshold.
+
+## A Quote Anchor's Section Is Never Checked, and the Cheap Check Is Noise (2026-11-03)
+
+Found reviewing the domain_analysis ruleset. `anchorPresent` searches only the quotation of
+a `§Section: "quote"` anchor, deliberately, so the section prefix is a claim nothing tests:
+rewriting one domain_analysis anchor to cite `§Writing` for a sentence from `§Domain versus
+System` left `verify` clean. A reader following the citation lands in the wrong place.
+
+**The cheap half was built and measured, then reverted.** It reported
+`anchor-section-unknown` (advisory) for a present quotation whose named section is no
+heading, reusing `sectionNamed`. Across the 14 kb rulesets:
+
+| state                                                                                                    | findings |
+| -------------------------------------------------------------------------------------------------------- | -------: |
+| as first written                                                                                         |      193 |
+| after also reading the name to the last colon before the quote, and stripping `{#id}` heading attributes |      113 |
+
+The two fixes were measured together, not one at a time: data_model went 15 → 0 and
+kleppmann 8 → 3 (headings such as `## Datalog: Recursive Relational Queries`), and cli 53 → 0
+(clig.dev heads every section `### Human-first design {#human-first-design}`). What remains
+is almost all citation convention, not wrong citation:
+
+| class                                          | example                                     | where                          |
+| ---------------------------------------------- | ------------------------------------------- | ------------------------------ |
+| heading cut at its own colon, or a bare number | `§11.1.2 Pattern 2`, `§Chapter 4`, `§5.2.5` | authorization, measureanything |
+| path notation                                  | `§Whoops, I Did It Again / Full Reversal`   | event_source (30)              |
+| a talk transcript with one heading             | slide titles as section names               | rich_hickey (30)               |
+| heading markup lost in the source's conversion | "The need for multi-object transactions"    | kleppmann                      |
+| emphasis, code or punctuation in the heading   | `` `math` ``, `_not_`, a trailing period    | learn-go-with-tests            |
+
+An advisory firing on 7 of 14 rulesets, mostly over style, fails the precision bar
+`Unquantified` set. It would also answer the wrong question: a heading that exists but is
+not the one above the quotation passes.
+
+- [ ] **skillet: expose each `markdown.Section`'s span** (its byte or line range), so
+      canonizer can ask whether a quotation sits *under* the heading its anchor names,
+      without the second parser `sectionNamed` exists to avoid.
+- [ ] **Decide the anchor section-name convention** before building the check: whether
+      a name may be a prefix of a colon-bearing heading, whether `A / B` paths are allowed
+      and resolve to the last component, and how a heading-less source (a transcript) is
+      cited. Then teach the distill prompt that convention, and only then measure again.
