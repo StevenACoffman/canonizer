@@ -43,7 +43,9 @@ type SourceState int
 // isolate. With SourceUnknown this falls back to Provenance's verdict exactly, because with
 // one signal anchor-absent remains the honest answer.
 //
-// Ensures: one diagnostic at most per enforced rule; it is pure.
+// Ensures: one provenance diagnostic at most per enforced rule, plus Escalation's, which
+//
+//	asks about the rule's level rather than its anchor; it is pure.
 func Drift(rs *ruleset.Ruleset, sources []string, state SourceState) []finding.Diagnostic {
 	if state == SourceUnknown {
 		return Provenance(rs, sources)
@@ -58,7 +60,9 @@ func Drift(rs *ruleset.Ruleset, sources []string, state SourceState) []finding.D
 			diags = append(diags, d)
 		}
 	}
-	return diags
+	// Provenance carries this on the SourceUnknown path above; appended here so a proof
+	// packet does not change which checks run.
+	return append(diags, Escalation(rs, sources)...)
 }
 
 // driftOne returns the diagnostic for one rule, and whether there is one.

@@ -77,6 +77,9 @@ const (
 	// CategoryAnchorSectionOnly is an anchor that names a section and says nothing else,
 	// so there is no text to search the source for.
 	CategoryAnchorSectionOnly = "anchor-section-only"
+	// CategoryEscalationSingleSource is a rule noting that a stricter level was applied
+	// between disagreeing sources, in a ruleset checked against only one source.
+	CategoryEscalationSingleSource = "escalation-single-source"
 	// CategoryDeployedDrift is a deployed copy of the ruleset whose bytes differ from the
 	// ruleset verified, or that is missing where it was said to be deployed.
 	CategoryDeployedDrift = "deployed-drift"
@@ -140,6 +143,9 @@ func Executable(rs *ruleset.Ruleset) ([]finding.Diagnostic, error) {
 // or whose anchor is absent from the source (E). The search is whitespace-normalized
 // so a quote the model re-wrapped still matches. Whether a present anchor *supports*
 // the claim is the critic's `unsupported` judgment.
+//
+// It also carries Escalation, the other claim about sources a rule can make, so that loop,
+// which calls this, and verify, which calls Drift, report the same findings.
 func Provenance(rs *ruleset.Ruleset, sources []string) []finding.Diagnostic {
 	diags := make([]finding.Diagnostic, 0)
 	for i := range rs.Rules {
@@ -164,7 +170,7 @@ func Provenance(rs *ruleset.Ruleset, sources []string) []finding.Diagnostic {
 			)
 		}
 	}
-	return diags
+	return append(diags, Escalation(rs, sources)...)
 }
 
 // Softening returns an advisory diagnostic for every enforced rule whose statement hedges,
