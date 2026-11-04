@@ -10,6 +10,10 @@ import (
 	"github.com/StevenACoffman/skillet/textnorm"
 )
 
+// sectionOnlyMessage is what a section-only anchor naming a real heading is told.
+const sectionOnlyMessage = "anchor names a section and quotes nothing, so provenance cannot " +
+	"be confirmed or refuted from the source text"
+
 // escapePattern matches a markdown backslash escape, which a heading's raw text keeps.
 //
 // Built per call rather than kept in a package variable, the shape this package uses for a
@@ -41,7 +45,7 @@ func headingKey(s string) string {
 
 // sectionName returns the section an anchor names, or "" if it names none.
 //
-// Extracted because sectionOnly and sectionNamed must agree on where a section name ends,
+// Extracted because sectionOnly and sectionOnlyDiagnostic must agree on where a section name ends,
 // and they did not: sectionOnly cuts at the colon, so it reads `§Errors:` as naming
 // "Errors", while a second spelling here read the name as "Errors:" and reported a heading
 // that exists as missing. Two spellings of one question is how one check starts contradicting
@@ -57,22 +61,31 @@ func sectionName(anchor string) string {
 	return strings.TrimSpace(name)
 }
 
-// sectionNamed reports whether the section an anchor names is a heading in source.
+// wholeSectionName returns everything an anchor writes after its `§`, trimmed, or "" if it
+// has no `§`.
 //
-// A section-only anchor is not searched for its text -- there is none -- so until this it
-// was reported advisory and believed. But the section it names is a checkable claim: a
-// source's headings are enumerable, and *does this heading exist* is answerable. Batch 4
-// showed the answer already drifting, with one anchor of nine naming `§3. Use a shared mock
-// subpackage` where its source has `## #3. ...`.
+// sectionName's reading is cut at the first colon, which is right for the paraphrase shape
+// `§Errors: every method takes ctx first` and wrong for a heading that carries a colon of its
+// own: `§Datalog: Recursive Relational Queries` names that whole heading. Only the source can
+// tell the two apart, so this is the reading headingOnly tests against it.
+//
+// Ensures: the result never starts with `§`; it is pure.
+func wholeSectionName(anchor string) string {
+	rest, found := strings.CutPrefix(strings.TrimSpace(anchor), "§")
+	if !found {
+		return ""
+	}
+	return strings.TrimSpace(rest)
+}
+
+// namesHeading reports whether name is a heading in any of sources.
 //
 // The headings come from markdown.Sections rather than a scan for `#` lines here. A second
 // parser would disagree with the kernel's on setext headings and on `#` inside fenced code,
 // and canonizer would then report a fabrication that skillet's own reader does not see.
 //
-// Requires: anchor is section-only, which is the only state where it is asked.
-// Ensures:  false when anchor names no section; it is pure.
-func sectionNamed(anchor string, sources []string) bool {
-	name := sectionName(anchor)
+// Ensures: false when name is ""; it is pure.
+func namesHeading(name string, sources []string) bool {
 	if name == "" {
 		return false
 	}
@@ -87,8 +100,39 @@ func sectionNamed(anchor string, sources []string) bool {
 	return false
 }
 
-// sectionDiagnostic reports on a section-only anchor: that the section it names is not in
-// the source, or failing that, that its provenance went unsearched.
+// headingOnly reports whether an anchor is, as written, the name of a heading in a source.
+//
+// It exists for the case sectionOnly cannot see. sectionOnly reads anything after a colon as
+// a paraphrase to search for, so an anchor citing a colon-bearing heading whole was searched
+// as text, `§` included, and reported as a blocking anchor-absent against a source that has
+// that very heading. The corpus held no such anchor when this was written; the shape is the
+// natural citation of `## Datalog: Recursive Relational Queries`, so it was fixed before one
+// appeared.
+//
+// **It asks the source, which sectionOnly deliberately does not.** That keeps sectionOnly a
+// question about the anchor's text, as Scope needs it, and confines the source-dependent
+// reading here. An anchor carrying a quotation is never heading-only: it has text to search.
+//
+// Ensures: false for an anchor without `§`; it is pure.
+func headingOnly(anchor string, sources []string) bool {
+	if firstDelimited(anchor, '"') != "" || firstDelimited(anchor, '`') != "" {
+		return false
+	}
+	return namesHeading(wholeSectionName(anchor), sources)
+}
+
+// sectionOnlyDiagnostic returns the finding for an anchor that names a section and quotes
+// nothing, and whether the anchor is that shape at all.
+//
+// Provenance and Drift both call this, so the two cannot disagree about what a section
+// reference is or what is said about it. They did: Drift reported every section-only anchor
+// as unsearched without checking that the section it names exists, so a ruleset verified
+// against a proof packet never heard about a misnamed section that the same ruleset without
+// one was told about.
+//
+// The source state is deliberately not a parameter: a section reference is equally
+// unsearchable whether the source moved or not, so reporting drift or staleness on it would
+// invent a distinction from a comparison that never ran.
 //
 // One finding per rule rather than both, the convention the specificity checks set. The
 // unknown-section report is strictly the more informative of the two -- a reader told the
@@ -102,14 +146,18 @@ func sectionNamed(anchor string, sources []string) bool {
 // checker. **Make it blocking once this normalisation has met a second corpus without a
 // false positive** -- the expiry Limitations shipped with, and for the same reason.
 //
-// Ensures: exactly one diagnostic, always finding.SeverityWarning; it is pure.
-func sectionDiagnostic(r *ruleset.Rule, sources []string) finding.Diagnostic {
-	if !sectionNamed(r.SourceAnchor, sources) {
+// Ensures: when true, the diagnostic is finding.SeverityWarning; it is pure.
+func sectionOnlyDiagnostic(r *ruleset.Rule, sources []string) (finding.Diagnostic, bool) {
+	if headingOnly(r.SourceAnchor, sources) {
+		return advisory(r, CategoryAnchorSectionOnly, sectionOnlyMessage), true
+	}
+	if !sectionOnly(r.SourceAnchor) {
+		return finding.Diagnostic{}, false
+	}
+	if !namesHeading(sectionName(r.SourceAnchor), sources) {
 		return advisory(r, CategoryAnchorSectionUnknown,
 			"anchor names a section the source has no heading for; the rule may still be "+
-				"sound, but nothing here points at where it came from")
+				"sound, but nothing here points at where it came from"), true
 	}
-	return advisory(r, CategoryAnchorSectionOnly,
-		"anchor names a section and quotes nothing, so provenance cannot be "+
-			"confirmed or refuted from the source text")
+	return advisory(r, CategoryAnchorSectionOnly, sectionOnlyMessage), true
 }

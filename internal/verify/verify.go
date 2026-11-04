@@ -159,8 +159,8 @@ func Provenance(rs *ruleset.Ruleset, sources []string) []finding.Diagnostic {
 			}
 			continue
 		}
-		if sectionOnly(r.SourceAnchor) {
-			diags = append(diags, sectionDiagnostic(r, sources))
+		if d, ok := sectionOnlyDiagnostic(r, sources); ok {
+			diags = append(diags, d)
 			continue
 		}
 		if !anchorPresent(sources, r.SourceAnchor) {

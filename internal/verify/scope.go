@@ -60,6 +60,13 @@ type Scope struct {
 	// executability gates and *was not* examined for provenance, and "examined 9 of 11"
 	// could not say so. Provenance already reports each one as an advisory; what was missing
 	// was the total.
+	//
+	// **It undercounts one shape, knowingly.** An anchor citing a colon-bearing heading whole
+	// (`§Datalog: Recursive Relational Queries`) is section-only only by the source's say,
+	// which headingOnly asks and Rules, having no sources, cannot. Such an anchor is counted
+	// here as searched. Taking sources for a report line was the alternative, and widening
+	// the signature for a shape the corpus did not hold when this was written is the worse
+	// trade.
 	SectionOnly int
 }
 

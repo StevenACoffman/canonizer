@@ -18,6 +18,10 @@ const anchorSource = "# Common CRUD design in Go\n\n" +
 	"## Errors\n\n" +
 	"## 4.2\n"
 
+// colonHeadingSource has a heading carrying a colon of its own, beside one without.
+const colonHeadingSource = "# Datalog: Recursive Relational Queries\n\n" +
+	"Datalog is older than SQL.\n\n## Errors\n\nEach method returns an error.\n"
+
 // anchored builds an enforced rule carrying the given source anchor.
 func anchored(anchor string) ruleset.Ruleset {
 	return ruleset.Ruleset{Rules: []ruleset.Rule{{
@@ -172,6 +176,90 @@ func TestAnAnchorWithSomethingToSearchIsNotSectionOnly(t *testing.T) {
 			got, _ := categoryOf(t, verify.Provenance(&rs, []string{source}))
 			if got != c.want {
 				t.Errorf("category = %q, want %q\nanchor: %s", got, c.want, c.anchor)
+			}
+		})
+	}
+}
+
+// TestASectionOnlyAnchorMayNameAHeadingThatHasAColon pins the reading a colon-bearing
+// heading needs. Before it, `§Datalog: Recursive Relational Queries` was taken for a
+// paraphrase after a section called "Datalog", searched for as text, and reported as a
+// blocking fabrication against a source whose heading it copies exactly.
+func TestASectionOnlyAnchorMayNameAHeadingThatHasAColon(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		anchor       string
+		wantCategory string
+		wantBlocking bool
+	}{
+		"the heading cited whole": {
+			anchor:       "§Datalog: Recursive Relational Queries",
+			wantCategory: verify.CategoryAnchorSectionOnly,
+		},
+		"the heading cited in lower case": {
+			anchor:       "§datalog: recursive relational queries",
+			wantCategory: verify.CategoryAnchorSectionOnly,
+		},
+		// Not a heading in this source, so it is still the paraphrase reading, and a
+		// paraphrase that is not in the source is still a defect.
+		"a colon heading the source does not have": {
+			anchor:       "§Datalog: Recursive Graph Queries",
+			wantCategory: verify.CategoryAnchorAbsent,
+			wantBlocking: true,
+		},
+		// The paraphrase shape is unchanged: "Errors" is a heading, but the anchor as
+		// written is not, so the text after the colon is searched.
+		"a paraphrase after a real section name": {
+			anchor:       "§Errors: every method takes ctx first",
+			wantCategory: verify.CategoryAnchorAbsent,
+			wantBlocking: true,
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			rs := anchored(c.anchor)
+			got, blocking := categoryOf(t, verify.Provenance(&rs, []string{colonHeadingSource}))
+			if got != c.wantCategory || blocking != c.wantBlocking {
+				t.Errorf("got (%q, blocking=%t), want (%q, blocking=%t)",
+					got, blocking, c.wantCategory, c.wantBlocking)
+			}
+		})
+	}
+}
+
+// TestDriftReportsSectionOnlyAnchorsAsProvenanceDoes is the parity Drift lacked: with a
+// proof packet, a section-only anchor was reported as unsearched without its section being
+// looked up, so a misnamed section went unreported exactly when the ruleset was checked
+// hardest. The source state must not move either verdict.
+func TestDriftReportsSectionOnlyAnchorsAsProvenanceDoes(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		anchor string
+		want   string
+	}{
+		"a section the source does not have": {
+			anchor: "§Error taxonomy",
+			want:   verify.CategoryAnchorSectionUnknown,
+		},
+		"a colon heading cited whole": {
+			anchor: "§Datalog: Recursive Relational Queries",
+			want:   verify.CategoryAnchorSectionOnly,
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			rs := anchored(c.anchor)
+			for _, state := range []verify.SourceState{
+				verify.SourceUnknown, verify.SourceUnchanged, verify.SourceChanged,
+			} {
+				got, blocking := categoryOf(t,
+					verify.Drift(&rs, []string{colonHeadingSource}, state))
+				if got != c.want || blocking {
+					t.Errorf("state %v: got (%q, blocking=%t), want the advisory %q",
+						state, got, blocking, c.want)
+				}
 			}
 		})
 	}
