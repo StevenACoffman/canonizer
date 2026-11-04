@@ -47,7 +47,8 @@ func headingKey(s string) string {
 }
 
 // withoutMarkup removes the inline markup an anchor's section name may keep -- code spans,
-// bold and italic runs -- and trailing sentence stops on either side.
+// bold and italic runs -- a heading's trailing attribute block, and trailing sentence stops
+// on either side.
 //
 // **The markup half is for the anchor, not the heading.** markdown.Section.Title is already
 // the heading's text without inline markup (`## Do _not_ mock` has the title "Do not mock";
@@ -69,9 +70,10 @@ func headingKey(s string) string {
 //
 // Ensures: the result is never longer than s; it is pure.
 func withoutMarkup(s string) string {
-	patterns := markupPatterns()
+	patterns, attribute := markupPatterns(), attributePattern()
 	for {
-		next := strings.TrimRight(strings.TrimSpace(unemphasize(s)), ".:?")
+		next := attribute.ReplaceAllString(unemphasize(s), "")
+		next = strings.TrimRight(strings.TrimSpace(next), ".:?")
 		for _, pattern := range patterns {
 			next = pattern.ReplaceAllString(next, "$1$2$3")
 		}
@@ -97,6 +99,16 @@ func markupPatterns() []*regexp.Regexp {
 		regexp.MustCompile(`(^|[^\pL\pN_])_(\S(?:[^_]*\S)?)_($|[^\pL\pN_])`),
 	}
 }
+
+// attributePattern matches a trailing heading attribute block, `{#human-first-design}`.
+//
+// It is the heading side's markup rather than the anchor's: clig.dev heads every section
+// `### Human-first design {#human-first-design}`, markdown.Section keeps the block in the
+// title because goldmark parses attributes only when asked to, and an anchor citing the
+// section never writes it. Measured: 53 of cli's anchors were reported against headings they
+// named exactly. Only a block opening with `#` is taken, so a heading that ends in prose
+// braces keeps them.
+func attributePattern() *regexp.Regexp { return regexp.MustCompile(`\s*\{#[^}]*\}\s*$`) }
 
 // headingMatches reports whether a section name, as keyed, names the heading keyed as
 // heading.

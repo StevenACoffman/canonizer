@@ -21,7 +21,8 @@ const markupSource = "# Heading shapes\n\n" +
 	"## Is it worth it?\n\n" +
 	"## Name it snake_case_name\n\n" +
 	"## 5.2.5 Choosing a sample size\n\n" +
-	"## 5.3 Sampling\n"
+	"## 5.3 Sampling\n\n" +
+	"### Human-first design {#human-first-design}\n"
 
 func TestHeadingsAreComparedWithoutInlineMarkup(t *testing.T) {
 	t.Parallel()
@@ -67,6 +68,10 @@ func TestHeadingsAreComparedWithoutInlineMarkup(t *testing.T) {
 			anchor: "§5.2.50",
 			want:   verify.CategoryAnchorSectionUnknown,
 		},
+		"a heading's attribute block, which an anchor never writes": {
+			anchor: "§Human-first design",
+			want:   verify.CategoryAnchorSectionOnly,
+		},
 		"only stops names nothing": {
 			anchor: "§...",
 			want:   verify.CategoryAnchorSectionUnknown,
@@ -93,7 +98,7 @@ func TestHeadingsAreComparedWithoutInlineMarkup(t *testing.T) {
 // `\a`.
 func TestHeadingKeyIsIdempotent(t *testing.T) {
 	t.Parallel()
-	const alphabet = "ab _*`.:?… Z5"
+	const alphabet = "ab _*`.:?… Z5{#}"
 	runes := []rune(alphabet)
 	generate := func(values []reflect.Value, r *rand.Rand) {
 		var b strings.Builder
