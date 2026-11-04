@@ -169,7 +169,7 @@ func TestTemplatesTeachTheAnchorSectionConvention(t *testing.T) {
 		},
 		"distill: no invented numbers or titles": {
 			template: prompt.Distill,
-			want:     "Never add a number, a chapter or a slide title the heading does not carry.",
+			want:     "Never add a number, a chapter or a slide title the heading does not carry, except as the first part of such a path",
 		},
 		"distill: no section name for a source without headings": {
 			template: prompt.Distill,
@@ -178,6 +178,10 @@ func TestTemplatesTeachTheAnchorSectionConvention(t *testing.T) {
 		"distill: the allowed path form": {
 			template: prompt.Distill,
 			want:     "joined by ` / ` (`§Chapter 5 / Example`)",
+		},
+		"distill: a sidebar under a numbered section, as a path": {
+			template: prompt.Distill,
+			want:     "as a path (`§11.2 / Why OAuth isn't usually enough`)",
 		},
 		"synthesize: anchors are carried verbatim": {
 			template: prompt.Synthesize,

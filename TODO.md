@@ -2701,6 +2701,12 @@ not the one above the quotation passes.
       - **B. Paths.** `A / B / C`, with spaces around each slash, names C under B under A.
         Each component need only be an *ancestor* of the next, so levels may be skipped. The
         whole name is tried as one heading first, because a heading can contain ` / `.
+        A name with no separator that opens with a section number and names no heading is
+        read as the path from that number: `§11.2 Why OAuth isn't usually enough` is
+        `§11.2 / Why OAuth isn't usually enough`, the form the distill prompt teaches.
+        Added 2026-11-04 for books that number main headings and not the sidebars under
+        them; checking the number, rather than ignoring it, keeps a wrong one reported. A
+        section number may be an appendix's (`B.6`), but a letter alone is not one.
       - **C. Sources without useful headings** (fewer than two). Quote, and write no `§`.
         A `§` name that is not a heading of such a source is reported as
         `anchor-section-headingless` instead of `anchor-section-unknown`, which says what
@@ -2728,19 +2734,28 @@ not the one above the quotation passes.
       anchors use the same resolver, so colon prefixes and paths apply to both shapes.
       Measured on the 14 kb rulesets: 0 blocking findings before and after, and the run takes
       9 seconds rather than 22, because each source is now parsed and folded once per check
-      rather than once per anchor. The 96 advisories, read by hand:
+      rather than once per anchor. The 67 advisories, read by hand:
 
       | class                                                      | category    | count | verdict          |
       | ---------------------------------------------------------- | ----------- | ----: | ---------------- |
       | slide titles cited against the rich_hickey transcript       | headingless |    30 | breaks rule C    |
-      | a section number the authorization headings do not carry    | unknown     |    17 | breaks rule A    |
+      | a section number the authorization headings do not carry    | unknown     |    17 | see below        |
       | headings the kleppmann and measureanything conversions lost | unknown     |    11 | source defect    |
       | a sibling of the section the quotation is in                | mismatch    |     8 | wrong citation   |
       | a heading lost in conversion (kleppmann)                    | mismatch    |     1 | source defect    |
 
       The first run also reported 53 cli anchors against headings they named exactly: clig.dev
       ends each heading with a `{#id}` attribute block, which `headingKey` now drops. After
-      that fix, none of the 96 is the checker misreading a citation.
-- [ ] **Teach the distill prompt the convention**, then re-distill rich_hickey and
-      event_source and measure the prompt's effect on its own. The authorization class is
-      the clearest target: its anchors prefix headings with the book's section numbers.
+      that fix, none of the 67 is the checker misreading a citation.
+
+      **The 17 authorization anchors were mostly right, in a shape the convention lacked.**
+      13 joined the enclosing numbered section's number to an unnumbered sidebar heading
+      inside it, which is more precise than either part alone; 2 used the number of a
+      section the heading is not in; 2 abbreviated a numbered heading. Reading the joined
+      form as a path from the number, and accepting appendix numbers, places the 13, reports
+      the 2 wrong numbers as `anchor-section-mismatch`, and leaves the 2 abbreviations as
+      `anchor-section-unknown`. That takes the total from 67 advisories to 54.
+- [x] **Teach the distill prompt the convention.** DONE 2026-11-04 in rule 9, with the
+      synthesis and rework prompts carrying and correcting section names to match.
+- [ ] **Re-distill rich_hickey and event_source** and measure the prompt's effect on its
+      own. rich_hickey's 30 slide-title citations are the clearest target.
