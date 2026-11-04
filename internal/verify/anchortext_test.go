@@ -105,3 +105,54 @@ func TestPairedEmphasisIsFoldedAndSingleMarkersAreNot(t *testing.T) {
 		})
 	}
 }
+
+// TestAQuotedWordInTheSectionNameIsNotTheQuotation pins the shape learn-go-with-tests wrote:
+// a heading that itself quotes a word. Taking the first quoted span searched for that word,
+// which the source always contains because it is in the heading, so the real quotation was
+// never checked and a fabricated one passed.
+func TestAQuotedWordInTheSectionNameIsNotTheQuotation(t *testing.T) {
+	t.Parallel()
+
+	const source = "### Other activities, such as \"big\" design\n\n" +
+		"As this is a behaviour change, apply the TDD process here too.\n"
+
+	cases := []struct {
+		name   string
+		anchor string
+		want   string
+	}{
+		{
+			name:   "the real quotation after the section name is found",
+			anchor: `§Other activities, such as "big" design: "As this is a behaviour change, apply the TDD process here too."`,
+			want:   "",
+		},
+		{
+			// The defect: the quoted heading word is present, so this passed before.
+			name:   "a fabricated quotation after a quoted heading word is absent",
+			anchor: `§Other activities, such as "big" design: "Always design everything up front."`,
+			want:   verify.CategoryAnchorAbsent,
+		},
+		{
+			name:   "a backtick quotation after a quoted heading word is found the same way",
+			anchor: "§Other activities, such as \"big\" design: `apply the TDD process`",
+			want:   "",
+		},
+		{
+			// No section prefix, so there is no name to skip and the first span still wins.
+			name:   "a bare quotation is unaffected",
+			anchor: `"apply the TDD process here too"`,
+			want:   "",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			rs := anchored(c.anchor)
+			got, _ := categoryOf(t, verify.Provenance(&rs, []string{source}))
+			if got != c.want {
+				t.Errorf("category = %q, want %q\nanchor: %s", got, c.want, c.anchor)
+			}
+		})
+	}
+}
