@@ -177,15 +177,12 @@ func sectionsOf(source string) []section {
 //
 // Ensures: every result is an element of sections; it is pure.
 func namedSections(name string, sections []section) []section {
-	if named := headingsNamed(
-		name,
-		sections,
-	); len(named) > 0 ||
-		!strings.Contains(name, pathSeparator) {
+	named := headingsNamed(name, sections)
+	if len(named) > 0 || !strings.Contains(name, pathSeparator) {
 		return named
 	}
 	components := strings.Split(name, pathSeparator)
-	named := headingsNamed(components[0], sections)
+	named = headingsNamed(components[0], sections)
 	for _, component := range components[1:] {
 		named = within(headingsNamed(component, sections), named)
 	}
