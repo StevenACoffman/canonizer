@@ -24,6 +24,16 @@ const transcriptSource = "So, simple made easy. Simplicity is a prerequisite for
 // oneHeadingSource is a short article whose only heading is its title.
 const oneHeadingSource = "# Simple Made Easy\n\nSimplicity is a prerequisite for reliability."
 
+// numberedSource numbers its main headings and not the sidebars under them, as the
+// authorization book does.
+const numberedSource = "# 11 External access\n\n" +
+	"## 11.2 Authorization for external access to APIs\n\nOAuth delegates access.\n\n" +
+	"##### Why OAuth isn't usually enough\n\nScopes are too coarse.\n\n" +
+	"## 11.3 Machine identities\n\n" +
+	"##### Client credentials grant\n\nMachines get tokens.\n\n" +
+	"# Appendix B\n\n" +
+	"## B.6 Steps for modifying a policy set\n\nChange one policy at a time.\n"
+
 func TestAQuotationIsPlacedUnderTheSectionItsAnchorNames(t *testing.T) {
 	t.Parallel()
 	cases := map[string]struct {
@@ -216,6 +226,49 @@ func TestASectionOnlyAnchorIsResolvedLikeAQuotedOne(t *testing.T) {
 			t.Parallel()
 			rs := anchored(c.anchor)
 			got, blocking := categoryOf(t, verify.Provenance(&rs, c.sources))
+			if got != c.want || blocking {
+				t.Errorf("got (%q, blocking=%t), want (%q, advisory)", got, blocking, c.want)
+			}
+		})
+	}
+}
+
+// TestASectionNumberBeforeAnUnnumberedHeadingIsAPath pins the squashed path: the number of
+// the enclosing section, then the unnumbered heading inside it. Both parts are checked, so a
+// wrong number is still reported, as the place being wrong rather than the heading missing.
+func TestASectionNumberBeforeAnUnnumberedHeadingIsAPath(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		anchor string
+		want   string
+	}{
+		"the number and the heading inside it": {
+			anchor: `§11.2 Why OAuth isn't usually enough: "Scopes are too coarse"`,
+		},
+		"the same, written as a path": {
+			anchor: `§11.2 / Why OAuth isn't usually enough: "Scopes are too coarse"`,
+		},
+		"the heading under another number": {
+			anchor: `§11.2 Client credentials grant: "Machines get tokens"`,
+			want:   verify.CategoryAnchorSectionMismatch,
+		},
+		"a heading the source does not have": {
+			anchor: `§11.2 Device authorization grant: "Machines get tokens"`,
+			want:   verify.CategoryAnchorSectionUnknown,
+		},
+		"an appendix number and the heading it numbers": {
+			anchor: `§B.6 Steps for modifying a policy set: "Change one policy at a time"`,
+		},
+		"a section-only anchor in the squashed form": {
+			anchor: "§11.3 Client credentials grant",
+			want:   verify.CategoryAnchorSectionOnly,
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			rs := anchored(c.anchor)
+			got, blocking := categoryOf(t, verify.Provenance(&rs, []string{numberedSource}))
 			if got != c.want || blocking {
 				t.Errorf("got (%q, blocking=%t), want (%q, advisory)", got, blocking, c.want)
 			}

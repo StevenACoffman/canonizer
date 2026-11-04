@@ -132,7 +132,7 @@ func placeQuotation(name, anchor string, source *indexedSource) placement {
 		}
 	}
 	switch {
-	case len(named) > 0:
+	case len(named) > 0, misnumbered(name, sections):
 		return misplaced
 	case len(sections) < 2:
 		return headingless
@@ -169,24 +169,65 @@ func sectionsOf(source string) []section {
 }
 
 // namedSections returns the sections a section name names: those whose heading it names,
-// or, failing that and when the name is a path, the sections its last component names
-// beneath the ones its earlier components name.
+// or, failing that, the sections its last component names beneath the ones its earlier
+// components name, when the name is a path.
 //
 // The whole name is tried as one heading first, because a heading can itself contain the
-// path separator.
+// path separator. A name with no separator that opens with a section number is read as the
+// path from that number: `§11.2 Why OAuth isn't usually enough` is `§11.2 / Why OAuth isn't
+// usually enough`. A book that numbers its main headings and not the sidebars under them is
+// cited that way -- 13 of the authorization ruleset's anchors were, each correctly -- and
+// reading it as a path checks the number too, where ignoring the number would not.
 //
 // Ensures: every result is an element of sections; it is pure.
 func namedSections(name string, sections []section) []section {
-	named := headingsNamed(name, sections)
-	if len(named) > 0 || !strings.Contains(name, pathSeparator) {
+	if named := headingsNamed(name, sections); len(named) > 0 {
 		return named
 	}
-	components := strings.Split(name, pathSeparator)
-	named = headingsNamed(components[0], sections)
+	if strings.Contains(name, pathSeparator) {
+		return pathNamed(strings.Split(name, pathSeparator), sections)
+	}
+	if number, rest, ok := numberedPath(name); ok {
+		return pathNamed([]string{number, rest}, sections)
+	}
+	return nil
+}
+
+// pathNamed returns the sections the last of components names, each beneath a section the
+// component before it names.
+//
+// Requires: components is non-empty.
+// Ensures:  every result is an element of sections; it is pure.
+func pathNamed(components []string, sections []section) []section {
+	named := headingsNamed(components[0], sections)
 	for _, component := range components[1:] {
 		named = within(headingsNamed(component, sections), named)
 	}
 	return named
+}
+
+// numberedPath splits a section name that opens with a section number into that number and
+// the heading text after it, both keyed, and reports whether it has both.
+//
+// Ensures: false for a bare number, which headingMatches already reads; it is pure.
+func numberedPath(name string) (number, rest string, ok bool) {
+	key := headingKey(name)
+	number = leadingNumber(key)
+	rest = strings.TrimSpace(strings.TrimPrefix(key[len(number):], "."))
+	return number, rest, number != "" && rest != ""
+}
+
+// misnumbered reports whether a numbered section name's heading text names a heading of the
+// source, though not one under that number.
+//
+// It is what keeps the wrong number in a numbered path from reading as a missing heading:
+// `§18.1 Why authentication isn't enough for agents` cites a heading the book has, under 18.2.
+// The citation is wrong about where, not about what, which is anchor-section-mismatch.
+//
+// Ensures: it is pure.
+func misnumbered(name string, sections []section) bool {
+	_, rest, ok := numberedPath(name)
+	return ok && len(headingsNamed(rest, sections)) > 0
 }
 
 // headingsNamed returns the sections whose heading name names, by headingMatches on the
