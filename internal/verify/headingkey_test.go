@@ -22,7 +22,9 @@ const markupSource = "# Heading shapes\n\n" +
 	"## Name it snake_case_name\n\n" +
 	"## 5.2.5 Choosing a sample size\n\n" +
 	"## 5.3 Sampling\n\n" +
-	"### Human-first design {#human-first-design}\n"
+	"### Human-first design {#human-first-design}\n\n" +
+	"## B.6 Steps for modifying a policy set\n\n" +
+	"## A note on style\n"
 
 func TestHeadingsAreComparedWithoutInlineMarkup(t *testing.T) {
 	t.Parallel()
@@ -71,6 +73,15 @@ func TestHeadingsAreComparedWithoutInlineMarkup(t *testing.T) {
 		"a heading's attribute block, which an anchor never writes": {
 			anchor: "§Human-first design",
 			want:   verify.CategoryAnchorSectionOnly,
+		},
+		"an appendix section number": {
+			anchor: "§B.6",
+			want:   verify.CategoryAnchorSectionOnly,
+		},
+		// A letter alone is not a section number, or the article would be one.
+		"a bare letter is not an appendix number": {
+			anchor: "§A",
+			want:   verify.CategoryAnchorSectionUnknown,
 		},
 		"only stops names nothing": {
 			anchor: "§...",

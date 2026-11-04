@@ -133,10 +133,16 @@ func leadingNumber(key string) string {
 	return numberPattern().FindString(key)
 }
 
-// numberPattern matches the dotted section number at the start of a key. The greedy digit
-// runs mean a match never ends inside a number: `5.2.50` matches whole, never as `5.2.5`.
+// numberPattern matches the dotted section number at the start of a key: a chapter's
+// `5.2.5`, or an appendix's `b.6` (keys are lower case). The greedy digit runs mean a match
+// never ends inside a number: `5.2.50` matches whole, never as `5.2.5`.
+//
+// **An appendix letter counts only with a number after it.** A bare letter would make the
+// article in `## A note on style` a section number, and `§A` would then name that heading.
+// Measured: the authorization book numbers its appendix sections `B.6`, and an anchor citing
+// one by that number was read as naming no heading at all.
 func numberPattern() *regexp.Regexp {
-	return regexp.MustCompile(`^\d+(?:\.\d+)*`)
+	return regexp.MustCompile(`^(?:\d+|[a-z]\.\d+)(?:\.\d+)*`)
 }
 
 // sectionName returns the section an anchor names, or "" if it names none.
