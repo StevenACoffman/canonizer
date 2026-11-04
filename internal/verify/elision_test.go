@@ -9,7 +9,7 @@ import (
 // elidedSource carries two spans a quoter would plausibly join with an elision, plus the
 // two halves of the variadic case below sitting apart from each other, so a test that
 // wrongly splits Go syntax finds both fragments and passes.
-const elidedSource = "I rarely expose internal details like transactions to the rest of " +
+const elidedSource = "## Boundaries\n\nI rarely expose internal details like transactions to the rest of " +
 	"my application because it couples them to the storage layer, and honestly " +
 	"it's rarely necessary. Elsewhere we call f(a, b) and later close ) done."
 

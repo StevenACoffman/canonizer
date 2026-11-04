@@ -59,9 +59,10 @@ func TestSectionOnlyAnchor(t *testing.T) {
 		"a section reference with a trailing colon": {
 			anchor: "§Errors:", wantCategory: "anchor-section-only",
 		},
-		// Unchanged: a quoted span is searched and found.
+		// Unchanged: a quoted span is searched and found. It names the section the
+		// sentence is under, because where the quotation sits is checked too.
 		"section prefix plus a quotation present in the source": {
-			anchor: `§The interface: "we define our services with an interface"`,
+			anchor: `§Transactional boundaries: "we define our services with an interface"`,
 		},
 		// Unchanged: a quoted span that is absent still blocks.
 		"section prefix plus a fabricated quotation": {

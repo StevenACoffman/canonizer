@@ -77,6 +77,15 @@ const (
 	// CategoryAnchorSectionOnly is an anchor that names a section and says nothing else,
 	// so there is no text to search the source for.
 	CategoryAnchorSectionOnly = "anchor-section-only"
+	// CategoryAnchorSectionMismatch is a quotation that is in the source but not under the
+	// section its anchor names, so a reader following the citation lands in the wrong place.
+	CategoryAnchorSectionMismatch = "anchor-section-mismatch"
+	// CategoryAnchorSectionAmbiguous is a section-only anchor whose name names more than
+	// one heading in a source, so it does not say which one the rule came from.
+	CategoryAnchorSectionAmbiguous = "anchor-section-ambiguous"
+	// CategoryAnchorSectionHeadingless is an anchor naming a section of a source too
+	// short of headings to cite by section, where the convention is to quote and omit `§`.
+	CategoryAnchorSectionHeadingless = "anchor-section-headingless"
 	// CategoryEscalationSingleSource is a rule noting that a stricter level was applied
 	// between disagreeing sources, in a ruleset checked against only one source.
 	CategoryEscalationSingleSource = "escalation-single-source"
@@ -148,6 +157,7 @@ func Executable(rs *ruleset.Ruleset) ([]finding.Diagnostic, error) {
 // which calls this, and verify, which calls Drift, report the same findings.
 func Provenance(rs *ruleset.Ruleset, sources []string) []finding.Diagnostic {
 	diags := make([]finding.Diagnostic, 0)
+	indexed := indexSources(sources)
 	for i := range rs.Rules {
 		r := &rs.Rules[i]
 		if !enforced(r.Severity) {
@@ -163,11 +173,15 @@ func Provenance(rs *ruleset.Ruleset, sources []string) []finding.Diagnostic {
 			diags = append(diags, d)
 			continue
 		}
-		if !anchorPresent(sources, r.SourceAnchor) {
+		if !anchorPresent(indexed, r.SourceAnchor) {
 			diags = append(
 				diags,
 				diag(r, CategoryAnchorAbsent, "source anchor is not present in the source"),
 			)
+			continue
+		}
+		if d, ok := sectionPlacementDiagnostic(r, indexed); ok {
+			diags = append(diags, d)
 		}
 	}
 	return append(diags, Escalation(rs, sources)...)
@@ -291,9 +305,9 @@ func unanchored(r *ruleset.Rule) (finding.Diagnostic, bool) {
 //
 //	cannot pass on an empty conjunction -- and neither can an empty quotation, which the
 //	single strings.Contains this replaced would have reported as present; it is pure.
-func anchorPresent(sources []string, anchor string) bool {
+func anchorPresent(sources []indexedSource, anchor string) bool {
 	for i := range sources {
-		if presentIn(sources[i], anchor) {
+		if presentInFolded(sources[i].folded, anchor) {
 			return true
 		}
 	}
@@ -310,7 +324,21 @@ func anchorPresent(sources []string, anchor string) bool {
 //
 // Ensures: false when no non-empty fragment survives; it is pure.
 func presentIn(source, anchor string) bool {
-	folded := unemphasize(textnorm.Fold(source))
+	return presentInFolded(foldSource(source), anchor)
+}
+
+// foldSource is the form presentInFolded searches: typography folded and paired emphasis
+// dropped, exactly as an anchor's quotation is.
+//
+// Ensures: it is pure.
+func foldSource(source string) string { return unemphasize(textnorm.Fold(source)) }
+
+// presentInFolded is presentIn against a source foldSource already folded, for a caller
+// asking about one source many times.
+//
+// Requires: folded is foldSource of the source being searched.
+// Ensures:  presentInFolded(foldSource(s), a) == presentIn(s, a); it is pure.
+func presentInFolded(folded, anchor string) bool {
 	found := 0
 	quoted := unemphasize(textnorm.Fold(anchorText(anchor)))
 	for _, fragment := range strings.Split(quoted, elision) {
@@ -438,15 +466,30 @@ func anchorText(anchor string) string {
 //
 // Ensures: the result is a suffix of anchor; it is pure.
 func afterSectionName(anchor string) string {
+	if i := quotationSeparator(anchor); i >= 0 {
+		return anchor[i+len(": "):]
+	}
+	return anchor
+}
+
+// quotationSeparator returns the index of the `: ` that ends a `§Name: "quotation"` anchor's
+// section name, or -1 when the anchor has no `§` or no such separator.
+//
+// One definition for afterSectionName, which reads what follows it, and quotedSectionName,
+// which reads what precedes it: two spellings of where a name ends is how one check starts
+// reading a heading the other did not.
+//
+// Ensures: the result is -1 or an index of anchor; it is pure.
+func quotationSeparator(anchor string) int {
 	if !strings.HasPrefix(strings.TrimSpace(anchor), "§") {
-		return anchor
+		return -1
 	}
 	for _, separator := range []string{`: "`, ": `"} {
 		if i := strings.Index(anchor, separator); i >= 0 {
-			return anchor[i+len(": "):]
+			return i
 		}
 	}
-	return anchor
+	return -1
 }
 
 // firstDelimited returns the first non-blank span of s bounded by a pair of delim, or "" if

@@ -51,12 +51,13 @@ func Drift(rs *ruleset.Ruleset, sources []string, state SourceState) []finding.D
 		return Provenance(rs, sources)
 	}
 	diags := make([]finding.Diagnostic, 0)
+	indexed := indexSources(sources)
 	for i := range rs.Rules {
 		r := &rs.Rules[i]
 		if !enforced(r.Severity) {
 			continue
 		}
-		if d, ok := driftOne(r, sources, state); ok {
+		if d, ok := driftOne(r, sources, indexed, state); ok {
 			diags = append(diags, d)
 		}
 	}
@@ -66,7 +67,9 @@ func Drift(rs *ruleset.Ruleset, sources []string, state SourceState) []finding.D
 }
 
 // driftOne returns the diagnostic for one rule, and whether there is one.
-func driftOne(r *ruleset.Rule, sources []string, state SourceState) (finding.Diagnostic, bool) {
+func driftOne(
+	r *ruleset.Rule, sources []string, indexed []indexedSource, state SourceState,
+) (finding.Diagnostic, bool) {
 	if r.SourceAnchor == "" {
 		// No anchor at all is unaffected by what the source did: nothing was ever cited,
 		// so there is nothing a source edit could have invalidated. Routed through the
@@ -82,13 +85,15 @@ func driftOne(r *ruleset.Rule, sources []string, state SourceState) (finding.Dia
 		// what a section reference is or what is said about it.
 		return d, true
 	}
-	if anchorPresent(sources, r.SourceAnchor) {
+	if anchorPresent(indexed, r.SourceAnchor) {
 		if state == SourceChanged {
+			// One finding per rule, and this one already says the citation may need
+			// refreshing, which covers a section name the edit moved the quotation out of.
 			return advisory(r, CategoryAnchorDrift,
 				"source changed since distillation but the anchor still appears in it; "+
 					"the rule is intact and its citation may need refreshing"), true
 		}
-		return finding.Diagnostic{}, false
+		return sectionPlacementDiagnostic(r, indexed)
 	}
 	if state == SourceChanged {
 		return advisory(r, CategoryAnchorStale,
