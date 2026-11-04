@@ -57,7 +57,7 @@ func Drift(rs *ruleset.Ruleset, sources []string, state SourceState) []finding.D
 		if !enforced(r.Severity) {
 			continue
 		}
-		if d, ok := driftOne(r, sources, indexed, state); ok {
+		if d, ok := driftOne(r, indexed, state); ok {
 			diags = append(diags, d)
 		}
 	}
@@ -68,7 +68,7 @@ func Drift(rs *ruleset.Ruleset, sources []string, state SourceState) []finding.D
 
 // driftOne returns the diagnostic for one rule, and whether there is one.
 func driftOne(
-	r *ruleset.Rule, sources []string, indexed []indexedSource, state SourceState,
+	r *ruleset.Rule, indexed []indexedSource, state SourceState,
 ) (finding.Diagnostic, bool) {
 	if r.SourceAnchor == "" {
 		// No anchor at all is unaffected by what the source did: nothing was ever cited,
@@ -78,7 +78,7 @@ func driftOne(
 		// the trap anchorPresent was factored out to avoid.
 		return unanchored(r)
 	}
-	if d, ok := sectionOnlyDiagnostic(r, sources); ok {
+	if d, ok := sectionOnlyDiagnostic(r, indexed); ok {
 		// Asked before presence, because "is it in the source" is meaningless when there
 		// is no text to look for. Same ordering gate uses for coverage before verdict, and
 		// routed through the same function as Provenance so the two cannot disagree about

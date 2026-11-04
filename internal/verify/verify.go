@@ -169,7 +169,7 @@ func Provenance(rs *ruleset.Ruleset, sources []string) []finding.Diagnostic {
 			}
 			continue
 		}
-		if d, ok := sectionOnlyDiagnostic(r, sources); ok {
+		if d, ok := sectionOnlyDiagnostic(r, indexed); ok {
 			diags = append(diags, d)
 			continue
 		}

@@ -163,3 +163,62 @@ func TestDriftPlacesAQuotationAsProvenanceDoes(t *testing.T) {
 		})
 	}
 }
+
+// TestASectionOnlyAnchorIsResolvedLikeAQuotedOne keeps the two shapes of anchor reading a
+// section name the same way, and adds the one rule only a section-only anchor needs: with
+// no quotation to say which, a name more than one heading has points nowhere in particular.
+func TestASectionOnlyAnchorIsResolvedLikeAQuotedOne(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		sources []string
+		anchor  string
+		want    string
+	}{
+		"a prefix ending at the heading's colon": {
+			sources: []string{bookSource},
+			anchor:  "§Chapter 4",
+			want:    verify.CategoryAnchorSectionOnly,
+		},
+		"a path to a repeated heading": {
+			sources: []string{bookSource},
+			anchor:  "§Chapter 5 / Example",
+			want:    verify.CategoryAnchorSectionOnly,
+		},
+		"a repeated heading with nothing to say which": {
+			sources: []string{bookSource},
+			anchor:  "§Example",
+			want:    verify.CategoryAnchorSectionAmbiguous,
+		},
+		// Ambiguous in one source, but another has exactly one: that one is the citation.
+		"unique in some source": {
+			sources: []string{bookSource, "# Notes\n\n## Example\n\nA lone example.\n"},
+			anchor:  "§Example",
+			want:    verify.CategoryAnchorSectionOnly,
+		},
+		"a heading that contains the path separator": {
+			sources: []string{bookSource},
+			anchor:  "§Input / Output",
+			want:    verify.CategoryAnchorSectionOnly,
+		},
+		"a section name against a source with no headings": {
+			sources: []string{transcriptSource},
+			anchor:  "§Slide 3",
+			want:    verify.CategoryAnchorSectionHeadingless,
+		},
+		"the only heading of a one-heading source": {
+			sources: []string{oneHeadingSource},
+			anchor:  "§Simple Made Easy",
+			want:    verify.CategoryAnchorSectionOnly,
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			rs := anchored(c.anchor)
+			got, blocking := categoryOf(t, verify.Provenance(&rs, c.sources))
+			if got != c.want || blocking {
+				t.Errorf("got (%q, blocking=%t), want (%q, advisory)", got, blocking, c.want)
+			}
+		})
+	}
+}

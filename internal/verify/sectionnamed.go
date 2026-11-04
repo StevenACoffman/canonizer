@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/StevenACoffman/skillet/finding"
-	"github.com/StevenACoffman/skillet/markdown"
 	"github.com/StevenACoffman/skillet/ruleset"
 	"github.com/StevenACoffman/skillet/textnorm"
 )
@@ -175,52 +174,65 @@ func wholeSectionName(anchor string) string {
 	return strings.TrimSpace(rest)
 }
 
-// namesHeading reports whether name is a heading in any of sources.
+// sectionOnlyName returns the section name of an anchor that names a section and quotes
+// nothing, and whether the anchor is that shape.
 //
-// The headings come from markdown.Sections rather than a scan for `#` lines here. A second
-// parser would disagree with the kernel's on setext headings and on `#` inside fenced code,
-// and canonizer would then report a fabrication that skillet's own reader does not see.
+// The whole text after `§` is tried against the sources first, for the case sectionOnly
+// cannot see. sectionOnly reads anything after a colon as a paraphrase to search for, so an
+// anchor citing a colon-bearing heading whole was searched as text, `§` included, and
+// reported as a blocking anchor-absent against a source that has that very heading. The
+// corpus held no such anchor when this was written; the shape is the natural citation of
+// `## Datalog: Recursive Relational Queries`, so it was fixed before one appeared.
 //
-// Ensures: false when name is ""; it is pure.
-func namesHeading(name string, sources []string) bool {
-	if name == "" {
-		return false
+// **That reading asks the source, which sectionOnly deliberately does not.** It keeps
+// sectionOnly a question about the anchor's text, as Scope needs it. An anchor carrying a
+// quotation is never section-only: it has text to search.
+//
+// Ensures: false for an anchor without `§` or with a quotation; it is pure.
+func sectionOnlyName(anchor string, sources []indexedSource) (string, bool) {
+	if firstDelimited(anchor, '"') != "" || firstDelimited(anchor, '`') != "" {
+		return "", false
 	}
-	want := headingKey(name)
-	if want == "" {
-		// A name that was only markup or stops, such as `§...`, names nothing; without
-		// this it would match every heading that also keys to nothing.
-		return false
-	}
-	for i := range sources {
-		for _, s := range markdown.Parse(sources[i]).Sections {
-			if headingMatches(want, headingKey(s.Title)) {
-				return true
-			}
+	if whole := wholeSectionName(anchor); whole != "" {
+		if named, _ := namedOnce(whole, sources); named {
+			return whole, true
 		}
 	}
-	return false
+	if sectionOnly(anchor) {
+		return sectionName(anchor), true
+	}
+	return "", false
 }
 
-// headingOnly reports whether an anchor is, as written, the name of a heading in a source.
+// namedOnce reports whether any source has a section the name names, and whether some
+// source has exactly one.
 //
-// It exists for the case sectionOnly cannot see. sectionOnly reads anything after a colon as
-// a paraphrase to search for, so an anchor citing a colon-bearing heading whole was searched
-// as text, `§` included, and reported as a blocking anchor-absent against a source that has
-// that very heading. The corpus held no such anchor when this was written; the shape is the
-// natural citation of `## Datalog: Recursive Relational Queries`, so it was fixed before one
-// appeared.
+// The second is the ambiguity rule for an anchor with no quotation to settle it: `§Example`
+// against a book with an Example under every chapter points nowhere in particular. A
+// quotation anchor needs no such rule, because the quotation picks the section.
 //
-// **It asks the source, which sectionOnly deliberately does not.** That keeps sectionOnly a
-// question about the anchor's text, as Scope needs it, and confines the source-dependent
-// reading here. An anchor carrying a quotation is never heading-only: it has text to search.
-//
-// Ensures: false for an anchor without `§`; it is pure.
-func headingOnly(anchor string, sources []string) bool {
-	if firstDelimited(anchor, '"') != "" || firstDelimited(anchor, '`') != "" {
-		return false
+// Ensures: unique implies named; it is pure.
+func namedOnce(name string, sources []indexedSource) (named, unique bool) {
+	for i := range sources {
+		count := len(namedSections(name, sources[i].sections))
+		if count == 1 {
+			return true, true
+		}
+		named = named || count > 1
 	}
-	return namesHeading(wholeSectionName(anchor), sources)
+	return named, false
+}
+
+// allHeadingless reports whether no source has the two headings citing by section needs.
+//
+// Ensures: true for no sources; it is pure.
+func allHeadingless(sources []indexedSource) bool {
+	for i := range sources {
+		if len(sources[i].sections) >= 2 {
+			return false
+		}
+	}
+	return true
 }
 
 // sectionOnlyDiagnostic returns the finding for an anchor that names a section and quotes
@@ -249,17 +261,28 @@ func headingOnly(anchor string, sources []string) bool {
 // false positive** -- the expiry Limitations shipped with, and for the same reason.
 //
 // Ensures: when true, the diagnostic is finding.SeverityWarning; it is pure.
-func sectionOnlyDiagnostic(r *ruleset.Rule, sources []string) (finding.Diagnostic, bool) {
-	if headingOnly(r.SourceAnchor, sources) {
-		return advisory(r, CategoryAnchorSectionOnly, sectionOnlyMessage), true
-	}
-	if !sectionOnly(r.SourceAnchor) {
+func sectionOnlyDiagnostic(
+	r *ruleset.Rule, sources []indexedSource,
+) (finding.Diagnostic, bool) {
+	name, ok := sectionOnlyName(r.SourceAnchor, sources)
+	if !ok {
 		return finding.Diagnostic{}, false
 	}
-	if !namesHeading(sectionName(r.SourceAnchor), sources) {
+	named, unique := namedOnce(name, sources)
+	switch {
+	case !named && allHeadingless(sources):
+		return advisory(r, CategoryAnchorSectionHeadingless,
+			"anchor names a section of a source too short of headings to cite by section; "+
+				"quote the passage instead"), true
+	case !named:
 		return advisory(r, CategoryAnchorSectionUnknown,
 			"anchor names a section the source has no heading for; the rule may still be "+
 				"sound, but nothing here points at where it came from"), true
+	case !unique:
+		return advisory(r, CategoryAnchorSectionAmbiguous,
+			"anchor names a section that more than one heading has, and quotes nothing to "+
+				"say which"), true
+	default:
+		return advisory(r, CategoryAnchorSectionOnly, sectionOnlyMessage), true
 	}
-	return advisory(r, CategoryAnchorSectionOnly, sectionOnlyMessage), true
 }
