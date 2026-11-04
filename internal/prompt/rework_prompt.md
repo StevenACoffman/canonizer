@@ -31,6 +31,12 @@ Where a finding says an anchor is not present in the source, the quotation is wr
 rule may still be right. Correct the quotation against the source rather than deleting the
 rule, and if no passage supports the rule, then delete it and say so.
 
+Where a finding says an anchor's section is unknown, mismatched or ambiguous, the quotation
+is right and the section name is wrong. Rename the section to the nearest heading the
+quotation is under, as the source writes it, and leave the quotation alone. Where a finding
+says the source has too few headings to cite by section, drop the `§` section name and keep
+the quotation.
+
 ## What Not to Change
 
 Leave every rule the findings do not mention exactly as it is, including its section number.

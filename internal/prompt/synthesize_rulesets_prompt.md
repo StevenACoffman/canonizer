@@ -43,7 +43,9 @@ internal reasoning; do not emit group inventories, per-step output, section head
 tables, or commentary. The result is parsed mechanically — any line that is not
 `Source:`, `Scope:`, `Limitations:`, a `§` rule header, a rationale line, a `✗` line,
 a `✓` line, or a `↦` source-anchor line corrupts it. Carry each input rule's `↦` source anchor through
-to the merged rule (keep the surviving rule's anchor when merging a group).
+to the merged rule (keep the surviving rule's anchor when merging a group). An anchor is
+carried verbatim, including its section name: do not tidy, shorten or renumber it, because
+the section name is checked against the source's headings.
 
 Begin with the metadata block:
 
