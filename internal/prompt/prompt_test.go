@@ -122,3 +122,32 @@ func TestTemplatesAskForOnePairPerRule(t *testing.T) {
 		})
 	}
 }
+
+// TestSynthesisReconcilesSeverityOnlyAcrossInputs pins the instruction that stopped a
+// single-source synthesis from raising rules above their source. The severity table maps
+// `[MUST]` + `[SHOULD]` to `[MUST]` for two sources that disagree; given one distilled
+// input, an agent merged pairs of that book's rules and applied it anyway, so the weaker
+// rule took the stronger level. Seven rules of the domain_analysis run and eleven of
+// kleppmann's carried the resulting "stricter applied" note, and none of their distilled
+// inputs did.
+func TestSynthesisReconcilesSeverityOnlyAcrossInputs(t *testing.T) {
+	t.Parallel()
+	flat := strings.Join(strings.Fields(prompt.Synthesize), " ")
+	cases := map[string]string{
+		"compression counts across inputs": "Compression is measured across inputs, never within one.",
+		"one input merges only identical rules": "Merge two rules from one input only when " +
+			"they are identical in substance (Case A).",
+		"the severity table is for different inputs": "it never applies to two rules from " +
+			"the same input",
+		"same-input rules keep their severities": "Keep such rules separate, each at its own " +
+			"severity.",
+	}
+	for name, want := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if !strings.Contains(flat, want) {
+				t.Errorf("Synthesize template no longer says %q", want)
+			}
+		})
+	}
+}
