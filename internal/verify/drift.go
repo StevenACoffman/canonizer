@@ -51,12 +51,13 @@ func Drift(rs *ruleset.Ruleset, sources []string, state SourceState) []finding.D
 		return Provenance(rs, sources)
 	}
 	diags := make([]finding.Diagnostic, 0)
+	indexed := indexSources(sources)
 	for i := range rs.Rules {
 		r := &rs.Rules[i]
 		if !enforced(r.Severity) {
 			continue
 		}
-		if d, ok := driftOne(r, sources, state); ok {
+		if d, ok := driftOne(r, indexed, state); ok {
 			diags = append(diags, d)
 		}
 	}
@@ -66,7 +67,9 @@ func Drift(rs *ruleset.Ruleset, sources []string, state SourceState) []finding.D
 }
 
 // driftOne returns the diagnostic for one rule, and whether there is one.
-func driftOne(r *ruleset.Rule, sources []string, state SourceState) (finding.Diagnostic, bool) {
+func driftOne(
+	r *ruleset.Rule, indexed []indexedSource, state SourceState,
+) (finding.Diagnostic, bool) {
 	if r.SourceAnchor == "" {
 		// No anchor at all is unaffected by what the source did: nothing was ever cited,
 		// so there is nothing a source edit could have invalidated. Routed through the
@@ -75,26 +78,22 @@ func driftOne(r *ruleset.Rule, sources []string, state SourceState) (finding.Dia
 		// the trap anchorPresent was factored out to avoid.
 		return unanchored(r)
 	}
-	if sectionOnly(r.SourceAnchor) {
+	if d, ok := sectionOnlyDiagnostic(r, indexed); ok {
 		// Asked before presence, because "is it in the source" is meaningless when there
 		// is no text to look for. Same ordering gate uses for coverage before verdict, and
-		// routed through the same predicate as Provenance so the two cannot disagree about
-		// what a section reference is.
-		//
-		// The source state is deliberately not consulted: a section reference is equally
-		// unsearchable whether the source moved or not, so reporting drift or staleness on
-		// it would be inventing a distinction from a comparison that never ran.
-		return advisory(r, CategoryAnchorSectionOnly,
-			"anchor names a section and quotes nothing, so provenance cannot be "+
-				"confirmed or refuted from the source text"), true
+		// routed through the same function as Provenance so the two cannot disagree about
+		// what a section reference is or what is said about it.
+		return d, true
 	}
-	if anchorPresent(sources, r.SourceAnchor) {
+	if anchorPresent(indexed, r.SourceAnchor) {
 		if state == SourceChanged {
+			// One finding per rule, and this one already says the citation may need
+			// refreshing, which covers a section name the edit moved the quotation out of.
 			return advisory(r, CategoryAnchorDrift,
 				"source changed since distillation but the anchor still appears in it; "+
 					"the rule is intact and its citation may need refreshing"), true
 		}
-		return finding.Diagnostic{}, false
+		return sectionPlacementDiagnostic(r, indexed)
 	}
 	if state == SourceChanged {
 		return advisory(r, CategoryAnchorStale,

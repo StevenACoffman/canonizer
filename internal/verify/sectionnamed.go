@@ -5,10 +5,13 @@ import (
 	"strings"
 
 	"github.com/StevenACoffman/skillet/finding"
-	"github.com/StevenACoffman/skillet/markdown"
 	"github.com/StevenACoffman/skillet/ruleset"
 	"github.com/StevenACoffman/skillet/textnorm"
 )
+
+// sectionOnlyMessage is what a section-only anchor naming a real heading is told.
+const sectionOnlyMessage = "anchor names a section and quotes nothing, so provenance cannot " +
+	"be confirmed or refuted from the source text"
 
 // escapePattern matches a markdown backslash escape, which a heading's raw text keeps.
 //
@@ -17,7 +20,8 @@ import (
 func escapePattern() *regexp.Regexp { return regexp.MustCompile(`\\(.)`) }
 
 // headingKey reduces a heading or an anchor's section name to the form the two are compared
-// in: markdown escapes resolved, typography folded, case ignored.
+// in: markdown escapes resolved, typography folded, inline markup and trailing stops
+// dropped, case ignored.
 //
 // **This normalisation is the whole check, and its specification is a bug I made.** A first
 // version of this comparison, written as a one-off script, reported two anchors as naming
@@ -26,22 +30,124 @@ func escapePattern() *regexp.Regexp { return regexp.MustCompile(`\\(.)`) }
 // text. A checker that reports fabrication needs to be right about what the document says,
 // so the escape strip is first and the case that caught it is a test.
 //
-// textnorm.Fold does the rest -- curly quotes, dashes, whitespace runs -- for the same
+// textnorm.Fold does the typography -- curly quotes, dashes, whitespace runs -- for the same
 // reason anchorPresent uses it: a heading and a quotation of it disagree about typography
-// more often than about words.
+// more often than about words. withoutMarkup does the rest, and runs after Fold so that a
+// stop Fold produces (an ellipsis becomes `...`) is trimmed too.
 //
 // **Numbering is deliberately kept.** Stripping a leading `#3.` would let the one real
 // mismatch in the corpus pass, and would also let an anchor citing section 2 while meaning
 // section 3 match a heading it does not name -- a worse error than the slip it excuses.
 //
-// Ensures: it is pure.
+// Ensures: it is pure, and idempotent on text holding no backslash; escapes are resolved
+// once, so `\\\\a` keys as `\\a`, which keys as `a`.
 func headingKey(s string) string {
-	return strings.ToLower(textnorm.Fold(escapePattern().ReplaceAllString(s, "$1")))
+	return strings.ToLower(withoutMarkup(textnorm.Fold(escapePattern().ReplaceAllString(s, "$1"))))
+}
+
+// withoutMarkup removes the inline markup an anchor's section name may keep -- code spans,
+// bold and italic runs -- a heading's trailing attribute block, and trailing sentence stops
+// on either side.
+//
+// **The markup half is for the anchor, not the heading.** markdown.Section.Title is already
+// the heading's text without inline markup (`## Do _not_ mock` has the title "Do not mock";
+// only backslash escapes survive, which is escapePattern's job). An anchor is written by a
+// model, which may copy the markup: `§Do _not_ mock` has no quotation to search, so it reaches
+// this comparison as written. A code span in a section-only anchor does not, because a
+// backtick span is read as a quotation; it does in the section name before a quotation, once
+// that name is compared. The stops are for both sides: `## Is it worth it?` cited as
+// `§Is it worth it` is the same heading.
+//
+// **Single `_` and `*` are stripped only as a pair bounded by non-word characters**, so an
+// identifier such as `snake_case_name` survives -- a heading naming that identifier must not
+// match one naming `snakecasename`.
+//
+// **It repeats until nothing changes.** Markup nests (`*_a_*`), and one pass of each pattern
+// can leave a pair the other pattern would have taken; a stop can sit inside markup
+// (`*Why.*`). Repeating, and collapsing the whitespace a removal leaves, is what makes
+// headingKey idempotent, which its property test checks.
+//
+// Ensures: the result is never longer than s; it is pure.
+func withoutMarkup(s string) string {
+	patterns, attribute := markupPatterns(), attributePattern()
+	for {
+		next := attribute.ReplaceAllString(unemphasize(s), "")
+		next = strings.TrimRight(strings.TrimSpace(next), ".:?")
+		for _, pattern := range patterns {
+			next = pattern.ReplaceAllString(next, "$1$2$3")
+		}
+		// Removing a run can leave two spaces where Fold left one, and a second keying
+		// would collapse them; collapsing here keeps the result a fixed point.
+		next = strings.Join(strings.Fields(next), " ")
+		if next == s {
+			return s
+		}
+		s = next
+	}
+}
+
+// markupPatterns matches a code span and a single-`*` or single-`_` emphasis run, each with
+// the characters bounding it captured so the replacement can put them back. RE2 has no
+// lookaround, so the boundaries are matched rather than asserted.
+//
+// Built per call rather than kept in a package variable, the shape escapePattern uses.
+func markupPatterns() []*regexp.Regexp {
+	return []*regexp.Regexp{
+		regexp.MustCompile("()`([^`]*)`()"),
+		regexp.MustCompile(`(^|[^\pL\pN_])\*(\S(?:[^*]*\S)?)\*($|[^\pL\pN_])`),
+		regexp.MustCompile(`(^|[^\pL\pN_])_(\S(?:[^_]*\S)?)_($|[^\pL\pN_])`),
+	}
+}
+
+// attributePattern matches a trailing heading attribute block, `{#human-first-design}`.
+//
+// It is the heading side's markup rather than the anchor's: clig.dev heads every section
+// `### Human-first design {#human-first-design}`, markdown.Section keeps the block in the
+// title because goldmark parses attributes only when asked to, and an anchor citing the
+// section never writes it. Measured: 53 of cli's anchors were reported against headings they
+// named exactly. Only a block opening with `#` is taken, so a heading that ends in prose
+// braces keeps them.
+func attributePattern() *regexp.Regexp { return regexp.MustCompile(`\s*\{#[^}]*\}\s*$`) }
+
+// headingMatches reports whether a section name, as keyed, names the heading keyed as
+// heading.
+//
+// A name that is only a section number names the heading that number leads: `§5.2.5` cites
+// `## 5.2.5 Choosing a sample size`. The number must be the heading's *whole* leading
+// number, so `5.2` does not name `5.2.5 ...` -- the same reason headingKey keeps numbering.
+//
+// Ensures: true whenever name == heading; it is pure.
+func headingMatches(name, heading string) bool {
+	if name == heading {
+		return true
+	}
+	number := leadingNumber(name)
+	return number != "" && number == name && number == leadingNumber(heading)
+}
+
+// leadingNumber returns the dotted section number a key starts with, without a trailing
+// period, or "" if it starts with none.
+//
+// Ensures: the result is a prefix of key; it is pure.
+func leadingNumber(key string) string {
+	return numberPattern().FindString(key)
+}
+
+// numberPattern matches the dotted section number at the start of a key: a chapter's
+// `5.2.5`, or an appendix's `b.6` (keys are lower case). The greedy digit runs mean a match
+// never ends inside a number: `5.2.50` matches whole, never as `5.2.5`.
+//
+// **An appendix letter counts only with a number after it.** A bare letter would make the
+// article in `## A note on style` a section number, and `§A` would then name that heading.
+// Measured: the authorization book numbers its appendix sections `B.6`, and an anchor citing
+// one by that number was read as naming no heading at all.
+func numberPattern() *regexp.Regexp {
+	return regexp.MustCompile(`^(?:\d+|[a-z]\.\d+)(?:\.\d+)*`)
 }
 
 // sectionName returns the section an anchor names, or "" if it names none.
 //
-// Extracted because sectionOnly and sectionNamed must agree on where a section name ends,
+// Extracted because sectionOnly and sectionOnlyDiagnostic must agree on where a section name ends,
 // and they did not: sectionOnly cuts at the colon, so it reads `§Errors:` as naming
 // "Errors", while a second spelling here read the name as "Errors:" and reported a heading
 // that exists as missing. Two spellings of one question is how one check starts contradicting
@@ -57,38 +163,96 @@ func sectionName(anchor string) string {
 	return strings.TrimSpace(name)
 }
 
-// sectionNamed reports whether the section an anchor names is a heading in source.
+// wholeSectionName returns everything an anchor writes after its `§`, trimmed, or "" if it
+// has no `§`.
 //
-// A section-only anchor is not searched for its text -- there is none -- so until this it
-// was reported advisory and believed. But the section it names is a checkable claim: a
-// source's headings are enumerable, and *does this heading exist* is answerable. Batch 4
-// showed the answer already drifting, with one anchor of nine naming `§3. Use a shared mock
-// subpackage` where its source has `## #3. ...`.
+// sectionName's reading is cut at the first colon, which is right for the paraphrase shape
+// `§Errors: every method takes ctx first` and wrong for a heading that carries a colon of its
+// own: `§Datalog: Recursive Relational Queries` names that whole heading. Only the source can
+// tell the two apart, so this is the reading headingOnly tests against it.
 //
-// The headings come from markdown.Sections rather than a scan for `#` lines here. A second
-// parser would disagree with the kernel's on setext headings and on `#` inside fenced code,
-// and canonizer would then report a fabrication that skillet's own reader does not see.
-//
-// Requires: anchor is section-only, which is the only state where it is asked.
-// Ensures:  false when anchor names no section; it is pure.
-func sectionNamed(anchor string, sources []string) bool {
-	name := sectionName(anchor)
-	if name == "" {
-		return false
+// Ensures: the result never starts with `§`; it is pure.
+func wholeSectionName(anchor string) string {
+	rest, found := strings.CutPrefix(strings.TrimSpace(anchor), "§")
+	if !found {
+		return ""
 	}
-	want := headingKey(name)
-	for i := range sources {
-		for _, s := range markdown.Parse(sources[i]).Sections {
-			if headingKey(s.Title) == want {
-				return true
-			}
-		}
-	}
-	return false
+	return strings.TrimSpace(rest)
 }
 
-// sectionDiagnostic reports on a section-only anchor: that the section it names is not in
-// the source, or failing that, that its provenance went unsearched.
+// sectionOnlyName returns the section name of an anchor that names a section and quotes
+// nothing, and whether the anchor is that shape.
+//
+// The whole text after `§` is tried against the sources first, for the case sectionOnly
+// cannot see. sectionOnly reads anything after a colon as a paraphrase to search for, so an
+// anchor citing a colon-bearing heading whole was searched as text, `§` included, and
+// reported as a blocking anchor-absent against a source that has that very heading. The
+// corpus held no such anchor when this was written; the shape is the natural citation of
+// `## Datalog: Recursive Relational Queries`, so it was fixed before one appeared.
+//
+// **That reading asks the source, which sectionOnly deliberately does not.** It keeps
+// sectionOnly a question about the anchor's text, as Scope needs it. An anchor carrying a
+// quotation is never section-only: it has text to search.
+//
+// Ensures: false for an anchor without `§` or with a quotation; it is pure.
+func sectionOnlyName(anchor string, sources []indexedSource) (string, bool) {
+	if firstDelimited(anchor, '"') != "" || firstDelimited(anchor, '`') != "" {
+		return "", false
+	}
+	if whole := wholeSectionName(anchor); whole != "" {
+		if named, _ := namedOnce(whole, sources); named {
+			return whole, true
+		}
+	}
+	if sectionOnly(anchor) {
+		return sectionName(anchor), true
+	}
+	return "", false
+}
+
+// namedOnce reports whether any source has a section the name names, and whether some
+// source has exactly one.
+//
+// The second is the ambiguity rule for an anchor with no quotation to settle it: `§Example`
+// against a book with an Example under every chapter points nowhere in particular. A
+// quotation anchor needs no such rule, because the quotation picks the section.
+//
+// Ensures: unique implies named; it is pure.
+func namedOnce(name string, sources []indexedSource) (named, unique bool) {
+	for i := range sources {
+		count := len(namedSections(name, sources[i].sections))
+		if count == 1 {
+			return true, true
+		}
+		named = named || count > 1
+	}
+	return named, false
+}
+
+// allHeadingless reports whether no source has the two headings citing by section needs.
+//
+// Ensures: true for no sources; it is pure.
+func allHeadingless(sources []indexedSource) bool {
+	for i := range sources {
+		if len(sources[i].sections) >= 2 {
+			return false
+		}
+	}
+	return true
+}
+
+// sectionOnlyDiagnostic returns the finding for an anchor that names a section and quotes
+// nothing, and whether the anchor is that shape at all.
+//
+// Provenance and Drift both call this, so the two cannot disagree about what a section
+// reference is or what is said about it. They did: Drift reported every section-only anchor
+// as unsearched without checking that the section it names exists, so a ruleset verified
+// against a proof packet never heard about a misnamed section that the same ruleset without
+// one was told about.
+//
+// The source state is deliberately not a parameter: a section reference is equally
+// unsearchable whether the source moved or not, so reporting drift or staleness on it would
+// invent a distinction from a comparison that never ran.
 //
 // One finding per rule rather than both, the convention the specificity checks set. The
 // unknown-section report is strictly the more informative of the two -- a reader told the
@@ -102,14 +266,29 @@ func sectionNamed(anchor string, sources []string) bool {
 // checker. **Make it blocking once this normalisation has met a second corpus without a
 // false positive** -- the expiry Limitations shipped with, and for the same reason.
 //
-// Ensures: exactly one diagnostic, always finding.SeverityWarning; it is pure.
-func sectionDiagnostic(r *ruleset.Rule, sources []string) finding.Diagnostic {
-	if !sectionNamed(r.SourceAnchor, sources) {
+// Ensures: when true, the diagnostic is finding.SeverityWarning; it is pure.
+func sectionOnlyDiagnostic(
+	r *ruleset.Rule, sources []indexedSource,
+) (finding.Diagnostic, bool) {
+	name, ok := sectionOnlyName(r.SourceAnchor, sources)
+	if !ok {
+		return finding.Diagnostic{}, false
+	}
+	named, unique := namedOnce(name, sources)
+	switch {
+	case !named && allHeadingless(sources):
+		return advisory(r, CategoryAnchorSectionHeadingless,
+			"anchor names a section of a source too short of headings to cite by section; "+
+				"quote the passage instead"), true
+	case !named:
 		return advisory(r, CategoryAnchorSectionUnknown,
 			"anchor names a section the source has no heading for; the rule may still be "+
-				"sound, but nothing here points at where it came from")
+				"sound, but nothing here points at where it came from"), true
+	case !unique:
+		return advisory(r, CategoryAnchorSectionAmbiguous,
+			"anchor names a section that more than one heading has, and quotes nothing to "+
+				"say which"), true
+	default:
+		return advisory(r, CategoryAnchorSectionOnly, sectionOnlyMessage), true
 	}
-	return advisory(r, CategoryAnchorSectionOnly,
-		"anchor names a section and quotes nothing, so provenance cannot be "+
-			"confirmed or refuted from the source text")
 }

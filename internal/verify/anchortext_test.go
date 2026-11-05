@@ -11,8 +11,10 @@ import (
 func TestAnAnchorMayQuoteWithBackticks(t *testing.T) {
 	t.Parallel()
 
-	const source = "We declare `FindDialByID(ctx context.Context, id int) (*Dial, error)` " +
-		"on the service, and callers must `defer rows.Close()` after every query."
+	// Headed by the sections the anchors name, since a section name is checked too.
+	const source = "## Abstracting\n\n" +
+		"We declare `FindDialByID(ctx context.Context, id int) (*Dial, error)` on the service.\n\n" +
+		"## Helper methods\n\nOn every path, callers must `defer rows.Close()` after every query."
 
 	cases := []struct {
 		name   string
@@ -28,10 +30,11 @@ func TestAnAnchorMayQuoteWithBackticks(t *testing.T) {
 		want:   verify.CategoryAnchorAbsent,
 	}, {
 		// The section prefix is not part of the quotation, and searching for it along with
-		// the span is the defect the prefix fix corrected for double quotes.
+		// the span is the defect the prefix fix corrected for double quotes. The quotation
+		// is found; the name is checked on its own and reported advisory, never absent.
 		name:   "the section prefix is not searched",
 		anchor: "§A Section That Appears Nowhere: `defer rows.Close()`",
-		want:   "",
+		want:   verify.CategoryAnchorSectionUnknown,
 	}, {
 		// Backticks nest inside the quotation, so the outer delimiter bounds the passage.
 		name:   "double quotes win over backticks when an anchor carries both",
@@ -65,34 +68,40 @@ func TestPairedEmphasisIsFoldedAndSingleMarkersAreNot(t *testing.T) {
 		source string
 		anchor string
 		want   string
-	}{{
-		name:   "an anchor quoting rendered text meets bold markers in the source",
-		source: "Name the package after the database __only__, never the application.",
-		anchor: `§Naming: "Name the package after the database only"`,
-		want:   "",
-	}, {
-		name:   "asterisk bold folds the same way",
-		source: "Name the package after the database **only**, never the application.",
-		anchor: `§Naming: "Name the package after the database only"`,
-		want:   "",
-	}, {
-		name:   "an anchor that quoted the markers verbatim still matches",
-		source: "Name the package after the database __only__, never the application.",
-		anchor: `§Naming: "the database __only__, never"`,
-		want:   "",
-	}, {
-		// The measured hazard: `_memberships FROM dial_` is a legal single-marker pair, so
-		// folding every run would corrupt both sides of this and break the match.
-		name:   "a snake_case identifier is left alone",
-		source: "Filter with `id IN (SELECT dial_id FROM dial_memberships WHERE user_id = ?)`.",
-		anchor: "§Filters: `id IN (SELECT dial_id FROM dial_memberships WHERE user_id = ?)`",
-		want:   "",
-	}, {
-		name:   "a mismatched pair is not emphasis and is not folded",
-		source: "The value is **text__ in the source, oddly enough.",
-		anchor: `§Odd: "The value is **text__ in the source"`,
-		want:   "",
-	}}
+	}{
+		{
+			name:   "an anchor quoting rendered text meets bold markers in the source",
+			source: "## Naming\n\nName the package after the database __only__, never the application.",
+			anchor: `§Naming: "Name the package after the database only"`,
+			want:   "",
+		},
+		{
+			name:   "asterisk bold folds the same way",
+			source: "## Naming\n\nName the package after the database **only**, never the application.",
+			anchor: `§Naming: "Name the package after the database only"`,
+			want:   "",
+		},
+		{
+			name:   "an anchor that quoted the markers verbatim still matches",
+			source: "## Naming\n\nName the package after the database __only__, never the application.",
+			anchor: `§Naming: "the database __only__, never"`,
+			want:   "",
+		},
+		{
+			// The measured hazard: `_memberships FROM dial_` is a legal single-marker pair, so
+			// folding every run would corrupt both sides of this and break the match.
+			name:   "a snake_case identifier is left alone",
+			source: "## Filters\n\nFilter with `id IN (SELECT dial_id FROM dial_memberships WHERE user_id = ?)`.",
+			anchor: "§Filters: `id IN (SELECT dial_id FROM dial_memberships WHERE user_id = ?)`",
+			want:   "",
+		},
+		{
+			name:   "a mismatched pair is not emphasis and is not folded",
+			source: "## Odd\n\nThe value is **text__ in the source, oddly enough.",
+			anchor: `§Odd: "The value is **text__ in the source"`,
+			want:   "",
+		},
+	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

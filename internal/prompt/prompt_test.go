@@ -151,3 +151,54 @@ func TestSynthesisReconcilesSeverityOnlyAcrossInputs(t *testing.T) {
 		})
 	}
 }
+
+// TestTemplatesTeachTheAnchorSectionConvention pins the instructions that match what verify
+// now checks: a section name must be a heading the source has, with the quotation under it.
+// Measured before they existed, 30 anchors cited slide titles against a transcript and 17
+// prefixed headings with section numbers the source does not print.
+func TestTemplatesTeachTheAnchorSectionConvention(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		template string
+		want     string
+	}{
+		"distill: the name is a real heading over the quotation": {
+			template: prompt.Distill,
+			want: "The section name must be a heading the source actually has, and the " +
+				"quotation must sit under it.",
+		},
+		"distill: no invented numbers or titles": {
+			template: prompt.Distill,
+			want:     "Never add a number, a chapter or a slide title the heading does not carry, except as the first part of such a path",
+		},
+		"distill: no section name for a source without headings": {
+			template: prompt.Distill,
+			want:     "When the source has fewer than two headings",
+		},
+		"distill: the allowed path form": {
+			template: prompt.Distill,
+			want:     "joined by ` / ` (`§Chapter 5 / Example`)",
+		},
+		"distill: a sidebar under a numbered section, as a path": {
+			template: prompt.Distill,
+			want:     "as a path (`§11.2 / Why OAuth isn't usually enough`)",
+		},
+		"synthesize: anchors are carried verbatim": {
+			template: prompt.Synthesize,
+			want:     "An anchor is carried verbatim, including its section name",
+		},
+		"rework: fix the section name, not the quotation": {
+			template: prompt.Rework,
+			want:     "the quotation is right and the section name is wrong",
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			flat := strings.Join(strings.Fields(c.template), " ")
+			if !strings.Contains(flat, c.want) {
+				t.Errorf("template no longer says %q", c.want)
+			}
+		})
+	}
+}

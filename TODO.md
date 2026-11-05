@@ -2678,10 +2678,84 @@ An advisory firing on 7 of 14 rulesets, mostly over style, fails the precision b
 `Unquantified` set. It would also answer the wrong question: a heading that exists but is
 not the one above the quotation passes.
 
-- [ ] **skillet: expose each `markdown.Section`'s span** (its byte or line range), so
+- [x] **skillet: expose each `markdown.Section`'s span** (its byte or line range), so
       canonizer can ask whether a quotation sits *under* the heading its anchor names,
       without the second parser `sectionNamed` exists to avoid.
-- [ ] **Decide the anchor section-name convention** before building the check: whether
+      DONE in skillet v0.37.0 (skillet #34), which canonizer now requires.
+      `Section.Start` and `Section.End` are the half-open byte range `[Start, End)` in the
+      body, from the heading's line to the next heading of the same or higher level, so
+      sub-sections are included. Nothing in canonizer reads them yet; the check waits on
+      the convention below.
+- [x] **Decide the anchor section-name convention** before building the check: whether
       a name may be a prefix of a colon-bearing heading, whether `A / B` paths are allowed
       and resolve to the last component, and how a heading-less source (a transcript) is
       cited. Then teach the distill prompt that convention, and only then measure again.
+      DECIDED 2026-11-04. Vocabulary: the anchor writes a **section name**, the source has
+      **headings**, a **section** is a heading with the bytes it governs (sub-sections
+      included), and the **quotation** is what `anchorText` returns.
+      - **A. Colon headings.** A section name is a heading's full text, or a prefix of it
+        that ends at one of the heading's own colons (`§Chapter 4` names `Chapter 4: Risk`).
+        With a quotation, any section so named that contains the quotation satisfies the
+        anchor, so a shared prefix is resolved by the quotation. Without one, the name must
+        name exactly one heading in some source, or it is `anchor-section-ambiguous`.
+      - **B. Paths.** `A / B / C`, with spaces around each slash, names C under B under A.
+        Each component need only be an *ancestor* of the next, so levels may be skipped. The
+        whole name is tried as one heading first, because a heading can contain ` / `.
+        A name with no separator that opens with a section number and names no heading is
+        read as the path from that number: `§11.2 Why OAuth isn't usually enough` is
+        `§11.2 / Why OAuth isn't usually enough`, the form the distill prompt teaches.
+        Added 2026-11-04 for books that number main headings and not the sidebars under
+        them; checking the number, rather than ignoring it, keeps a wrong one reported. A
+        section number may be an appendix's (`B.6`), but a letter alone is not one.
+      - **C. Sources without useful headings** (fewer than two). Quote, and write no `§`.
+        A `§` name that is not a heading of such a source is reported as
+        `anchor-section-headingless` instead of `anchor-section-unknown`, which says what
+        to do about it. A `§` name that *is* its heading is a true citation and is not
+        reported: narrowed from the first draft, which flagged every `§` against such a
+        source and so would have reported true citations.
+      - **D. Specificity.** Any section containing the quotation is credited, the title
+        included. **Tried and dropped 2026-11-04.** The rule set the title aside, since it
+        contains every quotation and so seems to say nothing. It reported 4 anchors on the
+        kb corpus, all in learn-go-with-tests, and all 4 were the checker being wrong: that
+        source is one file per chapter, so a chapter's H1 title is exactly what tells a
+        reader which of 30-odd files to open. Building it also showed a second hazard: a
+        section-only anchor citing a title-level colon heading lost its heading reading and
+        went back to the blocking paraphrase reading, so any future specificity rule must
+        apply only to quotation anchors.
+      - **E. Edge cases.** A quotation before the first heading takes no `§`. Every elision
+        fragment must lie in the one cited section. A quotation appearing more than once is
+        placed if any occurrence is in the cited section. Across sources, the anchor is
+        placed if any source places it: a synthesized ruleset's anchors do not record
+        which source they came from.
+      Every category is advisory, with the expiry `anchor-section-unknown` carries.
+- [x] **Build the quotation-under-heading check.** DONE 2026-11-04, advisory only: new
+      categories `anchor-section-mismatch`, `anchor-section-ambiguous` and
+      `anchor-section-headingless`, beside the existing `anchor-section-unknown`. Section-only
+      anchors use the same resolver, so colon prefixes and paths apply to both shapes.
+      Measured on the 14 kb rulesets: 0 blocking findings before and after, and the run takes
+      9 seconds rather than 22, because each source is now parsed and folded once per check
+      rather than once per anchor. The 67 advisories, read by hand:
+
+      | class                                                      | category    | count | verdict          |
+      | ---------------------------------------------------------- | ----------- | ----: | ---------------- |
+      | slide titles cited against the rich_hickey transcript       | headingless |    30 | breaks rule C    |
+      | a section number the authorization headings do not carry    | unknown     |    17 | see below        |
+      | headings the kleppmann and measureanything conversions lost | unknown     |    11 | source defect    |
+      | a sibling of the section the quotation is in                | mismatch    |     8 | wrong citation   |
+      | a heading lost in conversion (kleppmann)                    | mismatch    |     1 | source defect    |
+
+      The first run also reported 53 cli anchors against headings they named exactly: clig.dev
+      ends each heading with a `{#id}` attribute block, which `headingKey` now drops. After
+      that fix, none of the 67 is the checker misreading a citation.
+
+      **The 17 authorization anchors were mostly right, in a shape the convention lacked.**
+      13 joined the enclosing numbered section's number to an unnumbered sidebar heading
+      inside it, which is more precise than either part alone; 2 used the number of a
+      section the heading is not in; 2 abbreviated a numbered heading. Reading the joined
+      form as a path from the number, and accepting appendix numbers, places the 13, reports
+      the 2 wrong numbers as `anchor-section-mismatch`, and leaves the 2 abbreviations as
+      `anchor-section-unknown`. That takes the total from 67 advisories to 54.
+- [x] **Teach the distill prompt the convention.** DONE 2026-11-04 in rule 9, with the
+      synthesis and rework prompts carrying and correcting section names to match.
+- [ ] **Re-distill rich_hickey and event_source** and measure the prompt's effect on its
+      own. rich_hickey's 30 slide-title citations are the clearest target.

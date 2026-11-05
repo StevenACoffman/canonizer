@@ -321,6 +321,21 @@ Before submitting, confirm each rule satisfies all of the following:
    quote, and picking one anyway produces something that *looks* verbatim while being worse
    provenance than naming where it came from. Such an anchor is reported as provenance not
    searched, which is accurate — it is not counted against the ruleset.
+   **The section name must be a heading the source actually has, and the quotation must sit
+   under it.** Both are checked. Name the nearest heading that contains every part of the
+   quotation, written as the source writes it, minus any `{#id}` block at its end. Four
+   shortenings are allowed and nothing else: a heading that has its own colon may be cut at
+   that colon (`§Chapter 4` for `## Chapter 4: Risk`); a heading that repeats may be given
+   with the headings above it, joined by ` / ` (`§Chapter 5 / Example`); a bare section
+   number may stand for the heading numbered exactly that (`§5.2.5`, never `§5.2` for it);
+   and an unnumbered heading inside a numbered section may be given after that section's
+   number, as a path (`§11.2 / Why OAuth isn't usually enough`). Never add a number, a
+   chapter or a slide title the heading does not carry, except as the first part of such a
+   path, and then only the number of the section the heading is actually in. **When the
+   source has fewer than two headings** (a transcript, a short note), there is no section to
+   name: quote the sentence and leave out `§` entirely — `↦  "the source's own words"`. The
+   section-only form is not available for such a source, so a rule that cannot be tied to one
+   sentence of it should be left out.
 
 Revise or drop any rule that fails. Do not pad the ruleset to appear
 comprehensive.

@@ -93,7 +93,9 @@ func TestASymbolNamingStatementCanStillHedge(t *testing.T) {
 // verbatim.
 func TestAnchorMatchesTheQuotedSpan(t *testing.T) {
 	t.Parallel()
-	const source = "In practice we define our services with an interface in the root package."
+	// Headed by the section the anchors name, since a section name is checked too.
+	const source = "## The interface\n\n" +
+		"In practice we define our services with an interface in the root package."
 	cases := map[string]struct {
 		anchor    string
 		wantFound bool
