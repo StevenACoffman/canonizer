@@ -66,7 +66,9 @@ convention the prompt cannot enforce, which is why it is stated here.
 The template defaults to a built-in prompt; pass --template to use your own. The
 template must contain the {{SOURCE_CONTENT}} and {{DESTINATION_CONTENT}}
 placeholders, which are validated before any file is written. Files named
-*_rules.md, *_prompt.md, and hidden directories are skipped.`,
+*_rules.md, *_prompt.md, and hidden directories are skipped, and so is the index gnosis
+split writes beside a book's parts (a file whose frontmatter opens with
+gnosis_split_index:): it lists the parts and holds none of the book.`,
 		Flags: cfg.Flags,
 		Exec:  cfg.exec,
 	}
