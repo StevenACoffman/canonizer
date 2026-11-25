@@ -13,6 +13,7 @@
 package distillgen
 
 import (
+	"bytes"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -22,6 +23,13 @@ import (
 	skdistill "github.com/StevenACoffman/skillet/ruleset/distill"
 	errors "github.com/StevenACoffman/toerr/errors"
 )
+
+// splitIndexMarker opens the frontmatter of the index gnosis split writes beside a book's
+// parts. That file lists the parts and holds none of the book, so distilling it would
+// either find nothing or re-read the whole book through its links. gnosis's SPEC §4.3.3
+// owns the format; canonizer depends on this one key and nothing else, which is a
+// deliberate one-way coupling by data, not by import.
+const splitIndexMarker = "---\ngnosis_split_index:"
 
 // generator accumulates the prompts written while walking a source tree.
 type generator struct {
@@ -46,9 +54,10 @@ type generator struct {
 // exists to produce.
 //
 // Requires: tmpl carries both placeholders; sourceRoot exists.
-// Ensures:  one prompt per source file, skipping *_rules.md, *_prompt.md and hidden
+// Ensures:  one prompt per source file, skipping *_rules.md, *_prompt.md, gnosis split
 //
-//	directories; the template is validated once before any file is written.
+//	indexes and hidden directories; the template is validated once before any file
+//	is written.
 func Generate(tmpl, sourceRoot, promptOut, rulesOut string) ([]string, error) {
 	if _, err := skdistill.FillTemplate(tmpl, "", ""); err != nil {
 		return nil, errors.Wrap(err)
@@ -88,6 +97,13 @@ func (g *generator) walk(path string, d fs.DirEntry, err error) error {
 		return nil
 	}
 	if !isSource(path, d) {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return errors.WrapWithMessage(err, "distill: read source")
+	}
+	if isSplitIndex(data) {
 		return nil
 	}
 	written, genErr := g.one(path)
@@ -139,6 +155,11 @@ func isSource(path string, d fs.DirEntry) bool {
 		strings.HasSuffix(path, ".md") &&
 		!strings.HasSuffix(path, "_rules.md") &&
 		!strings.HasSuffix(path, "_prompt.md")
+}
+
+// isSplitIndex reports whether data is an index gnosis split wrote, rather than a source.
+func isSplitIndex(data []byte) bool {
+	return bytes.HasPrefix(data, []byte(splitIndexMarker))
 }
 
 // link builds a Markdown link to target relative to base, with forward slashes so the

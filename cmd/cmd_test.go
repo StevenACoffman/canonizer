@@ -77,6 +77,27 @@ func TestDistillWritesPromptPerSource(t *testing.T) {
 	}
 }
 
+func TestDistillSkipsAGnosisSplitIndex(t *testing.T) {
+	t.Parallel()
+	src, out := t.TempDir(), t.TempDir()
+	writeFile(t, filepath.Join(src, "book-01-one.md"), "# One\n\nadvice about one\n")
+	writeFile(t, filepath.Join(src, "book-00-index.md"),
+		"---\ngnosis_split_index:\n  source: book.md\n---\n\n# Parts of book.md\n\n"+
+			"1. [One](book-01-one.md)\n")
+
+	stdout, err := run(t, "distill", "--source", src, "--out", out)
+	if err != nil {
+		t.Fatalf("distill: %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(out, "book-01-one_prompt.md")); statErr != nil {
+		t.Errorf("the part was not distilled: %v", statErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(out, "book-00-index_prompt.md")); statErr == nil ||
+		strings.Contains(stdout, "index") {
+		t.Errorf("the split index was distilled as a source: %q", stdout)
+	}
+}
+
 func TestDistillRequiredFlags(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
